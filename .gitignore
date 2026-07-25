@@ -9,6 +9,12 @@ dist/
 .venv/
 .deps/
 
+# 含明文 API key 的本地测试脚本 / 机密
+api_test.py
+api_test_compat.py
+.env
+.env.*
+
 # pytest
 .pytest_cache/
 .coverage
