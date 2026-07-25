@@ -12,6 +12,9 @@ from .rules import RuleEngine, RuleCheckResult
 from .action_parser import ActionParser, ParseError
 from .transition import TransitionProposer
 from .patch_validator import validate_patch, PatchCheckResult
+from .narrative import NarrativeGenerator
+from .narrative_consistency import check_narrative, NarrativeCheckResult
+from .turn import TurnPipeline, TurnResult
 
 __all__ = [
     "apply_patch",
@@ -25,4 +28,9 @@ __all__ = [
     "TransitionProposer",
     "validate_patch",
     "PatchCheckResult",
+    "NarrativeGenerator",
+    "check_narrative",
+    "NarrativeCheckResult",
+    "TurnPipeline",
+    "TurnResult",
 ]

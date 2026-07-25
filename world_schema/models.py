@@ -52,6 +52,10 @@ class CharacterBelief(AllowExtra):
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     source_type: str = "unknown"  # observation / hearsay / inference / secret
     source_event_id: Optional[str] = None
+    # 该事实的中文/可读关键词，用于认知泄漏检测。
+    # 例: fact_id=fact_qingqing_poisoned_tea -> keywords=["下毒","毒茶"]
+    # 留空则审查器从 fact_id 粗略提取 (对中文效果差)。
+    keywords: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -308,3 +312,37 @@ class WorldEvent(AllowExtra):
     previous_version: int = 0
     new_version: int = 1
     summary: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Narrative: 已发生事实的可读化表现 (Observation 层)
+# ---------------------------------------------------------------------------
+
+
+class DialogueLine(BaseModel):
+    """一句对白。speaker 必须是已存在且存活的角色。"""
+
+    speaker_id: str
+    line: str
+    tone: str = ""  # 语气: 冷淡/愤怒/嘲讽...
+    to_id: Optional[str] = None  # 对谁说
+
+    class Config:
+        extra = "forbid"
+
+
+class NarrativeOutput(BaseModel):
+    """叙事生成结果。把已提交的 WorldEvent 翻译成玩家可读的内容。
+
+    这是"表现层"的数据契约: 前端按 narration/dialogues/system_hints 渲染。
+    所有内容必须忠于已提交状态，不得违反角色认知。
+    """
+
+    narration: str = ""  # 旁白: 描写发生了什么
+    dialogues: List[DialogueLine] = Field(default_factory=list)
+    system_hints: List[str] = Field(default_factory=list)  # 系统提示: 如"夜清清对你起了疑心"
+    viewpoint: str = "third_person"  # 视角: third_person / character_id
+
+    class Config:
+        extra = "forbid"
+
