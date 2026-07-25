@@ -9,6 +9,7 @@
 from .patch import apply_patch, PatchError
 from .event import commit_event, replay_events
 from .rules import RuleEngine, RuleCheckResult
+from .action_parser import ActionParser, ParseError
 
 __all__ = [
     "apply_patch",
@@ -17,4 +18,6 @@ __all__ = [
     "replay_events",
     "RuleEngine",
     "RuleCheckResult",
+    "ActionParser",
+    "ParseError",
 ]

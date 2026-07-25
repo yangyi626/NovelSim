@@ -22,3 +22,7 @@ packages = ["world_schema", "engine"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "llm: 真实调用 LLM 的测试 (默认跳过，用 -m llm 单独运行)",
+]
+addopts = "-m 'not llm'"
