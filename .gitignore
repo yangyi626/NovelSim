@@ -21,3 +21,4 @@ htmlcov/
 # OS
 Thumbs.db
 .DS_Store
+get-pip.py
