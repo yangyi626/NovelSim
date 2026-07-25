@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-transmigration"
+version = "0.0.1"
+description = "AI 快穿系统：把线性小说编译为可交互、可演化、可回放的世界。"
+requires-python = ">=3.8"
+dependencies = [
+    "pydantic>=1.10,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+]
+
+[tool.setuptools]
+packages = ["world_schema", "engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
