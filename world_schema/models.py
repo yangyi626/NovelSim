@@ -269,6 +269,7 @@ class Operation(BaseModel):
     source_type: Optional[str] = None  # update_belief: observation/hearsay/inference/secret
     tags: Optional[List[str]] = None  # change_identity
     fact_id: Optional[str] = None
+    reason: str = ""  # 该操作的理由 (便于审查/调试，LLM 产出时填写)
 
     class Config:
         extra = "forbid"  # Operation 必须严格受控

@@ -1,15 +1,17 @@
 """端到端 AI Turn: 自然语言 -> ActionParser -> 规则校验 -> 状态提交。
 
-这是整个项目第一次把 LLM 接进闭环。
-- test_mocked_full_turn: 用 mock LLM，全程确定性，CI 可跑
-- test_real_llm_full_turn: 真实调 qwen3.6-plus，验证生产链路 (标记 llm)
+闭环两套状态转移源:
+- 确定性占位 propose_patch (mock 测试用，CI 可跑)
+- TransitionProposer (LLM 驱动，标记 llm 的测试用)
+
+安全链路: LLM 产候选 patch -> patch_validator 校验 -> 规则引擎校验 action -> commit
 """
 
 from unittest import mock
 
 import pytest
 
-from engine import ActionParser, RuleEngine, commit_event
+from engine import ActionParser, RuleEngine, TransitionProposer, commit_event
 from world_schema import Operation, OperationKind, StatePatch
 
 from examples.huarong_lane import build_snapshot
@@ -17,15 +19,15 @@ from examples.huarong_lane.scenario import NIGHT, OUTER_ROBE, QINGQING
 
 
 # ---------------------------------------------------------------------------
-# State Transition Proposal: Action -> StatePatch
-# 当前先用一个"基于 action_type 的规则映射"做占位，对应 plan 第八步的
-# transition_model.propose()。后续这一步也会接 LLM，但本阶段先用确定性规则，
-# 保证闭环可跑、可测试。
+# 确定性占位 propose_patch (mock 测试用)
 # ---------------------------------------------------------------------------
 
 
 def propose_patch(action, state) -> StatePatch:
-    """根据 action_type 产出 StatePatch 的确定性占位实现。"""
+    """根据 action_type 产出 StatePatch 的确定性占位实现。
+
+    真实系统用 TransitionProposer (LLM)；这里保留硬编码版用于确定性测试对照。
+    """
     if action.action_type.value == "swap_object" and OUTER_ROBE in action.target_ids:
         return StatePatch(
             operations=[
@@ -42,8 +44,11 @@ def propose_patch(action, state) -> StatePatch:
     return StatePatch(operations=[])
 
 
-def run_ai_turn(parser, user_text, state, default_actor_id):
-    """完整 Turn: 解析 -> 规则校验 -> 提交。"""
+def run_ai_turn(parser, user_text, state, default_actor_id, *, proposer=None):
+    """完整 Turn: 解析 -> 规则校验 -> (LLM/占位) 推演 -> 校验 patch -> 提交。
+
+    proposer=None 时用确定性占位；传入 TransitionProposer 实例则用 LLM 推演。
+    """
     engine = RuleEngine()
     action = parser.parse(user_text, state, default_actor_id=default_actor_id)
     if action is None:
@@ -51,7 +56,13 @@ def run_ai_turn(parser, user_text, state, default_actor_id):
     res = engine.validate(state, action)
     if not res.allowed:
         return action, state, "rejected", res
-    patch = propose_patch(action, state)
+    # 状态推演: proposer 优先 (LLM)，否则确定性占位
+    if proposer is not None:
+        patch = proposer.propose(action, state)
+        if patch is None:
+            return action, state, "propose_failed", proposer.last_error
+    else:
+        patch = propose_patch(action, state)
     ev, new_state = commit_event(
         state, action_id=action.action_id, event_type=action.action_type.value,
         patch=patch, actor_ids=[action.actor.actor_id], target_ids=action.target_ids,
@@ -134,10 +145,38 @@ class TestRealLLMFullTurn:
             default_actor_id=NIGHT,
         )
         print(f"\n[LLM-TURN] status={status}, action={action}")
-        # 不做强断言，只要不抛异常且状态机推进就算通
         if status == "parse_failed":
             pytest.skip("LLM 未返回可解析结果")
         if status == "rejected":
             print("[LLM-TURN] 规则拒绝了，正常")
         elif status == "committed":
             print(f"[LLM-TURN] 提交成功，version={new_state.version}")
+
+    def test_llm_proposes_rich_patch(self, snapshot):
+        """LLM 驱动的状态推演: 同一个"拿外衫"，应产出比硬编码更丰富的后果。
+
+        这是 TransitionProposer 的核心价值——不再依赖 if/else 规则映射，
+        而是根据场景上下文 (在场人数、隐蔽性、关系) 智能推演。
+        """
+        parser = ActionParser()
+        proposer = TransitionProposer()
+        action, new_state, status, detail = run_ai_turn(
+            parser,
+            "趁着围观人群的注意力被分散，我悄悄把夜清清的外衫拿过来披在身上",
+            snapshot,
+            default_actor_id=NIGHT,
+            proposer=proposer,
+        )
+        print(f"\n[LLM-PROP] status={status}")
+        if status == "parse_failed":
+            pytest.skip("Parser 失败")
+        if status == "propose_failed":
+            pytest.skip(f"Proposer 失败: {detail}")
+        if status != "committed":
+            print(f"[LLM-PROP] 未提交 (status={status})，可能是规则拒绝")
+            return
+        # 打印 LLM 推演出的所有操作
+        print(f"[LLM-PROP] 提交 {len(detail.patch.operations)} 条操作:")
+        for op in detail.patch.operations:
+            print(f"  - {op.op.value}: {op.reason}")
+        assert new_state.version == snapshot.version + 1

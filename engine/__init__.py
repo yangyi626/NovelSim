@@ -10,6 +10,8 @@ from .patch import apply_patch, PatchError
 from .event import commit_event, replay_events
 from .rules import RuleEngine, RuleCheckResult
 from .action_parser import ActionParser, ParseError
+from .transition import TransitionProposer
+from .patch_validator import validate_patch, PatchCheckResult
 
 __all__ = [
     "apply_patch",
@@ -20,4 +22,7 @@ __all__ = [
     "RuleCheckResult",
     "ActionParser",
     "ParseError",
+    "TransitionProposer",
+    "validate_patch",
+    "PatchCheckResult",
 ]
