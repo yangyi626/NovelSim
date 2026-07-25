@@ -28,3 +28,6 @@ htmlcov/
 Thumbs.db
 .DS_Store
 get-pip.py
+
+# 编译产出的 WorldPackage (产物，不纳入版本控制；保留 README)
+worlds/*.json

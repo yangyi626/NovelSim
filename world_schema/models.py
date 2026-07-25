@@ -185,6 +185,8 @@ class WorldState(AllowExtra):
     locations: Dict[str, Location] = Field(default_factory=dict)
     relations: List[CharacterRelation] = Field(default_factory=list)
     beliefs: Dict[str, List[CharacterBelief]] = Field(default_factory=dict)
+    # 角色 Agent 内在状态 (plan 第八步)。空 dict = 该世界未启用自主 NPC。
+    character_psyches: Dict[str, "CharacterPsyche"] = Field(default_factory=dict)
     plot: Dict[str, PlotArc] = Field(default_factory=dict)
     rules: List[Rule] = Field(default_factory=list)
     world_rules: List[WorldRule] = Field(default_factory=list)
@@ -253,6 +255,8 @@ class OperationKind(str, Enum):
     start_plot = "start_plot"
     advance_plot = "advance_plot"
     complete_plot = "complete_plot"
+    update_psyche = "update_psyche"  # 改 character_psyches[x]: 情绪/感知
+    advance_plan = "advance_plan"  # 角色计划推进一步
 
 
 class Operation(BaseModel):
@@ -274,6 +278,12 @@ class Operation(BaseModel):
     tags: Optional[List[str]] = None  # change_identity
     fact_id: Optional[str] = None
     reason: str = ""  # 该操作的理由 (便于审查/调试，LLM 产出时填写)
+    # ---- 角色 Agent 专用 (update_psyche / advance_plan) ----
+    emotion: Optional[str] = None  # 新情绪标签
+    intensity: Optional[float] = None  # 情绪强度 0-1
+    perception: Optional[str] = None  # 新增感知摘要 (append 到 recent_perceptions)
+    plan_id: Optional[str] = None  # advance_plan 的目标计划
+    step_delta: Optional[int] = None  # advance_plan 推进步数 (默认 +1)
 
     class Config:
         extra = "forbid"  # Operation 必须严格受控
@@ -345,4 +355,92 @@ class NarrativeOutput(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+# ---------------------------------------------------------------------------
+# 角色 Agent: 人格 / 目标 / 计划 (plan 第八步)
+# ---------------------------------------------------------------------------
+
+
+class AgentGoal(AllowExtra):
+    """角色的一个目标。Utility 决策会对活跃目标打分。
+
+    priority 是初始权重 (可在剧情中调整)；achieved=True 后调度器跳过。
+    """
+
+    goal_id: str
+    description: str  # 人话目标: "除掉夜轻歌、上位嫁小王爷"
+    priority: float = Field(0.5, ge=0.0, le=1.0)
+    target_ids: List[str] = Field(default_factory=list)  # 目标针对谁
+    achieved: bool = False
+
+
+class AgentPlan(AllowExtra):
+    """角色当前的计划 (简化为有序步骤)。对应 plan 第八节 "当前计划 Plan"。
+
+    本阶段是单一线性计划；后续可升级为多分支目标树。
+    """
+
+    plan_id: str
+    goal_id: str
+    steps: List[str] = Field(default_factory=list)  # 人话步骤，如 ["先示弱","寻机陷害"]
+    current_step: int = 0  # 指向 steps 索引
+    status: str = "active"  # active / paused / completed / abandoned
+
+
+class CharacterPsyche(AllowExtra):
+    """角色 Agent 的内在状态: 人格 + 目标 + 计划 + 情绪 + 记忆指针。
+
+    挂在 WorldState 里 (character_psyches[character_id])，随事件演化。
+    Agent 决策时读取它，决策后由 patch 更新它。
+    """
+
+    character_id: str
+    traits: List[str] = Field(default_factory=list)  # ["阴毒","隐忍","心机深"]
+    emotion: str = ""  # 当前主导情绪: "屈辱"、"惊疑"、"得意"
+    emotion_intensity: float = Field(0.5, ge=0.0, le=1.0)
+    goals: List[AgentGoal] = Field(default_factory=list)
+    plans: List[AgentPlan] = Field(default_factory=list)
+    # 短期工作记忆: 最近感知到的事件摘要 (供 LLM 决策参考)
+    recent_perceptions: List[str] = Field(default_factory=list)
+    is_player: bool = False  # 玩家宿主不自动行动 (由人操控)
+
+
+class AgentCandidateAction(BaseModel):
+    """LLM 提议的候选动作之一 (含理由与效用)。
+
+    下游会把它转成真正的 Action + 候选 StatePatch 再校验。
+    """
+
+    action_type: str  # 借用 ActionType 的 value (不直接用枚举，便于容错)
+    intent: str  # 人话意图: "当众反讽夜轻歌不自量力"
+    target_ids: List[str] = Field(default_factory=list)
+    dialogue: str = ""  # 若为 speak/attack 类，附一句台词
+    tone: str = ""
+    expected_patch: List[Dict[str, Any]] = Field(default_factory=list)  # LLM 预期状态变化 (草稿 op)
+    utility: float = 0.0  # LLM 自评效用 (0-1)，调度器可二次打分覆盖
+    rationale: str = ""  # 为何选这个动作
+
+    class Config:
+        extra = "allow"
+
+
+class AgentDecision(BaseModel):
+    """一次角色决策的完整产物。角色 Agent 的"提议单元"。"""
+
+    character_id: str
+    decided: bool = False  # False = 本轮选择按兵不动
+    action: Optional[AgentCandidateAction] = None
+    emotion_update: str = ""  # 决策后的新情绪
+    emotion_intensity: Optional[float] = None
+    perception_summary: str = ""  # 这一轮角色"感受"到什么 (可进记忆)
+
+    class Config:
+        extra = "allow"
+
+
+# WorldState 用了前向引用字符串 "CharacterPsyche" (定义在其后)，
+# Pydantic 1.x 需要在所有相关模型定义完成后解析一次。
+WorldState.update_forward_refs()
+
 

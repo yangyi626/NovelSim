@@ -213,6 +213,49 @@ def _apply_one(state: WorldState, op: Operation) -> None:
         arc.stage = "completed"
         return
 
+    if k == OperationKind.update_psyche:
+        # target_id = 角色；更新情绪/情绪强度/新增感知
+        cid = op.target_id or ""
+        if not cid:
+            raise PatchError("update_psyche needs target_id")
+        psy = state.character_psyches.get(cid)
+        if psy is None:
+            raise PatchError(f"update_psyche: no psyche for {cid}")
+        if op.emotion:
+            psy.emotion = op.emotion
+        if op.intensity is not None:
+            psy.emotion_intensity = max(0.0, min(1.0, op.intensity))
+        if op.perception:
+            # 工作记忆只保留最近 N 条，防无限增长
+            psy.recent_perceptions.append(op.perception)
+            del psy.recent_perceptions[:-10]
+        return
+
+    if k == OperationKind.advance_plan:
+        # target_id = 角色；plan_id 指定计划，推进 current_step
+        cid = op.target_id or ""
+        if not cid:
+            raise PatchError("advance_plan needs target_id")
+        psy = state.character_psyches.get(cid)
+        if psy is None:
+            raise PatchError(f"advance_plan: no psyche for {cid}")
+        if not psy.plans:
+            return
+        plan = None
+        if op.plan_id:
+            for p in psy.plans:
+                if p.plan_id == op.plan_id:
+                    plan = p
+                    break
+        if plan is None:
+            # 没指定就推第一个 active 计划
+            plan = next((p for p in psy.plans if p.status == "active"), psy.plans[0])
+        step = op.step_delta if op.step_delta is not None else 1
+        plan.current_step = max(0, min(len(plan.steps), plan.current_step + step))
+        if plan.steps and plan.current_step >= len(plan.steps):
+            plan.status = "completed"
+        return
+
     raise PatchError(f"unsupported operation: {k}")
 
 

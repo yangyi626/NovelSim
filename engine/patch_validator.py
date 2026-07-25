@@ -69,6 +69,24 @@ def _check_one(state: WorldState, op, idx: int, out: List[PatchViolation]) -> No
                    "change_identity") and op.target_id and op.target_id not in state.characters:
         fail("char_exists", f"target is not a character: {op.target_id}")
 
+    # update_psyche / advance_plan: 角色必须有 psyche (且非玩家)
+    if k.value in ("update_psyche", "advance_plan"):
+        if not op.target_id:
+            fail("target_present", f"{k.value} needs target_id")
+        elif op.target_id not in state.character_psyches:
+            fail("psyche_exists", f"{k.value}: no psyche for {op.target_id}")
+        else:
+            psy = state.character_psyches[op.target_id]
+            if psy.is_player:
+                fail("not_player", f"{k.value} 不能作用于玩家宿主 {op.target_id}")
+        if k.value == "advance_plan" and op.plan_id:
+            psy = state.character_psyches.get(op.target_id)
+            if psy and not any(p.plan_id == op.plan_id for p in psy.plans):
+                fail("plan_exists", f"unknown plan: {op.plan_id}")
+        if k.value == "update_psyche":
+            if op.intensity is not None and not (0.0 <= op.intensity <= 1.0):
+                fail("intensity_range", f"intensity {op.intensity} out of [0,1]")
+
     # transfer_item: item 必须存在
     if k.value == "transfer_item":
         iid = op.item_id or op.path

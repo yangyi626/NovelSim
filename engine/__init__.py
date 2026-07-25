@@ -14,6 +14,13 @@ from .transition import TransitionProposer
 from .patch_validator import validate_patch, PatchCheckResult
 from .narrative import NarrativeGenerator
 from .narrative_consistency import check_narrative, NarrativeCheckResult
+from .character_agent import CharacterAgent, candidate_to_action
+from .agent_scheduler import (
+    CharacterScheduler,
+    AgentScheduleResult,
+    NPCReaction,
+    merge_patches,
+)
 from .turn import TurnPipeline, TurnResult
 
 __all__ = [
@@ -31,6 +38,12 @@ __all__ = [
     "NarrativeGenerator",
     "check_narrative",
     "NarrativeCheckResult",
+    "CharacterAgent",
+    "candidate_to_action",
+    "CharacterScheduler",
+    "AgentScheduleResult",
+    "NPCReaction",
+    "merge_patches",
     "TurnPipeline",
     "TurnResult",
 ]

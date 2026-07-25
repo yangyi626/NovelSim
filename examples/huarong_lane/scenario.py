@@ -11,8 +11,11 @@ from __future__ import annotations
 from typing import Dict
 
 from world_schema import (
+    AgentGoal,
+    AgentPlan,
     Character,
     CharacterBelief,
+    CharacterPsyche,
     CharacterRelation,
     Item,
     Location,
@@ -228,6 +231,89 @@ def build_rules() -> list:
     ]
 
 
+def build_psyches() -> dict:
+    """角色 Agent 内在状态 (plan 第八步)。
+
+    关键:
+    - 夜轻歌是玩家宿主，is_player=True，永不被自动调度 (由人操控)。
+    - 夜清清/林管家是自主 NPC：各有目标、计划、人格、情绪。
+      这些是"原著锚点前"的初始心态，会随玩家行动演化。
+    - 夜青天(爷爷)暂不配 psyche (溺爱祖父型，被动反应即可)，留待扩展。
+    """
+    return {
+        NIGHT: CharacterPsyche(
+            character_id=NIGHT,
+            traits=["果决", "冷酷", "佣兵王灵魂"],
+            emotion="冷峻审视",
+            emotion_intensity=0.6,
+            goals=[
+                AgentGoal(
+                    goal_id="goal_reversal",
+                    description="反客为主、洗刷废柴之名、掌控夜府",
+                    priority=0.8,
+                    target_ids=[QINGQING],
+                ),
+            ],
+            plans=[
+                AgentPlan(
+                    plan_id="plan_assert_dominance",
+                    goal_id="goal_reversal",
+                    steps=["先立威压服庶妹", "查清下药陷害真相", "夺回主导权"],
+                    current_step=0,
+                    status="active",
+                ),
+            ],
+            is_player=True,
+        ),
+        QINGQING: CharacterPsyche(
+            character_id=QINGQING,
+            traits=["阴毒", "隐忍", "心机深", "嫉妒成性"],
+            emotion="惊疑忌惮",
+            emotion_intensity=0.5,
+            goals=[
+                AgentGoal(
+                    goal_id="goal_usurp",
+                    description="除掉夜轻歌、上位嫁小王爷",
+                    priority=0.9,
+                    target_ids=[NIGHT],
+                ),
+            ],
+            plans=[
+                AgentPlan(
+                    plan_id="plan_frame_sister",
+                    goal_id="goal_usurp",
+                    steps=["以通奸罪名陷夜轻歌于死地", "联合林管家造势", "取代嫡位"],
+                    current_step=0,
+                    status="active",
+                ),
+            ],
+        ),
+        LIN: CharacterPsyche(
+            character_id=LIN,
+            traits=["圆滑", "趋炎附势", "与夜清清有私情"],
+            emotion="观望盘算",
+            emotion_intensity=0.4,
+            goals=[
+                AgentGoal(
+                    goal_id="goal_protect_qingqing",
+                    description="保全夜清清、维护自身在夜府的地位",
+                    priority=0.7,
+                    target_ids=[QINGQING],
+                ),
+            ],
+            plans=[
+                AgentPlan(
+                    plan_id="plan_assist_framing",
+                    goal_id="goal_protect_qingqing",
+                    steps=["配合夜清清的陷害计划", "见风使舵保全自己"],
+                    current_step=0,
+                    status="active",
+                ),
+            ],
+        ),
+    }
+
+
 def build_snapshot() -> WorldState:
     """锚点前快照: 用户(快穿者)刚接管夜轻歌身体，尚未行动。"""
     return WorldState(
@@ -251,6 +337,7 @@ def build_snapshot() -> WorldState:
         },
         rules=build_rules(),
         world_rules=build_world_rules(),
+        character_psyches=build_psyches(),
         flags={
             "plot.shaming_in_progress": True,
             "plot.poisoning_happened": True,
