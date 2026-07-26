@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "name": "中文剧情长期记忆基准 v1",
+  "documents": [
+    {
+      "id": "qq_01",
+      "character_id": "char_yeqingqing",
+      "content": "夜清清把记录贿赂往来的假账册压在城南旧书铺第三块松动的地板下面。",
+      "importance": 0.9
+    },
+    {
+      "id": "qq_02",
+      "character_id": "char_yeqingqing",
+      "content": "华容巷里，她被夜轻歌当众逼着交出外衫，强烈的屈辱让她对嫡姐的敌意更深。",
+      "importance": 0.9
+    },
+    {
+      "id": "qq_03",
+      "character_id": "char_yeqingqing",
+      "content": "夜清清亲眼看见夜轻歌徒手折断护卫的短刀，第一次怀疑所谓废柴只是伪装。",
+      "importance": 0.85
+    },
+    {
+      "id": "qq_04",
+      "character_id": "char_yeqingqing",
+      "content": "她与小王爷约定子时在西城门废弃箭楼碰面，共同商量解除婚约的圈套。",
+      "importance": 0.8
+    },
+    {
+      "id": "qq_05",
+      "character_id": "char_yeqingqing",
+      "content": "夜清清用一支赤金蝴蝶簪收买了厨房侍女翠儿，让翠儿监视三小姐每日的饮食。",
+      "importance": 0.75
+    },
+    {
+      "id": "qq_06",
+      "character_id": "char_yeqingqing",
+      "content": "解药被她装在蓝釉小瓷瓶中，藏进厨房北墙第二只空米缸的夹层。",
+      "importance": 0.9
+    },
+    {
+      "id": "qq_07",
+      "character_id": "char_yeqingqing",
+      "content": "她躲在屏风后听见族老议论继承人，长房若无修炼天赋就可能失去家主之位。",
+      "importance": 0.8
+    },
+    {
+      "id": "qq_08",
+      "character_id": "char_yeqingqing",
+      "content": "母亲病重时，夜清清曾发誓无论付出什么代价都要保住年幼弟弟的性命。",
+      "importance": 0.95
+    },
+    {
+      "id": "qq_09",
+      "character_id": "char_yeqingqing",
+      "content": "她逃离追兵时把刻有清字的白玉佩遗落在东院荷花池边的石灯旁。",
+      "importance": 0.7
+    },
+    {
+      "id": "qq_10",
+      "character_id": "char_yeqingqing",
+      "content": "来自京城的密函使用梅花火漆封口，信中命令她在初七之前除掉证人。",
+      "importance": 0.9
+    },
+    {
+      "id": "qq_11",
+      "character_id": "char_yeqingqing",
+      "content": "夜清清命人在祠堂香案下布置绊索，准备在祭祖时让夜轻歌当众摔倒。",
+      "importance": 0.75
+    },
+    {
+      "id": "qq_12",
+      "character_id": "char_yeqingqing",
+      "content": "为了买通证人，她向回春堂掌柜借了三十两银子，约定月底连本带利归还。",
+      "importance": 0.65
+    },
+    {
+      "id": "qq_13",
+      "character_id": "char_yeqingqing",
+      "content": "暴雨冲垮了通往西郊的木桥，她记住最近只能绕行南山官道。",
+      "importance": 0.7
+    },
+    {
+      "id": "qq_14",
+      "character_id": "char_yeqingqing",
+      "content": "蒙面剑客出手时露出右腕月牙形旧伤，夜清清认出他是三年前失踪的周统领。",
+      "importance": 0.85
+    },
+    {
+      "id": "qq_15",
+      "character_id": "char_yeqingqing",
+      "content": "她烧掉了书房里的原始假账，但林管家提前抄了一份副本藏在别处。",
+      "importance": 0.9
+    },
+    {
+      "id": "lin_01",
+      "character_id": "char_lin_guanjia",
+      "content": "林管家看见三小姐逼庶妹交出外衫后，意识到夜轻歌已经不再软弱，开始考虑重新站队。",
+      "importance": 0.85
+    },
+    {
+      "id": "lin_02",
+      "character_id": "char_lin_guanjia",
+      "content": "清点秋粮时，林管家发现西仓少了二十袋稻米，出入簿却被人改成账目相符。",
+      "importance": 0.8
+    },
+    {
+      "id": "lin_03",
+      "character_id": "char_lin_guanjia",
+      "content": "花园假山后藏着一条通往府外河堤的密道，入口机关是转动石狮左眼。",
+      "importance": 0.9
+    },
+    {
+      "id": "lin_04",
+      "character_id": "char_lin_guanjia",
+      "content": "老爷书房的铜钥匙被林管家塞在青石砚台底部的暗槽中。",
+      "importance": 0.8
+    },
+    {
+      "id": "lin_05",
+      "character_id": "char_lin_guanjia",
+      "content": "老家主临终前单独嘱咐林管家，在三小姐真正遇到性命危险时必须暗中救她一次。",
+      "importance": 0.95
+    },
+    {
+      "id": "lin_06",
+      "character_id": "char_lin_guanjia",
+      "content": "北门守卫每天三更换班，交接的一刻会有半盏茶时间无人查看通行腰牌。",
+      "importance": 0.75
+    },
+    {
+      "id": "lin_07",
+      "character_id": "char_lin_guanjia",
+      "content": "马厩里的黑风右前蹄受伤，兽医警告至少七日内不能让它长途奔跑。",
+      "importance": 0.65
+    },
+    {
+      "id": "lin_08",
+      "character_id": "char_lin_guanjia",
+      "content": "祭祖前夜，林管家发现供桌中央的二房祖先牌位不见了，窗台留有湿泥脚印。",
+      "importance": 0.8
+    },
+    {
+      "id": "lin_09",
+      "character_id": "char_lin_guanjia",
+      "content": "江南药材商队会在明日午时抵达东门，其中领队携带治疗经脉损伤的稀有续骨草。",
+      "importance": 0.75
+    },
+    {
+      "id": "lin_10",
+      "character_id": "char_lin_guanjia",
+      "content": "林管家欠地下赌坊五十两，赌坊扬言若三日内不还钱就绑走他的独生女。",
+      "importance": 0.9
+    }
+  ],
+  "queries": [
+    {"id": "q_001", "character_id": "char_yeqingqing", "text": "那本能证明她收买别人的账簿藏到哪里去了？", "relevant": ["qq_01"]},
+    {"id": "q_002", "character_id": "char_yeqingqing", "text": "城南旧书铺松动地板下面压着什么？", "relevant": ["qq_01"]},
+    {"id": "q_003", "character_id": "char_yeqingqing", "text": "当众受辱以后，她为什么更加憎恨嫡姐？", "relevant": ["qq_02"]},
+    {"id": "q_004", "character_id": "char_yeqingqing", "text": "华容巷被迫交出衣服的经历", "relevant": ["qq_02"]},
+    {"id": "q_005", "character_id": "char_yeqingqing", "text": "什么事情让她开始怀疑三小姐并非真正的弱者？", "relevant": ["qq_03"]},
+    {"id": "q_006", "character_id": "char_yeqingqing", "text": "夜轻歌折断护卫短刀时她看见了什么？", "relevant": ["qq_03"]},
+    {"id": "q_007", "character_id": "char_yeqingqing", "text": "她和未婚夫准备在哪里秘密讨论退婚阴谋？", "relevant": ["qq_04"]},
+    {"id": "q_008", "character_id": "char_yeqingqing", "text": "子时西城门箭楼的约定", "relevant": ["qq_04"]},
+    {"id": "q_009", "character_id": "char_yeqingqing", "text": "负责盯着三小姐吃饭的人是怎样被买通的？", "relevant": ["qq_05"]},
+    {"id": "q_010", "character_id": "char_yeqingqing", "text": "赤金蝴蝶簪交给了哪个侍女？", "relevant": ["qq_05"]},
+    {"id": "q_011", "character_id": "char_yeqingqing", "text": "中毒以后应该去哪里找救命药？", "relevant": ["qq_06"]},
+    {"id": "q_012", "character_id": "char_yeqingqing", "text": "蓝釉瓷瓶藏在哪只米缸里？", "relevant": ["qq_06"]},
+    {"id": "q_013", "character_id": "char_yeqingqing", "text": "家族选择下一任掌权者时最看重什么条件？", "relevant": ["qq_07"]},
+    {"id": "q_014", "character_id": "char_yeqingqing", "text": "屏风后偷听到的继承人议论", "relevant": ["qq_07"]},
+    {"id": "q_015", "character_id": "char_yeqingqing", "text": "她最不愿牺牲的人是谁，原因是什么？", "relevant": ["qq_08"]},
+    {"id": "q_016", "character_id": "char_yeqingqing", "text": "母亲病重时许下了怎样保护弟弟的誓言？", "relevant": ["qq_08"]},
+    {"id": "q_017", "character_id": "char_yeqingqing", "text": "带有她名字的首饰逃跑时掉在了什么地方？", "relevant": ["qq_09"]},
+    {"id": "q_018", "character_id": "char_yeqingqing", "text": "东院荷花池石灯旁遗落的白玉佩", "relevant": ["qq_09"]},
+    {"id": "q_019", "character_id": "char_yeqingqing", "text": "上面要求灭口的那封秘密命令有什么识别标记？", "relevant": ["qq_10"]},
+    {"id": "q_020", "character_id": "char_yeqingqing", "text": "梅花火漆密函要求初七前做什么？", "relevant": ["qq_10"]},
+    {"id": "q_021", "character_id": "char_yeqingqing", "text": "祭拜祖先时针对三小姐安排了什么意外？", "relevant": ["qq_11"]},
+    {"id": "q_022", "character_id": "char_yeqingqing", "text": "祠堂香案下面的绊索是谁布置的？", "relevant": ["qq_11"]},
+    {"id": "q_023", "character_id": "char_yeqingqing", "text": "为了封住知情人的嘴，她从哪里弄到银两？", "relevant": ["qq_12"]},
+    {"id": "q_024", "character_id": "char_yeqingqing", "text": "欠回春堂掌柜的三十两何时归还？", "relevant": ["qq_12"]},
+    {"id": "q_025", "character_id": "char_yeqingqing", "text": "去西郊的近路为什么不能走了？", "relevant": ["qq_13"]},
+    {"id": "q_026", "character_id": "char_yeqingqing", "text": "暴雨冲垮木桥后应该改走哪条路？", "relevant": ["qq_13"]},
+    {"id": "q_027", "character_id": "char_yeqingqing", "text": "她凭什么认出了隐藏身份的持剑人？", "relevant": ["qq_14"]},
+    {"id": "q_028", "character_id": "char_yeqingqing", "text": "右腕月牙旧伤属于哪位失踪统领？", "relevant": ["qq_14"]},
+    {"id": "q_029", "character_id": "char_yeqingqing", "text": "被火烧掉的罪证是否还留有备份？", "relevant": ["qq_15"]},
+    {"id": "q_030", "character_id": "char_yeqingqing", "text": "原始假账销毁前谁抄走了一份？", "relevant": ["qq_15"]},
+    {"id": "q_031", "character_id": "char_lin_guanjia", "text": "什么变化让管事开始重新考虑效忠对象？", "relevant": ["lin_01"]},
+    {"id": "q_032", "character_id": "char_lin_guanjia", "text": "三小姐逼庶妹交出外衫后林管家如何判断？", "relevant": ["lin_01"]},
+    {"id": "q_033", "character_id": "char_lin_guanjia", "text": "仓库里的粮食亏空是怎样被掩盖的？", "relevant": ["lin_02"]},
+    {"id": "q_034", "character_id": "char_lin_guanjia", "text": "西仓少了多少袋稻米？", "relevant": ["lin_02"]},
+    {"id": "q_035", "character_id": "char_lin_guanjia", "text": "不经过府门怎样偷偷逃到外面的河边？", "relevant": ["lin_03"]},
+    {"id": "q_036", "character_id": "char_lin_guanjia", "text": "假山密道需要转动石狮的哪只眼睛？", "relevant": ["lin_03"]},
+    {"id": "q_037", "character_id": "char_lin_guanjia", "text": "开启主人书房的东西被放在哪里？", "relevant": ["lin_04"]},
+    {"id": "q_038", "character_id": "char_lin_guanjia", "text": "青石砚台暗槽里藏着哪把钥匙？", "relevant": ["lin_04"]},
+    {"id": "q_039", "character_id": "char_lin_guanjia", "text": "老主人留下的最后命令与三小姐有什么关系？", "relevant": ["lin_05"]},
+    {"id": "q_040", "character_id": "char_lin_guanjia", "text": "夜轻歌遭遇生命危险时林管家必须做什么？", "relevant": ["lin_05"]},
+    {"id": "q_041", "character_id": "char_lin_guanjia", "text": "什么时候能趁守卫疏忽从北边离府？", "relevant": ["lin_06"]},
+    {"id": "q_042", "character_id": "char_lin_guanjia", "text": "三更换班有多久不检查通行腰牌？", "relevant": ["lin_06"]},
+    {"id": "q_043", "character_id": "char_lin_guanjia", "text": "哪匹坐骑近期不能用于远途追赶？", "relevant": ["lin_07"]},
+    {"id": "q_044", "character_id": "char_lin_guanjia", "text": "黑风伤了哪只马蹄，需要休养几日？", "relevant": ["lin_07"]},
+    {"id": "q_045", "character_id": "char_lin_guanjia", "text": "祭礼缺少的东西可能被谁从窗边带走？", "relevant": ["lin_08"]},
+    {"id": "q_046", "character_id": "char_lin_guanjia", "text": "供桌中央牌位失踪后留下了什么痕迹？", "relevant": ["lin_08"]},
+    {"id": "q_047", "character_id": "char_lin_guanjia", "text": "治疗经脉的珍贵药草何时从哪里送来？", "relevant": ["lin_09"]},
+    {"id": "q_048", "character_id": "char_lin_guanjia", "text": "明日午时抵达东门的商队带着什么？", "relevant": ["lin_09"]},
+    {"id": "q_049", "character_id": "char_lin_guanjia", "text": "什么债务正在威胁管家的家人安全？", "relevant": ["lin_10"]},
+    {"id": "q_050", "character_id": "char_lin_guanjia", "text": "地下赌坊为什么要绑走林管家的女儿？", "relevant": ["lin_10"]}
+  ]
+}

@@ -1,0 +1,511 @@
+"""可编辑 WorldPackage 的本地仓库与完整性校验。
+
+创作者后台编辑的是“世界模板”，不是正在运行的玩家存档。内置包只读，
+创作者可克隆为 JSON 版本后修改；新开局再从选定模板复制一份干净快照。
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from world_schema import WorldState
+
+
+PACKAGE_FORMAT = "ai-transmigration-world-package"
+PACKAGE_FORMAT_VERSION = 1
+PACKAGE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
+
+
+class WorldPackageError(RuntimeError):
+    """世界包仓库操作失败。"""
+
+
+class WorldPackageNotFound(WorldPackageError):
+    """世界包不存在。"""
+
+
+class WorldPackageConflict(WorldPackageError):
+    """世界包修订版本冲突。"""
+
+
+class WorldPackageValidationError(WorldPackageError):
+    """世界包内容不满足运行时约束。"""
+
+    def __init__(self, errors: List[str]):
+        self.errors = errors
+        super().__init__("；".join(errors))
+
+
+@dataclass(frozen=True)
+class WorldPackageRecord:
+    package_id: str
+    novel: str
+    scenario: str
+    anchor: str
+    default_actor_id: str
+    source_chapters: List[Any]
+    snapshot: WorldState
+    manifest: Dict[str, Any]
+    revision: int
+    source: str
+    created_at: str
+    updated_at: str
+
+    @property
+    def editable(self) -> bool:
+        return self.source == "custom"
+
+    def world_meta(self) -> Dict[str, str]:
+        return {
+            "novel": self.novel,
+            "scenario": self.scenario,
+            "anchor": self.anchor,
+        }
+
+    def summary(self) -> Dict[str, Any]:
+        return {
+            "package_id": self.package_id,
+            "novel": self.novel,
+            "scenario": self.scenario,
+            "anchor": self.anchor,
+            "default_actor_id": self.default_actor_id,
+            "source_chapters": list(self.source_chapters),
+            "manifest": dict(self.manifest),
+            "revision": self.revision,
+            "source": self.source,
+            "editable": self.editable,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    def payload(self) -> Dict[str, Any]:
+        return {
+            "format": PACKAGE_FORMAT,
+            "format_version": PACKAGE_FORMAT_VERSION,
+            **self.summary(),
+            "snapshot": self.snapshot.dict(),
+        }
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _manifest(state: WorldState) -> Dict[str, Any]:
+    return {
+        "character_count": len(state.characters),
+        "item_count": len(state.items),
+        "location_count": len(state.locations),
+        "relation_count": len(state.relations),
+        "world_rule_count": len(state.world_rules),
+        "plot_arc_count": len(state.plot),
+    }
+
+
+def _check_id_map(
+    errors: List[str],
+    label: str,
+    values: Dict[str, Any],
+    id_field: str,
+) -> None:
+    for key, value in values.items():
+        if getattr(value, id_field) != key:
+            errors.append(
+                f"{label}键 {key} 与 {id_field}={getattr(value, id_field)} 不一致"
+            )
+
+
+def validate_world_package_payload(
+    payload: Dict[str, Any],
+    *,
+    expected_package_id: Optional[str] = None,
+) -> WorldPackageRecord:
+    """把后台草稿升级成严格 WorldPackage，并检查跨实体引用。"""
+
+    errors: List[str] = []
+    if not isinstance(payload, dict):
+        raise WorldPackageValidationError(["世界包必须是 JSON 对象"])
+
+    package_id = str(payload.get("package_id") or "").strip()
+    if expected_package_id and package_id != expected_package_id:
+        errors.append("请求路径中的世界包 ID 与内容不一致")
+    if not PACKAGE_ID_PATTERN.fullmatch(package_id):
+        errors.append(
+            "世界包 ID 需为 3–64 位小写字母、数字、下划线或连字符，且以字母开头"
+        )
+
+    novel = str(payload.get("novel") or "").strip()
+    scenario = str(payload.get("scenario") or "").strip()
+    anchor = str(payload.get("anchor") or "").strip()
+    default_actor_id = str(payload.get("default_actor_id") or "").strip()
+    source_chapters = payload.get("source_chapters", [])
+    if not novel:
+        errors.append("小说名不能为空")
+    if not scenario:
+        errors.append("场景名不能为空")
+    if not anchor:
+        errors.append("介入锚点不能为空")
+    if not isinstance(source_chapters, list):
+        errors.append("source_chapters 必须是数组")
+        source_chapters = []
+
+    try:
+        state = WorldState.parse_obj(payload.get("snapshot"))
+    except Exception as exc:
+        raise WorldPackageValidationError(
+            errors + [f"世界状态 Schema 校验失败: {exc}"]
+        ) from exc
+
+    if state.version != 0:
+        errors.append("世界模板版本必须为 0，运行后版本属于玩家存档")
+    if default_actor_id not in state.characters:
+        errors.append(f"默认玩家角色不存在: {default_actor_id}")
+    if (
+        state.current_scene_id
+        and state.current_scene_id not in state.locations
+    ):
+        errors.append(f"当前场景不存在: {state.current_scene_id}")
+
+    _check_id_map(errors, "角色", state.characters, "character_id")
+    _check_id_map(errors, "物品", state.items, "item_id")
+    _check_id_map(errors, "地点", state.locations, "location_id")
+    _check_id_map(errors, "剧情线", state.plot, "arc_id")
+
+    for character in state.characters.values():
+        if (
+            character.location_id
+            and character.location_id not in state.locations
+        ):
+            errors.append(
+                f"角色 {character.character_id} 引用了未知地点 "
+                f"{character.location_id}"
+            )
+        for item_id in character.inventory:
+            if item_id not in state.items:
+                errors.append(
+                    f"角色 {character.character_id} 持有未知物品 {item_id}"
+                )
+
+    for location in state.locations.values():
+        if location.parent_id == location.location_id:
+            errors.append(f"地点 {location.location_id} 不能以自身为父地点")
+        elif (
+            location.parent_id
+            and location.parent_id not in state.locations
+        ):
+            errors.append(
+                f"地点 {location.location_id} 引用了未知父地点 "
+                f"{location.parent_id}"
+            )
+        visited = {location.location_id}
+        parent_id = location.parent_id
+        while parent_id and parent_id in state.locations:
+            if parent_id in visited:
+                errors.append(f"地点层级存在循环: {location.location_id}")
+                break
+            visited.add(parent_id)
+            parent_id = state.locations[parent_id].parent_id
+
+    for item in state.items.values():
+        if item.owner_id and item.owner_id not in state.characters:
+            errors.append(f"物品 {item.item_id} 引用了未知持有者 {item.owner_id}")
+        if item.location_id and item.location_id not in state.locations:
+            errors.append(f"物品 {item.item_id} 引用了未知地点 {item.location_id}")
+        if item.owner_id and item.location_id:
+            errors.append(
+                f"物品 {item.item_id} 不能同时属于角色和放置在地点"
+            )
+        if item.quantity < 1:
+            errors.append(f"物品 {item.item_id} 数量必须大于 0")
+
+    relation_keys = set()
+    for relation in state.relations:
+        key = (relation.source_id, relation.target_id)
+        if key in relation_keys:
+            errors.append(f"存在重复关系: {key[0]} -> {key[1]}")
+        relation_keys.add(key)
+        if relation.source_id not in state.characters:
+            errors.append(f"关系起点角色不存在: {relation.source_id}")
+        if relation.target_id not in state.characters:
+            errors.append(f"关系终点角色不存在: {relation.target_id}")
+
+    for character_id, beliefs in state.beliefs.items():
+        if character_id not in state.characters:
+            errors.append(f"认知记录引用未知角色: {character_id}")
+        fact_ids = [belief.fact_id.strip() for belief in beliefs]
+        if any(not fact_id for fact_id in fact_ids):
+            errors.append(f"角色 {character_id} 的事实 ID 不能为空")
+        duplicates = {
+            fact_id
+            for fact_id in fact_ids
+            if fact_id and fact_ids.count(fact_id) > 1
+        }
+        for fact_id in sorted(duplicates):
+            errors.append(
+                f"角色 {character_id} 对事实 {fact_id} 存在重复认知"
+            )
+        for belief in beliefs:
+            if belief.source_type not in {
+                "unknown",
+                "observation",
+                "hearsay",
+                "inference",
+                "secret",
+            }:
+                errors.append(
+                    f"角色 {character_id} 对事实 {belief.fact_id} "
+                    f"使用了未知来源类型 {belief.source_type}"
+                )
+            keywords = [keyword.strip() for keyword in belief.keywords]
+            if len(keywords) != len(set(keywords)):
+                errors.append(
+                    f"角色 {character_id} 对事实 {belief.fact_id} "
+                    "含重复关键词"
+                )
+    for character_id, psyche in state.character_psyches.items():
+        if character_id not in state.characters:
+            errors.append(f"角色心理引用未知角色: {character_id}")
+        if psyche.character_id != character_id:
+            errors.append(f"角色心理键与 character_id 不一致: {character_id}")
+        goal_ids = [goal.goal_id for goal in psyche.goals]
+        if len(goal_ids) != len(set(goal_ids)):
+            errors.append(f"角色 {character_id} 的目标 ID 不能重复")
+        for goal in psyche.goals:
+            for target_id in goal.target_ids:
+                if target_id not in state.characters:
+                    errors.append(
+                        f"角色 {character_id} 的目标 {goal.goal_id} "
+                        f"引用未知角色 {target_id}"
+                    )
+        plan_ids = [plan.plan_id for plan in psyche.plans]
+        if len(plan_ids) != len(set(plan_ids)):
+            errors.append(f"角色 {character_id} 的计划 ID 不能重复")
+        for plan in psyche.plans:
+            if plan.goal_id not in goal_ids:
+                errors.append(
+                    f"角色 {character_id} 的计划 {plan.plan_id} "
+                    f"引用未知目标 {plan.goal_id}"
+                )
+            if plan.current_step < 0 or plan.current_step > len(plan.steps):
+                errors.append(
+                    f"角色 {character_id} 的计划 {plan.plan_id} "
+                    "当前步骤超出范围"
+                )
+            if plan.status not in {
+                "active", "paused", "completed", "abandoned"
+            }:
+                errors.append(
+                    f"角色 {character_id} 的计划 {plan.plan_id} 状态无效"
+                )
+
+    rule_ids = [rule.rule_id for rule in state.world_rules]
+    if len(rule_ids) != len(set(rule_ids)):
+        errors.append("世界规则 ID 不能重复")
+
+    try:
+        revision = max(1, int(payload.get("revision") or 1))
+    except (TypeError, ValueError):
+        revision = 1
+        errors.append("revision 必须是正整数")
+
+    if errors:
+        raise WorldPackageValidationError(errors)
+
+    now = _now()
+    return WorldPackageRecord(
+        package_id=package_id,
+        novel=novel,
+        scenario=scenario,
+        anchor=anchor,
+        default_actor_id=default_actor_id,
+        source_chapters=list(source_chapters),
+        snapshot=state,
+        manifest=_manifest(state),
+        revision=revision,
+        source=str(payload.get("source") or "custom"),
+        created_at=str(payload.get("created_at") or now),
+        updated_at=str(payload.get("updated_at") or now),
+    )
+
+
+class WorldPackageStore:
+    """内置只读包 + worlds/*.json 可编辑包的统一仓库。"""
+
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        builtins: Optional[Dict[str, Dict[str, Any]]] = None,
+    ):
+        self.directory = Path(directory).resolve()
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self._builtins: Dict[str, WorldPackageRecord] = {}
+        for package_id, payload in (builtins or {}).items():
+            record = validate_world_package_payload(
+                {**payload, "package_id": package_id, "source": "builtin"},
+                expected_package_id=package_id,
+            )
+            self._builtins[package_id] = WorldPackageRecord(
+                **{**record.__dict__, "source": "builtin"}
+            )
+
+    def _path(self, package_id: str) -> Path:
+        if not PACKAGE_ID_PATTERN.fullmatch(package_id):
+            raise WorldPackageValidationError(["世界包 ID 格式无效"])
+        path = (self.directory / f"{package_id}.json").resolve()
+        if path.parent != self.directory:
+            raise WorldPackageValidationError(["世界包路径越界"])
+        return path
+
+    def _load_path(self, path: Path) -> WorldPackageRecord:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if payload.get("format") != PACKAGE_FORMAT:
+                payload = self._upgrade_compiler_package(payload)
+            record = validate_world_package_payload(payload)
+        except WorldPackageValidationError:
+            raise
+        except Exception as exc:
+            raise WorldPackageError(f"读取世界包失败 {path.name}: {exc}") from exc
+        return WorldPackageRecord(
+            **{**record.__dict__, "source": "custom"}
+        )
+
+    @staticmethod
+    def _upgrade_compiler_package(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """兼容 compiler.PackageBuilder 直接输出的旧格式。"""
+
+        if not isinstance(payload, dict) or "snapshot" not in payload:
+            return payload
+        snapshot = payload.get("snapshot")
+        characters = snapshot.get("characters", {}) if isinstance(snapshot, dict) else {}
+        psyches = (
+            snapshot.get("character_psyches", {})
+            if isinstance(snapshot, dict)
+            else {}
+        )
+        default_actor_id = ""
+        for character_id, psyche in psyches.items():
+            if isinstance(psyche, dict) and psyche.get("is_player"):
+                default_actor_id = character_id
+                break
+        if not default_actor_id and characters:
+            default_actor_id = next(iter(characters))
+
+        manifest = payload.get("manifest")
+        manifest = manifest if isinstance(manifest, dict) else {}
+        novel = str(payload.get("novel") or "未命名小说")
+        return {
+            **payload,
+            "format": PACKAGE_FORMAT,
+            "format_version": PACKAGE_FORMAT_VERSION,
+            "scenario": str(manifest.get("scenario") or novel),
+            "anchor": str(manifest.get("anchor") or "待设置介入锚点"),
+            "default_actor_id": default_actor_id,
+            "revision": 1,
+            "source": "custom",
+        }
+
+    def list_packages(self) -> List[WorldPackageRecord]:
+        records = list(self._builtins.values())
+        for path in sorted(self.directory.glob("*.json")):
+            try:
+                record = self._load_path(path)
+            except WorldPackageError:
+                continue
+            if record.package_id not in self._builtins:
+                records.append(record)
+        return sorted(
+            records,
+            key=lambda item: (item.source != "builtin", item.updated_at),
+            reverse=True,
+        )
+
+    def get(self, package_id: str) -> WorldPackageRecord:
+        if package_id in self._builtins:
+            return self._builtins[package_id]
+        path = self._path(package_id)
+        if not path.exists():
+            raise WorldPackageNotFound(f"世界包不存在: {package_id}")
+        return self._load_path(path)
+
+    def exists(self, package_id: str) -> bool:
+        try:
+            self.get(package_id)
+            return True
+        except (WorldPackageNotFound, WorldPackageValidationError):
+            return False
+
+    def validate(self, payload: Dict[str, Any]) -> WorldPackageRecord:
+        return validate_world_package_payload(payload)
+
+    def clone(self, source_package_id: str) -> WorldPackageRecord:
+        source = self.get(source_package_id)
+        suffix = 2
+        while self.exists(f"{source_package_id}_v{suffix}"):
+            suffix += 1
+        package_id = f"{source_package_id}_v{suffix}"
+        payload = source.payload()
+        payload.update(
+            {
+                "package_id": package_id,
+                "revision": 1,
+                "source": "custom",
+                "created_at": _now(),
+                "updated_at": _now(),
+            }
+        )
+        return self.save(package_id, payload, create=True)
+
+    def save(
+        self,
+        package_id: str,
+        payload: Dict[str, Any],
+        *,
+        expected_revision: Optional[int] = None,
+        create: bool = False,
+    ) -> WorldPackageRecord:
+        if package_id in self._builtins:
+            raise WorldPackageError("内置世界包只读，请先另存为新版本")
+        path = self._path(package_id)
+        if create and path.exists():
+            raise WorldPackageConflict(f"世界包已存在: {package_id}")
+
+        previous = self._load_path(path) if path.exists() else None
+        if expected_revision is not None:
+            actual = previous.revision if previous else 0
+            if actual != expected_revision:
+                raise WorldPackageConflict(
+                    f"世界包版本冲突: expected {expected_revision}, got {actual}"
+                )
+
+        record = validate_world_package_payload(
+            {**payload, "package_id": package_id},
+            expected_package_id=package_id,
+        )
+        now = _now()
+        revision = (previous.revision + 1) if previous else 1
+        saved = WorldPackageRecord(
+            **{
+                **record.__dict__,
+                "revision": revision,
+                "source": "custom",
+                "created_at": previous.created_at if previous else now,
+                "updated_at": now,
+            }
+        )
+        temp_path = path.with_suffix(".json.tmp")
+        try:
+            temp_path.write_text(
+                json.dumps(saved.payload(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temp_path.replace(path)
+        except OSError as exc:
+            raise WorldPackageError(f"保存世界包失败: {exc}") from exc
+        return saved

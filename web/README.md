@@ -1,6 +1,6 @@
 # Web 界面：AI 快穿系统
 
-状态面板 + 对话框 的单页应用。Vue 3 + Vite 前端 + FastAPI 后端。
+玩家试玩 + 世界创作台的单页应用。Vue 3 + Vite 前端 + FastAPI 后端。
 
 ## 快速开始
 
@@ -11,6 +11,20 @@ LLM_API_KEY=your-key
 LLM_BASE_URL=https://api.gpt.ge/v1
 LLM_MODEL=qwen3.6-plus
 NO_PROXY=*
+# 可选，默认 data/world.sqlite3
+WORLD_DB_PATH=data/world.sqlite3
+# 当前保持 SQLite 权威存储；启用 Qdrant Local Mode 语义检索
+WORLD_DATABASE_URL=
+MEMORY_VECTOR_BACKEND=qdrant
+QDRANT_PATH=data/qdrant
+QDRANT_COLLECTION=character_memories
+MEMORY_EMBEDDING_MODEL=text-embedding-3-small
+MEMORY_EMBEDDING_DIMENSIONS=1536
+MEMORY_REFLECTIONS_ENABLED=true
+MEMORY_REFLECTION_INTERVAL=5
+MEMORY_REFLECTION_MIN_EPISODES=3
+# 可选，创作者世界包目录
+WORLD_PACKAGE_DIR=worlds
 ```
 
 ### 2. 构建前端（首次/改前端后）
@@ -22,6 +36,9 @@ npm run build      # 产物输出到 ../static/
 
 ### 3. 启动后端
 ```bash
+# 首次启用 Qdrant（项目 Python 3.8 固定使用客户端 1.11.3）
+.venv/Scripts/python.exe -m pip install -e ".[qdrant]"
+
 # 推荐在项目根目录运行（run.py 会自动把根目录加入路径，所以在哪跑都行）
 .venv/Scripts/python.exe web/run.py
 ```
@@ -48,18 +65,60 @@ cd web/frontend && npm run dev
 - **右栏·世界状态**：时间场景、在场角色（含 NPC 情绪/目标/计划）、关系数值条。
 - **底部输入框**：自然语言描述你想做的事，Ctrl+Enter 发送。
 - **NPC 自主反应开关**：默认开启——夜清清/林管家会在你行动后自主反应（更烧 token 但体验完整）。
+- **自动续玩**：浏览器保存当前会话 ID，刷新页面或重启后端后会恢复同一世界状态。
+- **存档管理**：可新建多条世界线，并对存档进行改名、载入、导出、导入和删除。
+- **世界创作台**：点击顶栏“创作台”，可编辑角色、角色心理、角色认知、地点、物品、关系、世界规则、剧情线和介入锚点。
+- **版本化创作**：内置包只读，可另存为可编辑版本；保存后可直接从该世界包开局试玩。
+
+## 创作者后台
+
+创作台管理的是开局世界模板，不会直接修改玩家已经运行中的存档：
+
+1. 选择内置或编译生成的世界包。
+2. 点击“另存为新版本”，创建 `worlds/<package_id>.json`。
+3. 在结构化表单中编辑世界元信息、角色、心理目标与计划、认知边界、地点层级、物品归属、关系、规则和剧情线。
+4. 使用“高级 JSON”继续编辑确定性规则等完整 `WorldState` 字段。
+5. 点击“校验”检查 Schema 与跨实体引用，再“保存并试玩”。
+
+保存使用修订号防止旧页面覆盖新修改；模板版本固定为 `0`，玩家游玩后的版本变化只存在于所选数据库的世界线存档。校验会检查地点层级循环、物品归属、角色背包、Agent 目标/计划引用，以及角色认知中的重复事实、来源和关键词。
+
+## 持久化
+
+- 世界状态、`WorldEvent`、剧情回合和角色记忆元数据继续保存在 `data/world.sqlite3`；Qdrant 只保存可从 SQLite 重建的向量索引。
+- 每个有效回合在同一事务中写入新状态、事件和剧情记录，并校验旧版本，避免并发请求互相覆盖。
+- NPC 记忆使用 SQLite FTS5 + Qdrant 语义召回混合重排；Qdrant 暂时不可用时自动降级为 FTS5，不阻塞回合。
+- 默认 `QDRANT_PATH=data/qdrant` 是进程内 Local Mode，不需要 Docker 或独立服务；填写 `QDRANT_URL` 后可切换 Qdrant Server/Cloud。
+- Local Mode 保持单进程启动；多 Worker 或多机器部署必须改用 `QDRANT_URL`，不能共享同一个本地路径。
+- 情景记忆按世界线和角色隔离，自动限制每个角色最多 500 条；可从事件链和剧情历史重建。
+- NPC 默认每 5 个世界版本检查一次尚未处理的经历；至少 3 条跨事件证据可提炼为带证据链的反思记忆。同一主张幂等更新，且与角色当前认知冲突的反思不会进入决策上下文。
+- `GET /api/session?session=<id>` 可恢复会话。
+- `GET /api/events?session=<id>` 可查看用于审计和回放的事件日志。
+- `GET /api/saves`、`PATCH /api/saves/<id>`、`DELETE /api/saves/<id>` 提供基础存档管理。
+- `GET /api/saves/<id>/export` 下载完整 JSON 备份；`POST /api/saves/import` 校验并导入备份。
+- 导入会验证格式版本、世界状态、事件版本链和剧情历史，并以新会话 ID 原子写入，不覆盖原存档。
+- `GET /api/creator/packages`、`GET /api/creator/packages/<id>` 读取世界包。
+- `POST /api/creator/packages/<id>/clone` 创建可编辑版本。
+- `POST /api/creator/packages/validate` 校验草稿；`PUT /api/creator/packages/<id>` 保存新修订。
+- 恢复会话时会重建玩家输入、旁白、对白、系统提示和 NPC 反应卡片。
+
+PostgreSQL 启动、配置、SQLite 迁移和真实契约测试见 [`docs/PostgreSQL部署与迁移.md`](../docs/PostgreSQL部署与迁移.md)。
+Qdrant 架构、配置、重建与升级方式见 [`docs/Qdrant向量检索.md`](../docs/Qdrant向量检索.md)。
+中文召回基准、实测指标和最终权重见 [`docs/记忆检索评测.md`](../docs/记忆检索评测.md)。
+反思生成、证据链、冲突保护和离线重建见 [`docs/反思与语义记忆.md`](../docs/反思与语义记忆.md)。
 
 ## 架构
 
 ```
 web/
-├── app.py              # FastAPI: /api/start, /api/turn + 托管 static
+├── app.py              # FastAPI: 试玩、存档、创作者 API + 托管 static
 ├── run.py              # 启动脚本
 ├── static/             # 前端构建产物 (gitignore)
 └── frontend/           # Vue 3 + Vite 源码
     ├── src/App.vue     # 三栏布局根组件
     ├── src/components/
+    │   ├── CreatorStudio.vue # 世界包创作者后台
     │   ├── StoryFeed.vue   # 左栏剧情流
+    │   ├── SaveManager.vue # 多世界线存档管理
     │   ├── StatePanel.vue  # 右栏世界状态
     │   └── TurnInput.vue   # 底部输入
     └── vite.config.js  # outDir=../static, dev 代理 /api
@@ -67,6 +126,7 @@ web/
 
 ## 边界
 
-- 固定载入华容巷世界（`examples/huarong_lane`），玩家扮演夜轻歌。
-- 会话状态存内存，刷新页面 = 新开局（暂无存档/读档）。
+- 内置华容巷基准世界；创作者可克隆或载入编译器输出的世界包并从指定默认角色开局。
+- 支持本机多存档和完整 JSON 导入导出，但暂无云同步和用户账户隔离。
+- 当前正式开发组合是 SQLite + Qdrant Local Mode；PostgreSQL 后端代码保留但不参与当前运行。
 - 每回合需调 LLM，约 10–60 秒；开启 NPC 反应会更久。

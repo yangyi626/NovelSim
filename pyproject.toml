@@ -9,11 +9,22 @@ description = "AI 快穿系统：把线性小说编译为可交互、可演化�
 requires-python = ">=3.8"
 dependencies = [
     "pydantic>=1.10,<2",
+    "openai>=0.28,<1",
+    "python-dotenv>=1.0,<2",
+    "fastapi>=0.99,<0.100",
+    "uvicorn>=0.29,<0.30",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
+]
+production = [
+    "psycopg2-binary>=2.9,<3",
+]
+qdrant = [
+    # 1.11.3 是支持本项目 Python 3.8 运行时的最后版本线。
+    "qdrant-client==1.11.3",
 ]
 
 [tool.setuptools]
@@ -24,5 +35,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "llm: 真实调用 LLM 的测试 (默认跳过，用 -m llm 单独运行)",
+    "postgres: 需要 PostgreSQL + pgvector 服务的存储契约测试",
+    "qdrant: 需要真实 qdrant-client Local Mode 的契约测试",
 ]
-addopts = "-m 'not llm'"
+addopts = "-m 'not llm and not postgres and not qdrant'"
