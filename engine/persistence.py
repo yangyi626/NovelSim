@@ -71,6 +71,7 @@ class MemoryRecord:
     claim_fact_id: str = ""
     claim_belief: str = ""
     claim_confidence: float = 0.0
+    semantic_score: float = 0.0
 
 
 _SEARCH_RUN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u9fff]+")
@@ -184,6 +185,7 @@ class SQLiteWorldStore:
                     claim_fact_id TEXT NOT NULL DEFAULT '',
                     claim_belief TEXT NOT NULL DEFAULT '',
                     claim_confidence REAL NOT NULL DEFAULT 0.0,
+                    semantic_score REAL NOT NULL DEFAULT 0.0,
                     created_at TEXT NOT NULL,
                     UNIQUE (
                         session_id, character_id, source_event_id, memory_type
@@ -224,6 +226,7 @@ class SQLiteWorldStore:
                 "claim_fact_id": "TEXT NOT NULL DEFAULT ''",
                 "claim_belief": "TEXT NOT NULL DEFAULT ''",
                 "claim_confidence": "REAL NOT NULL DEFAULT 0.0",
+                "semantic_score": "REAL NOT NULL DEFAULT 0.0",
             }
             for column, definition in memory_migrations.items():
                 if column not in memory_columns:
@@ -444,6 +447,7 @@ class SQLiteWorldStore:
         claim_fact_id: str = "",
         claim_belief: str = "",
         claim_confidence: float = 0.0,
+        semantic_score: float = 0.0,
     ) -> List[str]:
         """为多个角色幂等记录同一事件记忆。
 
@@ -474,6 +478,8 @@ class SQLiteWorldStore:
             raise PersistenceError("记忆重要度必须在 0 到 1 之间")
         if not 0.0 <= claim_confidence <= 1.0:
             raise PersistenceError("记忆主张置信度必须在 0 到 1 之间")
+        if not 0.0 <= semantic_score <= 1.0:
+            raise PersistenceError("记忆语义一致性分必须在 0 到 1 之间")
         if not characters:
             return []
 
@@ -497,8 +503,9 @@ class SQLiteWorldStore:
                             source_event_id, world_version, memory_type,
                             content, search_text, importance,
                             evidence_event_ids_json, claim_fact_id,
-                            claim_belief, claim_confidence, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            claim_belief, claim_confidence, semantic_score,
+                            created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT (
                             session_id, character_id,
                             source_event_id, memory_type
@@ -511,7 +518,8 @@ class SQLiteWorldStore:
                                 excluded.evidence_event_ids_json,
                             claim_fact_id = excluded.claim_fact_id,
                             claim_belief = excluded.claim_belief,
-                            claim_confidence = excluded.claim_confidence
+                            claim_confidence = excluded.claim_confidence,
+                            semantic_score = excluded.semantic_score
                         """,
                         (
                             memory_id,
@@ -527,6 +535,7 @@ class SQLiteWorldStore:
                             cleaned_fact_id,
                             cleaned_claim_belief,
                             float(claim_confidence),
+                            float(semantic_score),
                             now,
                         ),
                     )
@@ -672,6 +681,7 @@ class SQLiteWorldStore:
             claim_fact_id=str(row["claim_fact_id"] or ""),
             claim_belief=str(row["claim_belief"] or ""),
             claim_confidence=float(row["claim_confidence"] or 0.0),
+            semantic_score=float(row["semantic_score"] or 0.0),
         )
 
     def get_character_memories(

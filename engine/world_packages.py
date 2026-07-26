@@ -19,6 +19,20 @@ from world_schema import WorldState
 PACKAGE_FORMAT = "ai-transmigration-world-package"
 PACKAGE_FORMAT_VERSION = 1
 PACKAGE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
+REVIEW_STATUSES = {
+    "draft",
+    "pending_review",
+    "approved",
+    "published",
+    "rejected",
+}
+REVIEW_TRANSITIONS = {
+    "draft": {"pending_review"},
+    "pending_review": {"draft", "approved", "rejected"},
+    "approved": {"draft", "published"},
+    "published": {"draft"},
+    "rejected": {"draft", "pending_review"},
+}
 
 
 class WorldPackageError(RuntimeError):
@@ -55,6 +69,10 @@ class WorldPackageRecord:
     source: str
     created_at: str
     updated_at: str
+    review_status: str = "draft"
+    review_note: str = ""
+    reviewed_at: str = ""
+    published_at: str = ""
 
     @property
     def editable(self) -> bool:
@@ -81,6 +99,10 @@ class WorldPackageRecord:
             "editable": self.editable,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "review_status": self.review_status,
+            "review_note": self.review_note,
+            "reviewed_at": self.reviewed_at,
+            "published_at": self.published_at,
         }
 
     def payload(self) -> Dict[str, Any]:
@@ -313,6 +335,16 @@ def validate_world_package_payload(
         revision = 1
         errors.append("revision 必须是正整数")
 
+    source = str(payload.get("source") or "custom")
+    default_review_status = (
+        "published" if source == "builtin" else "draft"
+    )
+    review_status = str(
+        payload.get("review_status") or default_review_status
+    )
+    if review_status not in REVIEW_STATUSES:
+        errors.append(f"未知审核状态: {review_status}")
+
     if errors:
         raise WorldPackageValidationError(errors)
 
@@ -327,9 +359,13 @@ def validate_world_package_payload(
         snapshot=state,
         manifest=_manifest(state),
         revision=revision,
-        source=str(payload.get("source") or "custom"),
+        source=source,
         created_at=str(payload.get("created_at") or now),
         updated_at=str(payload.get("updated_at") or now),
+        review_status=review_status,
+        review_note=str(payload.get("review_note") or ""),
+        reviewed_at=str(payload.get("reviewed_at") or ""),
+        published_at=str(payload.get("published_at") or ""),
     )
 
 
@@ -344,6 +380,8 @@ class WorldPackageStore:
     ):
         self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
+        self.history_directory = self.directory / ".history"
+        self.history_directory.mkdir(parents=True, exist_ok=True)
         self._builtins: Dict[str, WorldPackageRecord] = {}
         for package_id, payload in (builtins or {}).items():
             record = validate_world_package_payload(
@@ -361,6 +399,18 @@ class WorldPackageStore:
         if path.parent != self.directory:
             raise WorldPackageValidationError(["世界包路径越界"])
         return path
+
+    def _history_path(
+        self,
+        package_id: str,
+        revision: int,
+    ) -> Path:
+        self._path(package_id)
+        if revision < 1:
+            raise WorldPackageValidationError(["修订号必须大于 0"])
+        return self.history_directory / (
+            f"{package_id}.r{revision}.json"
+        )
 
     def _load_path(self, path: Path) -> WorldPackageRecord:
         try:
@@ -497,15 +547,222 @@ class WorldPackageStore:
                 "source": "custom",
                 "created_at": previous.created_at if previous else now,
                 "updated_at": now,
+                "review_status": "draft",
+                "review_note": "",
+                "reviewed_at": "",
+                "published_at": "",
             }
         )
-        temp_path = path.with_suffix(".json.tmp")
-        try:
-            temp_path.write_text(
-                json.dumps(saved.payload(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
+        self._persist_record(path, saved)
+        return saved
+
+    def list_revisions(self, package_id: str) -> List[Dict[str, Any]]:
+        current = self.get(package_id)
+        if not current.editable:
+            return [
+                {
+                    "revision": current.revision,
+                    "review_status": current.review_status,
+                    "updated_at": current.updated_at,
+                    "review_note": current.review_note,
+                }
+            ]
+        records: Dict[int, WorldPackageRecord] = {}
+        for path in self.history_directory.glob(
+            f"{package_id}.r*.json"
+        ):
+            try:
+                record = self._load_path(path)
+            except WorldPackageError:
+                continue
+            records[record.revision] = record
+        records[current.revision] = current
+        return [
+            {
+                "revision": record.revision,
+                "review_status": record.review_status,
+                "updated_at": record.updated_at,
+                "review_note": record.review_note,
+            }
+            for record in sorted(
+                records.values(),
+                key=lambda item: item.revision,
+                reverse=True,
             )
+        ]
+
+    def get_revision(
+        self,
+        package_id: str,
+        revision: int,
+    ) -> WorldPackageRecord:
+        current = self.get(package_id)
+        if current.revision == revision:
+            return current
+        path = self._history_path(package_id, revision)
+        if not path.exists():
+            raise WorldPackageNotFound(
+                f"世界包 {package_id} 不存在修订 r{revision}"
+            )
+        return self._load_path(path)
+
+    def diff_revisions(
+        self,
+        package_id: str,
+        from_revision: int,
+        to_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        before = self.get_revision(package_id, from_revision)
+        after = (
+            self.get(package_id)
+            if to_revision is None
+            else self.get_revision(package_id, to_revision)
+        )
+        changes: List[Dict[str, Any]] = []
+        _diff_values(
+            before.payload(),
+            after.payload(),
+            "",
+            changes,
+        )
+        return {
+            "package_id": package_id,
+            "from_revision": before.revision,
+            "to_revision": after.revision,
+            "change_count": len(changes),
+            "changes": changes[:500],
+            "truncated": len(changes) > 500,
+        }
+
+    def transition_review(
+        self,
+        package_id: str,
+        target_status: str,
+        *,
+        expected_revision: int,
+        note: str = "",
+    ) -> WorldPackageRecord:
+        if target_status not in REVIEW_STATUSES:
+            raise WorldPackageValidationError(
+                [f"未知审核状态: {target_status}"]
+            )
+        current = self.get(package_id)
+        if not current.editable:
+            raise WorldPackageError("内置世界包不参与创作者审核流")
+        if current.revision != expected_revision:
+            raise WorldPackageConflict(
+                "世界包版本冲突: "
+                f"expected {expected_revision}, got {current.revision}"
+            )
+        allowed = REVIEW_TRANSITIONS.get(
+            current.review_status,
+            set(),
+        )
+        if target_status not in allowed:
+            raise WorldPackageError(
+                f"审核状态不能从 {current.review_status} "
+                f"变更为 {target_status}"
+            )
+        now = _now()
+        saved = WorldPackageRecord(
+            **{
+                **current.__dict__,
+                "revision": current.revision + 1,
+                "updated_at": now,
+                "review_status": target_status,
+                "review_note": note.strip(),
+                "reviewed_at": (
+                    now
+                    if target_status in {"approved", "rejected"}
+                    else current.reviewed_at
+                ),
+                "published_at": (
+                    now
+                    if target_status == "published"
+                    else current.published_at
+                ),
+            }
+        )
+        self._persist_record(self._path(package_id), saved)
+        return saved
+
+    def _persist_record(
+        self,
+        path: Path,
+        record: WorldPackageRecord,
+    ) -> None:
+        payload = json.dumps(
+            record.payload(),
+            ensure_ascii=False,
+            indent=2,
+        )
+        temp_path = path.with_suffix(".json.tmp")
+        history_path = self._history_path(
+            record.package_id,
+            record.revision,
+        )
+        history_temp = history_path.with_suffix(".json.tmp")
+        try:
+            temp_path.write_text(payload, encoding="utf-8")
+            history_temp.write_text(payload, encoding="utf-8")
             temp_path.replace(path)
+            history_temp.replace(history_path)
         except OSError as exc:
             raise WorldPackageError(f"保存世界包失败: {exc}") from exc
-        return saved
+
+
+def _diff_values(
+    before: Any,
+    after: Any,
+    path: str,
+    changes: List[Dict[str, Any]],
+) -> None:
+    if isinstance(before, dict) and isinstance(after, dict):
+        for key in sorted(set(before) | set(after)):
+            child_path = f"{path}.{key}" if path else key
+            if key not in before:
+                changes.append(
+                    {
+                        "path": child_path,
+                        "type": "added",
+                        "before": None,
+                        "after": after[key],
+                    }
+                )
+            elif key not in after:
+                changes.append(
+                    {
+                        "path": child_path,
+                        "type": "removed",
+                        "before": before[key],
+                        "after": None,
+                    }
+                )
+            else:
+                _diff_values(
+                    before[key],
+                    after[key],
+                    child_path,
+                    changes,
+                )
+        return
+    if isinstance(before, list) and isinstance(after, list):
+        if before != after:
+            changes.append(
+                {
+                    "path": path,
+                    "type": "changed",
+                    "before": before,
+                    "after": after,
+                }
+            )
+        return
+    if before != after:
+        changes.append(
+            {
+                "path": path,
+                "type": "changed",
+                "before": before,
+                "after": after,
+            }
+        )

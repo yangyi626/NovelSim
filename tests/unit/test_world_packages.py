@@ -6,6 +6,7 @@ import pytest
 
 from engine import (
     WorldPackageConflict,
+    WorldPackageError,
     WorldPackageStore,
     WorldPackageValidationError,
 )
@@ -61,6 +62,7 @@ def test_clone_save_and_reload_custom_package(tmp_path):
     assert saved.revision == 2
     assert reopened.scenario == "华容巷·逆转版"
     assert reopened.snapshot.characters[NIGHT].display_name == "夜轻歌（觉醒）"
+    assert reopened.review_status == "draft"
 
 
 def test_save_rejects_stale_revision(tmp_path):
@@ -170,3 +172,81 @@ def test_validation_rejects_duplicate_or_invalid_character_beliefs(tmp_path):
     assert "存在重复认知" in str(exc.value)
     assert "未知来源类型 telepathy" in str(exc.value)
     assert "含重复关键词" in str(exc.value)
+
+
+def test_revision_history_and_structured_diff(tmp_path):
+    store = _store(tmp_path)
+    cloned = store.clone("huarong_lane")
+    draft = cloned.payload()
+    draft["scenario"] = "华容巷·证据版"
+
+    saved = store.save(
+        cloned.package_id,
+        draft,
+        expected_revision=1,
+    )
+    revisions = store.list_revisions(cloned.package_id)
+    diff = store.diff_revisions(
+        cloned.package_id,
+        from_revision=1,
+        to_revision=2,
+    )
+
+    assert saved.revision == 2
+    assert [item["revision"] for item in revisions] == [2, 1]
+    assert any(
+        item["path"] == "scenario"
+        and item["before"] == "华容巷"
+        and item["after"] == "华容巷·证据版"
+        for item in diff["changes"]
+    )
+
+
+def test_review_workflow_and_editing_published_package_resets_draft(tmp_path):
+    store = _store(tmp_path)
+    package = store.clone("huarong_lane")
+
+    pending = store.transition_review(
+        package.package_id,
+        "pending_review",
+        expected_revision=1,
+        note="请审核角色认知。",
+    )
+    approved = store.transition_review(
+        package.package_id,
+        "approved",
+        expected_revision=pending.revision,
+        note="审核通过。",
+    )
+    published = store.transition_review(
+        package.package_id,
+        "published",
+        expected_revision=approved.revision,
+    )
+
+    assert pending.review_status == "pending_review"
+    assert approved.reviewed_at
+    assert published.review_status == "published"
+    assert published.published_at
+
+    draft = published.payload()
+    draft["anchor"] = "修改后的介入锚点"
+    edited = store.save(
+        package.package_id,
+        draft,
+        expected_revision=published.revision,
+    )
+    assert edited.review_status == "draft"
+    assert edited.review_note == ""
+
+
+def test_review_workflow_rejects_invalid_transition(tmp_path):
+    store = _store(tmp_path)
+    package = store.clone("huarong_lane")
+
+    with pytest.raises(WorldPackageError, match="不能从 draft"):
+        store.transition_review(
+            package.package_id,
+            "published",
+            expected_revision=1,
+        )

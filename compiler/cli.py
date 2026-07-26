@@ -28,6 +28,7 @@ from .scene_compiler import (
     ChapterCompiler,
     EntityRegistry,
     PackageBuilder,
+    VolumeCompiler,
     WorldPackage,
 )
 
@@ -57,11 +58,14 @@ def compile_novel(
     state = _fresh_state(package_id)
     registry = EntityRegistry()
     ext = extractor or EntityExtractor()
-    chapter_compiler = ChapterCompiler(extractor=ext)
+    volume_compiler = VolumeCompiler(extractor=ext)
     builder = PackageBuilder()
 
-    for ch in selected:
-        chapter_compiler.compile(ch, registry, state)
+    volume_result = volume_compiler.compile(
+        selected,
+        registry,
+        state,
+    )
 
     return builder.build(
         package_id=package_id,
@@ -69,6 +73,7 @@ def compile_novel(
         source_chapters=[c.index for c in selected],
         state=state,
         registry=registry,
+        compiler_metadata=volume_result.manifest(),
     )
 
 

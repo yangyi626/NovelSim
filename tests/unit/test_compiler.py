@@ -17,11 +17,15 @@ from compiler import (
     EntityExtractor,
     EntityRegistry,
     PackageBuilder,
+    VolumeCompiler,
     SceneCompiler,
     ChapterCompiler,
     SceneExtraction,
     RawEntity,
     RawEvent,
+    RawCharacterState,
+    RawForeshadow,
+    RawGoalEvolution,
     RawRelation,
     RawWorldRule,
     load_novel,
@@ -318,6 +322,142 @@ class TestChapterCompiler:
 
 
 # ---------------------------------------------------------------------------
+# VolumeCompiler (C 阶段：跨章节演化)
+# ---------------------------------------------------------------------------
+
+
+class TestVolumeCompiler:
+    def test_cross_chapter_state_foreshadow_and_goal_evolution(self):
+        chapter_one = Chapter(
+            index=1,
+            raw_number="1",
+            title="埋下疑云",
+            content="夜轻歌发现毒茶有异。",
+            paragraphs=["夜轻歌发现毒茶有异。"],
+        )
+        chapter_two = Chapter(
+            index=2,
+            raw_number="2",
+            title="真相浮现",
+            content="三小姐查明毒茶来自夜清清。",
+            paragraphs=["三小姐查明毒茶来自夜清清。"],
+        )
+        extraction_one = SceneExtraction(
+            scene_id="ch0001_sc01",
+            summary="夜轻歌发现毒茶疑点",
+            entities=[
+                RawEntity(
+                    raw_name="夜轻歌",
+                    aliases=["三小姐"],
+                ),
+                RawEntity(raw_name="夜清清"),
+            ],
+            character_states=[
+                RawCharacterState(
+                    character_name="夜轻歌",
+                    state_summary="开始警惕毒茶来源",
+                    emotion="警觉",
+                    evidence="茶味不对",
+                    confidence=0.9,
+                )
+            ],
+            foreshadows=[
+                RawForeshadow(
+                    title="毒茶真相",
+                    description="毒茶来源不明",
+                    status="planted",
+                    related_names=["夜轻歌", "夜清清"],
+                    evidence="茶味不对",
+                    confidence=0.85,
+                )
+            ],
+            goal_evolutions=[
+                RawGoalEvolution(
+                    character_name="夜轻歌",
+                    goal_key="investigate_poison",
+                    description="查明毒茶来源",
+                    status="active",
+                    priority=0.9,
+                    target_names=["夜清清"],
+                    evidence="她决定暗查",
+                    confidence=0.8,
+                )
+            ],
+        )
+        extraction_two = SceneExtraction(
+            scene_id="ch0002_sc01",
+            summary="夜轻歌查明下毒者",
+            entities=[
+                RawEntity(
+                    raw_name="三小姐",
+                    canonical_id="",
+                )
+            ],
+            character_states=[
+                RawCharacterState(
+                    character_name="三小姐",
+                    state_summary="掌握夜清清下毒证据",
+                    emotion="冷静",
+                    evidence="证据指向夜清清",
+                    confidence=0.9,
+                )
+            ],
+            foreshadows=[
+                RawForeshadow(
+                    title="毒茶真相",
+                    description="毒茶由夜清清安排",
+                    status="resolved",
+                    related_names=["三小姐", "夜清清"],
+                    evidence="证据指向夜清清",
+                    confidence=0.9,
+                )
+            ],
+            goal_evolutions=[
+                RawGoalEvolution(
+                    character_name="三小姐",
+                    goal_key="investigate_poison",
+                    description="查明毒茶来源",
+                    status="achieved",
+                    priority=0.9,
+                    target_names=["夜清清"],
+                    evidence="已取得证据",
+                    confidence=0.9,
+                )
+            ],
+        )
+        extractor = mock.Mock()
+        extractor.extract = mock.Mock(
+            side_effect=[extraction_one, extraction_two]
+        )
+        registry = EntityRegistry()
+        state = WorldState(timeline_id="volume")
+
+        result = VolumeCompiler(extractor=extractor).compile(
+            [chapter_two, chapter_one],
+            registry,
+            state,
+        )
+
+        night_id = registry.resolve_name("夜轻歌")
+        assert registry.resolve_name("三小姐") == night_id
+        history = state.characters[night_id].attrs["chapter_states"]
+        assert [item["chapter"] for item in history] == [1, 2]
+        foreshadows = [
+            arc for arc in state.plot.values()
+            if arc.kind == "foreshadow"
+        ]
+        assert len(foreshadows) == 1
+        assert foreshadows[0].completed is True
+        assert foreshadows[0].attrs["resolved_chapter"] == 2
+        goals = state.character_psyches[night_id].goals
+        assert len(goals) == 1
+        assert goals[0].achieved is True
+        assert len(goals[0].__dict__["evolution"]) == 2
+        assert result.source_chapters == [1, 2]
+        assert result.manifest()["stage"] == "C"
+
+
+# ---------------------------------------------------------------------------
 # PackageBuilder
 # ---------------------------------------------------------------------------
 
@@ -402,3 +542,42 @@ class TestRealLLMCompile:
         assert any("夜轻歌" in n or "三小姐" in n for n in all_names), \
             "主角夜轻歌未被抽出"
         assert len(pkg.snapshot.characters) >= 2  # 至少两角色
+
+    def test_real_two_chapter_volume_tracks_story_evolution(self, tmp_path):
+        """真实编译小型双章节样本，验证 C 阶段跨章演化而不加载整部长篇。"""
+
+        novel = tmp_path / "two_chapter_evolution.txt"
+        novel.write_text(
+            """------章节内容开始-------
+第1章 毒茶疑云
+
+夜轻歌在宴席上发现茶水里藏有慢性毒药。她表面镇定，内心由警惕转为愤怒。
+她立下明确目标：查明毒茶幕后主使，并决定暂时隐瞒中毒线索。
+临走时，她注意到夜清清袖口沾着同样的药粉；这条药粉线索成为尚未揭晓的伏笔。
+
+第2章 药粉真相
+
+夜轻歌追查药粉来源，确认夜清清就是毒茶幕后主使。
+前章的袖口药粉伏笔在对质中得到回收，她也公开了自己早已识破毒茶。
+夜轻歌从愤怒转为冷静，完成“查明毒茶幕后主使”的目标，并开始保护下一场宴席。
+""",
+            encoding="utf-8",
+        )
+
+        pkg = compile_novel(
+            str(novel),
+            chapters=[1, 2],
+            package_id="two_chapter_volume_smoke",
+            novel_name="毒茶疑云",
+        )
+        compiler_meta = pkg.manifest["compiler"]
+        update_count = (
+            compiler_meta["character_state_updates"]
+            + compiler_meta["foreshadow_updates"]
+            + compiler_meta["goal_updates"]
+        )
+
+        assert compiler_meta["stage"] == "C"
+        assert compiler_meta["source_chapters"] == [1, 2]
+        assert len(compiler_meta["chapter_summaries"]) == 2
+        assert update_count > 0

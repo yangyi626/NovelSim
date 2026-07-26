@@ -217,3 +217,4 @@ def test_postgres_schema_contains_jsonb_gin_and_hnsw():
     assert "USING hnsw (embedding vector_cosine_ops)" in schema
     assert "evidence_event_ids_json JSONB" in schema
     assert "claim_fact_id TEXT" in schema
+    assert "semantic_score DOUBLE PRECISION" in schema

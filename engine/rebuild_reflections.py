@@ -12,7 +12,10 @@ from dotenv import load_dotenv
 
 from .memory_projection import rebuild_session_memories
 from .qdrant_memory import QdrantBackedWorldStore
-from .reflection_memory import reflect_character_memories
+from .reflection_memory import (
+    ReflectionSemanticJudge,
+    reflect_character_memories,
+)
 from .store_factory import create_world_store
 
 
@@ -38,6 +41,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="生成反思前先从事件链幂等重建情景记忆",
     )
     parser.add_argument("--min-episodes", type=int, default=3)
+    parser.add_argument(
+        "--semantic-threshold",
+        type=float,
+        default=float(
+            os.environ.get(
+                "MEMORY_REFLECTION_SEMANTIC_THRESHOLD",
+                "0.72",
+            )
+        ),
+    )
+    parser.add_argument(
+        "--no-semantic-judge",
+        action="store_true",
+        help="仅执行结构与认知冲突校验，不调用独立语义审查模型",
+    )
     args = parser.parse_args(argv)
 
     store = create_world_store(sqlite_path=Path(args.sqlite))
@@ -47,6 +65,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else [item.session_id for item in store.list_sessions()]
     )
     result = {}
+    semantic_judge = (
+        None
+        if args.no_semantic_judge
+        else ReflectionSemanticJudge()
+    )
     try:
         for session_id in session_ids:
             state = store.get_state(session_id)
@@ -69,6 +92,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     session_id,
                     state,
                     character_id,
+                    semantic_judge=semantic_judge,
+                    semantic_threshold=args.semantic_threshold,
                     min_new_episodes=max(2, args.min_episodes),
                 )
                 reports.append(
@@ -81,6 +106,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         "rejected": report.rejected_count,
                         "skipped": report.skipped_reason,
                         "rejections": report.rejection_reasons,
+                        "semantic_scores": report.semantic_scores,
                     }
                 )
             result[session_id] = reports

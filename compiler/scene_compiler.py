@@ -8,12 +8,13 @@
     → 累积进 WorldState
     → 产出 WorldPackage (JSON + 可直接 build_snapshot())
 
-对应 plan 第十二步 A (单场景) + B (单章节)。
+对应 plan 第十二步 A (单场景) + B (单章节) + C (单卷跨章节演化)。
 """
 
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -21,7 +22,9 @@ from typing import Dict, List, Optional, Tuple
 from world_schema import (
     Character,
     CharacterBelief,
+    CharacterPsyche,
     CharacterRelation,
+    AgentGoal,
     Item,
     Location,
     Operation,
@@ -38,6 +41,9 @@ from engine.patch_validator import validate_patch
 from .extractors import (
     RawEntity,
     RawEvent,
+    RawCharacterState,
+    RawForeshadow,
+    RawGoalEvolution,
     RawRelation,
     RawWorldRule,
     SceneExtraction,
@@ -173,7 +179,8 @@ def _slug(name: str) -> str:
     if s and re.match(r"[A-Za-z]", s):
         return s.lower()[:16]
     # 中文等非 ascii：用稳定短 hash
-    return f"h{abs(hash(name)) % 100000:05d}"
+    digest = hashlib.sha256((name or "").encode("utf-8")).hexdigest()[:10]
+    return f"h{digest}"
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +473,308 @@ def split_scenes(chapter: Chapter):
 
 
 # ---------------------------------------------------------------------------
+# VolumeCompiler: 单卷跨章节状态、伏笔和目标演化
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VolumeCompileResult:
+    chapter_results: List[ChapterCompileResult] = field(default_factory=list)
+    source_chapters: List[int] = field(default_factory=list)
+    chapter_summaries: List[Dict] = field(default_factory=list)
+    character_state_updates: int = 0
+    foreshadow_updates: int = 0
+    goal_updates: int = 0
+    warnings: List[str] = field(default_factory=list)
+
+    def manifest(self) -> Dict:
+        return {
+            "stage": "C",
+            "source_chapters": list(self.source_chapters),
+            "chapter_summaries": list(self.chapter_summaries),
+            "character_state_updates": self.character_state_updates,
+            "foreshadow_updates": self.foreshadow_updates,
+            "goal_updates": self.goal_updates,
+            "warnings": list(self.warnings),
+        }
+
+
+class StoryEvolutionAccumulator:
+    """把每章抽取结果合并成可追踪的角色、伏笔与目标生命周期。"""
+
+    FORESHADOW_STATES = {"planted", "reinforced", "resolved"}
+    GOAL_STATES = {"active", "achieved", "abandoned", "superseded"}
+
+    def apply(
+        self,
+        chapter_index: int,
+        extraction: SceneExtraction,
+        registry: EntityRegistry,
+        state: WorldState,
+    ) -> Tuple[int, int, int, List[str]]:
+        character_updates = 0
+        foreshadow_updates = 0
+        goal_updates = 0
+        warnings: List[str] = []
+
+        for raw in extraction.character_states:
+            character_id = registry.resolve_name(raw.character_name)
+            if not character_id or character_id not in state.characters:
+                warnings.append(
+                    f"chapter {chapter_index}: 角色状态引用未知人物 "
+                    f"{raw.character_name}"
+                )
+                continue
+            character = state.characters[character_id]
+            history = character.attrs.setdefault("chapter_states", [])
+            entry = {
+                "chapter": chapter_index,
+                "summary": raw.state_summary,
+                "emotion": raw.emotion,
+                "evidence": raw.evidence,
+                "confidence": raw.confidence,
+            }
+            if not any(
+                item.get("chapter") == chapter_index
+                and item.get("summary") == raw.state_summary
+                for item in history
+                if isinstance(item, dict)
+            ):
+                history.append(entry)
+            character.attrs["compiled_state"] = raw.state_summary
+            character.attrs.update(raw.attrs_update)
+            for tag in raw.identity_tags_add:
+                if tag and tag not in character.identity_tags:
+                    character.identity_tags.append(tag)
+            psyche = self._psyche(state, character_id)
+            if raw.emotion:
+                psyche.emotion = raw.emotion
+            character_updates += 1
+
+        for raw in extraction.foreshadows:
+            status = raw.status if raw.status in self.FORESHADOW_STATES else ""
+            if not status:
+                warnings.append(
+                    f"chapter {chapter_index}: 伏笔 {raw.title} 状态无效"
+                )
+                continue
+            arc_id = _stable_id("foreshadow", raw.title)
+            related_ids = [
+                entity_id
+                for name in raw.related_names
+                for entity_id in [registry.resolve_name(name)]
+                if entity_id
+            ]
+            arc = state.plot.get(arc_id)
+            if arc is None:
+                arc = PlotArc(
+                    arc_id=arc_id,
+                    title=raw.title,
+                    kind="foreshadow",
+                    stage=status,
+                    completed=status == "resolved",
+                    attrs={
+                        "description": raw.description,
+                        "introduced_chapter": chapter_index,
+                        "reinforced_chapters": [],
+                        "evidence": [],
+                        "related_entity_ids": related_ids,
+                        "payoff_hint": raw.payoff_hint,
+                    },
+                )
+                state.plot[arc_id] = arc
+            arc.stage = status
+            arc.completed = status == "resolved"
+            arc.attrs["description"] = (
+                raw.description or arc.attrs.get("description", "")
+            )
+            arc.attrs["payoff_hint"] = (
+                raw.payoff_hint or arc.attrs.get("payoff_hint", "")
+            )
+            arc.attrs["related_entity_ids"] = list(
+                dict.fromkeys(
+                    list(arc.attrs.get("related_entity_ids", []))
+                    + related_ids
+                )
+            )
+            evidence = arc.attrs.setdefault("evidence", [])
+            evidence.append(
+                {
+                    "chapter": chapter_index,
+                    "status": status,
+                    "text": raw.evidence,
+                    "confidence": raw.confidence,
+                }
+            )
+            if status == "reinforced":
+                reinforced = arc.attrs.setdefault(
+                    "reinforced_chapters",
+                    [],
+                )
+                if chapter_index not in reinforced:
+                    reinforced.append(chapter_index)
+            if status == "resolved":
+                arc.attrs["resolved_chapter"] = chapter_index
+            foreshadow_updates += 1
+
+        for raw in extraction.goal_evolutions:
+            character_id = registry.resolve_name(raw.character_name)
+            if not character_id or character_id not in state.characters:
+                warnings.append(
+                    f"chapter {chapter_index}: 目标演化引用未知人物 "
+                    f"{raw.character_name}"
+                )
+                continue
+            status = raw.status if raw.status in self.GOAL_STATES else ""
+            if not status:
+                warnings.append(
+                    f"chapter {chapter_index}: 目标 {raw.goal_key} 状态无效"
+                )
+                continue
+            psyche = self._psyche(state, character_id)
+            goal_id = _stable_id(
+                "goal",
+                character_id,
+                raw.goal_key,
+            )
+            goal = next(
+                (
+                    item
+                    for item in psyche.goals
+                    if item.goal_id == goal_id
+                ),
+                None,
+            )
+            target_ids = [
+                entity_id
+                for name in raw.target_names
+                for entity_id in [registry.resolve_name(name)]
+                if entity_id in state.characters
+            ]
+            evolution_entry = {
+                "chapter": chapter_index,
+                "status": status,
+                "description": raw.description,
+                "evidence": raw.evidence,
+                "confidence": raw.confidence,
+            }
+            if goal is None:
+                goal = AgentGoal(
+                    goal_id=goal_id,
+                    description=raw.description,
+                    priority=raw.priority,
+                    target_ids=target_ids,
+                    achieved=status == "achieved",
+                    goal_key=raw.goal_key,
+                    status=status,
+                    evolution=[evolution_entry],
+                )
+                psyche.goals.append(goal)
+            else:
+                goal.description = raw.description or goal.description
+                goal.priority = raw.priority
+                goal.target_ids = list(
+                    dict.fromkeys(goal.target_ids + target_ids)
+                )
+                goal.achieved = status == "achieved"
+                goal.__dict__["status"] = status
+                evolution = goal.__dict__.setdefault("evolution", [])
+                evolution.append(evolution_entry)
+            goal_updates += 1
+
+        return (
+            character_updates,
+            foreshadow_updates,
+            goal_updates,
+            warnings,
+        )
+
+    @staticmethod
+    def _psyche(
+        state: WorldState,
+        character_id: str,
+    ) -> CharacterPsyche:
+        psyche = state.character_psyches.get(character_id)
+        if psyche is None:
+            psyche = CharacterPsyche(character_id=character_id)
+            state.character_psyches[character_id] = psyche
+        return psyche
+
+
+class VolumeCompiler:
+    """编译多个章节并累计跨章状态，是 plan 第十二步 C 的运行单元。"""
+
+    def __init__(
+        self,
+        extractor=None,
+        chapter_compiler: Optional[ChapterCompiler] = None,
+        evolution_accumulator: Optional[StoryEvolutionAccumulator] = None,
+    ):
+        self._chapter_compiler = chapter_compiler or ChapterCompiler(
+            extractor=extractor,
+        )
+        self._evolution = (
+            evolution_accumulator or StoryEvolutionAccumulator()
+        )
+
+    def compile(
+        self,
+        chapters: List[Chapter],
+        registry: EntityRegistry,
+        state: WorldState,
+        *,
+        max_scenes_per_chapter: Optional[int] = None,
+    ) -> VolumeCompileResult:
+        result = VolumeCompileResult()
+        for chapter in sorted(chapters, key=lambda item: item.index):
+            chapter_result = self._chapter_compiler.compile(
+                chapter,
+                registry,
+                state,
+                max_scenes=max_scenes_per_chapter,
+            )
+            result.chapter_results.append(chapter_result)
+            result.source_chapters.append(chapter.index)
+            result.warnings.extend(chapter_result.warnings)
+            summaries = []
+            for scene_result in chapter_result.scene_results:
+                extraction = scene_result.extraction
+                summaries.append(extraction.summary)
+                (
+                    character_count,
+                    foreshadow_count,
+                    goal_count,
+                    warnings,
+                ) = self._evolution.apply(
+                    chapter.index,
+                    extraction,
+                    registry,
+                    state,
+                )
+                result.character_state_updates += character_count
+                result.foreshadow_updates += foreshadow_count
+                result.goal_updates += goal_count
+                result.warnings.extend(warnings)
+            result.chapter_summaries.append(
+                {
+                    "chapter": chapter.index,
+                    "heading": chapter.heading,
+                    "summaries": [
+                        summary for summary in summaries if summary
+                    ],
+                    "entity_count": len(registry.alias_index),
+                }
+            )
+        return result
+
+
+def _stable_id(prefix: str, *parts: str) -> str:
+    material = ":".join(str(part).strip().lower() for part in parts)
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}_{digest}"
+
+
+# ---------------------------------------------------------------------------
 # PackageBuilder: 累积结果 -> WorldPackage (JSON + WorldState)
 # ---------------------------------------------------------------------------
 
@@ -504,6 +813,7 @@ class PackageBuilder:
         source_chapters: List[int],
         state: WorldState,
         registry: EntityRegistry,
+        compiler_metadata: Optional[Dict] = None,
     ) -> WorldPackage:
         manifest = {
             "character_count": len(state.characters),
@@ -516,6 +826,7 @@ class PackageBuilder:
                 for c in state.characters.values()
             ],
             "alias_index_size": len(registry.alias_index),
+            "compiler": dict(compiler_metadata or {}),
         }
         return WorldPackage(
             package_id=package_id,

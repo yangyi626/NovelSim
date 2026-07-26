@@ -66,6 +66,8 @@ from .reflection_memory import (
     ReflectionCandidate,
     ReflectionGenerator,
     ReflectionReport,
+    ReflectionSemanticJudge,
+    ReflectionSemanticScore,
     filter_compatible_memories,
     memory_conflicts_with_state,
     reflect_character_memories,
@@ -75,6 +77,12 @@ from .trajectory_eval import (
     TrajectoryReport,
     TrajectoryViolation,
     evaluate_trajectory,
+)
+from .llm_trajectory_eval import (
+    LLMTrajectoryEvaluator,
+    LLMTrajectoryReport,
+    TrajectoryQualityIssue,
+    TrajectoryQualityScore,
 )
 from .world_packages import (
     WorldPackageConflict,
@@ -144,6 +152,8 @@ __all__ = [
     "ReflectionCandidate",
     "ReflectionGenerator",
     "ReflectionReport",
+    "ReflectionSemanticJudge",
+    "ReflectionSemanticScore",
     "filter_compatible_memories",
     "memory_conflicts_with_state",
     "reflect_character_memories",
@@ -151,6 +161,10 @@ __all__ = [
     "TrajectoryReport",
     "TrajectoryViolation",
     "evaluate_trajectory",
+    "LLMTrajectoryEvaluator",
+    "LLMTrajectoryReport",
+    "TrajectoryQualityIssue",
+    "TrajectoryQualityScore",
     "WorldPackageConflict",
     "WorldPackageError",
     "WorldPackageNotFound",

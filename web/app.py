@@ -38,6 +38,7 @@ from pydantic import BaseModel
 from world_schema import WorldState
 from engine import (
     PersistenceError,
+    ReflectionSemanticJudge,
     SessionNotFound,
     TurnPipeline,
     VersionConflict,
@@ -134,6 +135,12 @@ class ImportSaveRequest(BaseModel):
 class PackageDraftRequest(BaseModel):
     package: Dict[str, Any]
     expected_revision: Optional[int] = None
+
+
+class PackageReviewRequest(BaseModel):
+    target_status: str
+    expected_revision: int
+    note: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +251,8 @@ def retrieve_npc_memories(
         if memories:
             context[character_id] = [
                 (
-                    f"[反思，置信度 {item.claim_confidence:.2f}] "
+                    f"[反思，主张置信度 {item.claim_confidence:.2f}，"
+                    f"证据一致性 {item.semantic_score:.2f}] "
                     f"{item.content}"
                     if item.memory_type == "reflection"
                     else f"[经历] {item.content}"
@@ -285,9 +293,15 @@ def persist_turn_memories(
         min_episodes = int(
             os.environ.get("MEMORY_REFLECTION_MIN_EPISODES", "3")
         )
+        semantic_threshold = float(
+            os.environ.get(
+                "MEMORY_REFLECTION_SEMANTIC_THRESHOLD",
+                "0.72",
+            )
+        )
     except ValueError as exc:
         raise PersistenceError(
-            "反思记忆间隔和最小情景数必须是整数"
+            "反思记忆间隔、最小情景数或语义门槛配置无效"
         ) from exc
     if (
         not reflections_enabled
@@ -295,6 +309,15 @@ def persist_turn_memories(
         or result.new_state.version % interval != 0
     ):
         return
+    semantic_judge_enabled = os.environ.get(
+        "MEMORY_REFLECTION_SEMANTIC_JUDGE_ENABLED",
+        "true",
+    ).strip().lower() not in {"0", "false", "no", "off"}
+    semantic_judge = (
+        ReflectionSemanticJudge()
+        if semantic_judge_enabled
+        else None
+    )
     for character_id, psyche in result.new_state.character_psyches.items():
         if psyche.is_player:
             continue
@@ -303,6 +326,8 @@ def persist_turn_memories(
             session_id,
             result.new_state,
             character_id,
+            semantic_judge=semantic_judge,
+            semantic_threshold=semantic_threshold,
             min_new_episodes=max(2, min_episodes),
         )
 
@@ -735,6 +760,93 @@ def api_creator_save(package_id: str, req: PackageDraftRequest):
                 "errors": e.errors,
             },
             status_code=422,
+        )
+    except WorldPackageError as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=400,
+        )
+    return {"status": "ok", "package": package.payload()}
+
+
+@app.get("/api/creator/packages/{package_id}/revisions")
+def api_creator_revisions(package_id: str):
+    """列出世界包的不可变修订历史。"""
+
+    try:
+        revisions = PACKAGES.list_revisions(package_id)
+    except WorldPackageNotFound as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=404,
+        )
+    except WorldPackageError as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=400,
+        )
+    return {"status": "ok", "revisions": revisions}
+
+
+@app.get("/api/creator/packages/{package_id}/diff")
+def api_creator_diff(
+    package_id: str,
+    from_revision: int,
+    to_revision: Optional[int] = None,
+):
+    """比较两个已保存修订，返回结构化字段差异。"""
+
+    try:
+        diff = PACKAGES.diff_revisions(
+            package_id,
+            from_revision,
+            to_revision,
+        )
+    except WorldPackageNotFound as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=404,
+        )
+    except WorldPackageError as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=400,
+        )
+    return {"status": "ok", "diff": diff}
+
+
+@app.post("/api/creator/packages/{package_id}/review")
+def api_creator_review(
+    package_id: str,
+    req: PackageReviewRequest,
+):
+    """按受控状态机提交审核、批准、驳回或发布。"""
+
+    try:
+        package = PACKAGES.transition_review(
+            package_id,
+            req.target_status,
+            expected_revision=req.expected_revision,
+            note=req.note,
+        )
+    except WorldPackageConflict as e:
+        return JSONResponse(
+            {"status": "conflict", "error": str(e)},
+            status_code=409,
+        )
+    except WorldPackageValidationError as e:
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": "审核状态无效",
+                "errors": e.errors,
+            },
+            status_code=422,
+        )
+    except WorldPackageNotFound as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=404,
         )
     except WorldPackageError as e:
         return JSONResponse(

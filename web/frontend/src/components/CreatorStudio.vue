@@ -2,11 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   cloneWorldPackage,
+  diffWorldPackageRevisions,
   getWorldPackage,
   listWorldPackages,
+  listWorldPackageRevisions,
   saveWorldPackage,
+  transitionWorldPackageReview,
   validateWorldPackage,
 } from '../api.js'
+import RelationshipGraph from './RelationshipGraph.vue'
 
 const emit = defineEmits(['back', 'play'])
 
@@ -23,6 +27,9 @@ const selectedItemId = ref('')
 const selectedPsycheId = ref('')
 const selectedBeliefCharacterId = ref('')
 const rawSnapshot = ref('')
+const revisions = ref([])
+const diffReport = ref(null)
+const reviewNote = ref('')
 
 const tabs = [
   ['overview', '总览'],
@@ -81,6 +88,33 @@ const stats = computed(() => ({
   ),
   plots: plotEntries.value.length,
 }))
+const reviewStatusLabel = computed(() => ({
+  draft: '草稿',
+  pending_review: '待审核',
+  approved: '已批准',
+  published: '已发布',
+  rejected: '已驳回',
+}[draft.value?.review_status] || '未知状态'))
+const reviewActions = computed(() => {
+  const actions = {
+    draft: [['pending_review', '提交审核']],
+    pending_review: [
+      ['approved', '批准'],
+      ['rejected', '驳回'],
+      ['draft', '撤回草稿'],
+    ],
+    approved: [
+      ['published', '正式发布'],
+      ['draft', '退回修改'],
+    ],
+    published: [['draft', '开启新修订']],
+    rejected: [
+      ['draft', '返回草稿'],
+      ['pending_review', '重新提交'],
+    ],
+  }
+  return actions[draft.value?.review_status] || []
+})
 
 function clearFeedback() {
   notice.value = ''
@@ -140,6 +174,7 @@ async function loadPackage(packageId) {
   draft.value = data.package
   initializeSelections()
   syncRawSnapshot()
+  await loadGovernance()
 }
 
 function initializeSelections() {
@@ -195,7 +230,58 @@ async function saveDraft() {
   draft.value = data.package
   notice.value = `世界包已保存为修订 v${data.package.revision}`
   await refreshPackageListOnly()
+  await loadGovernance()
   return true
+}
+
+async function loadGovernance() {
+  revisions.value = []
+  diffReport.value = null
+  reviewNote.value = draft.value?.review_note || ''
+  if (!draft.value?.package_id) return
+  const data = await listWorldPackageRevisions(draft.value.package_id)
+  if (data.status === 'ok') revisions.value = data.revisions || []
+}
+
+async function comparePreviousRevision() {
+  if (!draft.value || draft.value.revision <= 1) {
+    diffReport.value = { change_count: 0, changes: [] }
+    return
+  }
+  loading.value = true
+  clearFeedback()
+  const data = await diffWorldPackageRevisions(
+    draft.value.package_id,
+    draft.value.revision - 1,
+    draft.value.revision,
+  )
+  loading.value = false
+  if (data.status !== 'ok') {
+    errors.value = [data.error]
+    return
+  }
+  diffReport.value = data.diff
+}
+
+async function transitionReview(targetStatus) {
+  if (!draft.value || !editable.value || loading.value) return
+  loading.value = true
+  clearFeedback()
+  const data = await transitionWorldPackageReview(
+    draft.value.package_id,
+    targetStatus,
+    draft.value.revision,
+    reviewNote.value,
+  )
+  loading.value = false
+  if (data.status !== 'ok') {
+    errors.value = data.errors?.length ? data.errors : [data.error]
+    return
+  }
+  draft.value = data.package
+  notice.value = `审核状态已更新为：${reviewStatusLabel.value}`
+  await refreshPackageListOnly()
+  await loadGovernance()
 }
 
 async function playCurrent() {
@@ -476,6 +562,13 @@ onMounted(refreshPackages)
           <strong>{{ pkg.scenario }}</strong>
           <span>{{ pkg.novel }}</span>
           <small>{{ pkg.package_id }} · r{{ pkg.revision }}</small>
+          <small class="review-mini">{{ {
+            draft: '草稿',
+            pending_review: '待审核',
+            approved: '已批准',
+            published: '已发布',
+            rejected: '已驳回',
+          }[pkg.review_status] || '' }}</small>
         </button>
         <p class="rail-hint">内置包保持只读。点击“另存为新版本”后即可自由编辑。</p>
       </aside>
@@ -497,6 +590,45 @@ onMounted(refreshPackages)
             <li v-for="error in errors" :key="error">{{ error }}</li>
           </ul>
         </div>
+
+        <section class="governance-panel">
+          <div class="governance-status">
+            <span class="status-badge" :class="draft.review_status">{{ reviewStatusLabel }}</span>
+            <span>当前修订 r{{ draft.revision }}</span>
+            <span v-if="draft.reviewed_at">审核于 {{ draft.reviewed_at }}</span>
+            <span v-if="draft.published_at">发布于 {{ draft.published_at }}</span>
+          </div>
+          <div v-if="editable" class="governance-actions">
+            <input v-model="reviewNote" placeholder="审核说明（可选）" />
+            <button
+              v-for="[status, label] in reviewActions"
+              :key="status"
+              class="ghost"
+              :disabled="loading"
+              @click="transitionReview(status)"
+            >{{ label }}</button>
+            <button
+              class="ghost"
+              :disabled="loading || draft.revision <= 1"
+              @click="comparePreviousRevision"
+            >比较上一修订</button>
+          </div>
+          <div v-if="revisions.length" class="revision-strip">
+            <span v-for="item in revisions.slice(0, 8)" :key="item.revision">
+              r{{ item.revision }} · {{ item.review_status }}
+            </span>
+          </div>
+          <div v-if="diffReport" class="diff-report">
+            <strong>r{{ diffReport.from_revision }} → r{{ diffReport.to_revision }}：{{ diffReport.change_count }} 项变化</strong>
+            <ul>
+              <li v-for="change in diffReport.changes.slice(0, 30)" :key="`${change.path}-${change.type}`">
+                <code>{{ change.path }}</code>
+                <span>{{ change.type }}</span>
+                <small>{{ formatJson(change.before) }} → {{ formatJson(change.after) }}</small>
+              </li>
+            </ul>
+          </div>
+        </section>
 
         <nav class="tabs" aria-label="世界包编辑区域">
           <button
@@ -915,6 +1047,10 @@ onMounted(refreshPackages)
               <div><h2>人物关系</h2><p>关系是有方向的；夜轻歌 → 夜清清与反向关系可不同。</p></div>
               <button class="small-action" @click.prevent="addRelation">＋ 添加关系</button>
             </div>
+            <RelationshipGraph
+              :snapshot="snapshot"
+              :default-actor-id="draft.default_actor_id"
+            />
             <div class="relation-list">
               <article v-for="(relation, index) in snapshot.relations" :key="`${relation.source_id}-${relation.target_id}-${index}`">
                 <div class="relation-route">
@@ -1160,6 +1296,79 @@ onMounted(refreshPackages)
   padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 3px;
+}
+.governance-panel {
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+}
+.governance-status, .governance-actions, .revision-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.governance-status {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.governance-actions {
+  margin-top: 10px;
+}
+.governance-actions input {
+  min-width: 260px;
+  flex: 1;
+  margin: 0;
+}
+.status-badge {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+}
+.status-badge.pending_review, .status-badge.approved {
+  color: var(--warn);
+  border-color: rgba(201, 164, 90, 0.5);
+}
+.status-badge.published {
+  color: var(--system);
+  border-color: rgba(138, 168, 107, 0.5);
+}
+.status-badge.rejected {
+  color: var(--danger);
+  border-color: rgba(201, 90, 90, 0.5);
+}
+.revision-strip {
+  margin-top: 10px;
+  color: var(--text-faint);
+  font: 10px ui-monospace, monospace;
+}
+.diff-report {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+.diff-report ul {
+  max-height: 260px;
+  margin-top: 8px;
+  overflow: auto;
+}
+.diff-report li {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) 70px minmax(260px, 1.5fr);
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-soft);
+}
+.diff-report small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-mini {
+  color: var(--accent-dim) !important;
 }
 .notice {
   margin-top: 18px;

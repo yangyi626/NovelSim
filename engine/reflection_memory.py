@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import openai
 from pydantic import BaseModel, Field, validator
@@ -47,6 +47,28 @@ REFLECTION_SYSTEM_PROMPT = """你是 NPC 长期记忆整理器。请从同一角
       "keywords": ["关键词1", "关键词2"]
     }
   ]
+}
+"""
+
+REFLECTION_JUDGE_SYSTEM_PROMPT = """你是反思记忆的证据一致性审查器。
+你的任务不是润色或补充推断，而是判断“候选反思”是否被给出的情景证据直接支持。
+
+评分规则：
+1. 只使用输入证据，不使用常识补全未出现的幕后动机、身份或因果。
+2. 至少两条不同证据必须分别为主张提供有效信息；只是一条证据的改写应判不通过。
+3. 若证据与主张冲突，contradicted=true。
+4. evidence_coverage 表示被引用证据中真正支持主张的比例。
+5. semantic_score 综合衡量直接蕴含、跨证据支持和无过度推断程度。
+6. 只输出 JSON，不要解释或 markdown。
+
+输出格式：
+{
+  "fact_id": "与候选相同",
+  "entailed": true,
+  "contradicted": false,
+  "evidence_coverage": 0.9,
+  "semantic_score": 0.85,
+  "reason": "简短中文理由"
 }
 """
 
@@ -97,6 +119,15 @@ class ReflectionPayload(BaseModel):
     )
 
 
+class ReflectionSemanticScore(BaseModel):
+    fact_id: str = Field(..., min_length=3, max_length=120)
+    entailed: bool
+    contradicted: bool = False
+    evidence_coverage: float = Field(..., ge=0.0, le=1.0)
+    semantic_score: float = Field(..., ge=0.0, le=1.0)
+    reason: str = Field("", max_length=240)
+
+
 @dataclass
 class ReflectionReport:
     character_id: str
@@ -107,6 +138,7 @@ class ReflectionReport:
     rejected_count: int = 0
     skipped_reason: str = ""
     rejection_reasons: List[str] = field(default_factory=list)
+    semantic_scores: Dict[str, float] = field(default_factory=dict)
 
 
 class ReflectionGenerator:
@@ -239,6 +271,66 @@ class ReflectionGenerator:
         return "\n".join(lines)
 
 
+class ReflectionSemanticJudge:
+    """用独立低温 LLM 对候选反思做证据蕴含评分。"""
+
+    def __init__(self, model: Optional[str] = None):
+        config = get_llm_config()
+        self.api_key = config.api_key
+        self.base_url = config.base_url
+        self.model = model or config.model
+        self.last_error = ""
+
+    def score(
+        self,
+        candidate: ReflectionCandidate,
+        episodes: List[MemoryRecord],
+    ) -> Optional[ReflectionSemanticScore]:
+        self.last_error = ""
+        evidence_by_id = {
+            episode.source_event_id: episode.content
+            for episode in episodes
+        }
+        evidence = [
+            {
+                "event_id": event_id,
+                "content": evidence_by_id.get(event_id, ""),
+            }
+            for event_id in candidate.evidence_event_ids
+        ]
+        payload = {
+            "candidate": candidate.dict(),
+            "evidence": evidence,
+        }
+        messages = [
+            {"role": "system", "content": REFLECTION_JUDGE_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False),
+            },
+        ]
+        try:
+            raw = self._call_llm(messages)
+            score = ReflectionSemanticScore.parse_obj(_extract_json(raw))
+        except Exception as exc:  # noqa: BLE001
+            self.last_error = str(exc)
+            return None
+        if score.fact_id != candidate.fact_id:
+            self.last_error = "语义审查返回了不匹配的 fact_id"
+            return None
+        return score
+
+    def _call_llm(self, messages: list) -> str:
+        response = openai.ChatCompletion.create(
+            api_key=self.api_key,
+            api_base=self.base_url,
+            model=self.model,
+            messages=messages,
+            temperature=0.0,
+        )
+        return response.choices[0].message.content.strip()
+
+
 def reflect_character_memories(
     store: WorldStore,
     session_id: str,
@@ -246,6 +338,8 @@ def reflect_character_memories(
     character_id: str,
     *,
     generator: Optional[ReflectionGenerator] = None,
+    semantic_judge: Optional[ReflectionSemanticJudge] = None,
+    semantic_threshold: float = 0.72,
     min_new_episodes: int = 3,
     max_episode_window: int = 12,
     max_reflections: int = 100,
@@ -304,6 +398,7 @@ def reflect_character_memories(
         | set(state.plot)
     )
     for candidate in candidates:
+        candidate_semantic_score = 0.0
         reason = _candidate_rejection_reason(
             candidate,
             character_id,
@@ -317,6 +412,29 @@ def reflect_character_memories(
                 f"{candidate.fact_id}: {reason}"
             )
             continue
+        if semantic_judge is not None:
+            semantic_result = semantic_judge.score(candidate, window)
+            if semantic_result is None:
+                report.rejected_count += 1
+                report.rejection_reasons.append(
+                    f"{candidate.fact_id}: 语义一致性审查失败"
+                    f"（{semantic_judge.last_error or '未知错误'}）"
+                )
+                continue
+            candidate_semantic_score = semantic_result.semantic_score
+            report.semantic_scores[candidate.fact_id] = (
+                candidate_semantic_score
+            )
+            semantic_reason = _semantic_rejection_reason(
+                semantic_result,
+                semantic_threshold,
+            )
+            if semantic_reason:
+                report.rejected_count += 1
+                report.rejection_reasons.append(
+                    f"{candidate.fact_id}: {semantic_reason}"
+                )
+                continue
         existing = existing_by_fact.get(candidate.fact_id)
         evidence = list(candidate.evidence_event_ids)
         if existing is not None:
@@ -344,6 +462,7 @@ def reflect_character_memories(
             claim_fact_id=candidate.fact_id,
             claim_belief=candidate.belief.value,
             claim_confidence=candidate.confidence,
+            semantic_score=candidate_semantic_score,
         )
         report.written_count += 1
     if report.written_count:
@@ -354,6 +473,27 @@ def reflect_character_memories(
             max_records=max_reflections,
         )
     return report
+
+
+def _semantic_rejection_reason(
+    score: ReflectionSemanticScore,
+    threshold: float,
+) -> str:
+    if score.contradicted:
+        return f"证据与反思矛盾：{score.reason}"
+    if not score.entailed:
+        return f"证据不能直接支持反思：{score.reason}"
+    if score.evidence_coverage < 0.6:
+        return (
+            f"有效证据覆盖率过低 {score.evidence_coverage:.2f}："
+            f"{score.reason}"
+        )
+    if score.semantic_score < threshold:
+        return (
+            f"语义一致性分 {score.semantic_score:.2f} "
+            f"低于门槛 {threshold:.2f}：{score.reason}"
+        )
+    return ""
 
 
 def reflection_source_id(character_id: str, fact_id: str) -> str:

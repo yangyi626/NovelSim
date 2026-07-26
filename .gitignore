@@ -34,6 +34,7 @@ get-pip.py
 # 编译产出的 WorldPackage (产物，不纳入版本控制；保留 README)
 worlds/*.json
 worlds/*.json.tmp
+worlds/.history/
 
 # 本地运行时数据库
 data/*.sqlite3

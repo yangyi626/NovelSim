@@ -191,6 +191,7 @@ class PostgresWorldStore:
                         claim_fact_id TEXT NOT NULL DEFAULT '',
                         claim_belief TEXT NOT NULL DEFAULT '',
                         claim_confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        semantic_score DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                         created_at TIMESTAMPTZ NOT NULL,
                         UNIQUE (
                             session_id,
@@ -226,6 +227,9 @@ class PostgresWorldStore:
                         TEXT NOT NULL DEFAULT '';
                     ALTER TABLE character_memories
                     ADD COLUMN IF NOT EXISTS claim_confidence
+                        DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                    ALTER TABLE character_memories
+                    ADD COLUMN IF NOT EXISTS semantic_score
                         DOUBLE PRECISION NOT NULL DEFAULT 0.0;
                     """
                 )
@@ -447,6 +451,7 @@ class PostgresWorldStore:
         claim_fact_id: str = "",
         claim_belief: str = "",
         claim_confidence: float = 0.0,
+        semantic_score: float = 0.0,
     ) -> List[str]:
         cleaned_content = " ".join((content or "").split())
         cleaned_type = (memory_type or "").strip()
@@ -475,6 +480,8 @@ class PostgresWorldStore:
             raise PersistenceError("记忆重要度必须在 0 到 1 之间")
         if not 0.0 <= claim_confidence <= 1.0:
             raise PersistenceError("记忆主张置信度必须在 0 到 1 之间")
+        if not 0.0 <= semantic_score <= 1.0:
+            raise PersistenceError("记忆语义一致性分必须在 0 到 1 之间")
         if not characters:
             return []
 
@@ -495,11 +502,11 @@ class PostgresWorldStore:
                             content, search_text, embedding,
                             importance, evidence_event_ids_json,
                             claim_fact_id, claim_belief,
-                            claim_confidence, created_at
+                            claim_confidence, semantic_score, created_at
                         ) VALUES (
                             %s, %s, %s, %s, %s, %s,
                             %s, %s, %s::vector, %s, %s::jsonb,
-                            %s, %s, %s, %s
+                            %s, %s, %s, %s, %s
                         )
                         ON CONFLICT (
                             session_id, character_id,
@@ -514,7 +521,8 @@ class PostgresWorldStore:
                                 EXCLUDED.evidence_event_ids_json,
                             claim_fact_id = EXCLUDED.claim_fact_id,
                             claim_belief = EXCLUDED.claim_belief,
-                            claim_confidence = EXCLUDED.claim_confidence
+                            claim_confidence = EXCLUDED.claim_confidence,
+                            semantic_score = EXCLUDED.semantic_score
                         RETURNING memory_id
                         """,
                         (
@@ -532,6 +540,7 @@ class PostgresWorldStore:
                             cleaned_fact_id,
                             cleaned_claim_belief,
                             float(claim_confidence),
+                            float(semantic_score),
                             now,
                         ),
                     )
@@ -571,6 +580,7 @@ class PostgresWorldStore:
             claim_fact_id=str(row.get("claim_fact_id") or ""),
             claim_belief=str(row.get("claim_belief") or ""),
             claim_confidence=float(row.get("claim_confidence") or 0.0),
+            semantic_score=float(row.get("semantic_score") or 0.0),
         )
 
     def search_character_memories(

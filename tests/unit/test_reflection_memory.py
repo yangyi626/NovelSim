@@ -2,10 +2,14 @@
 
 import json
 
+import pytest
+
 from engine import (
     MemoryRecord,
     ReflectionCandidate,
     ReflectionGenerator,
+    ReflectionSemanticJudge,
+    ReflectionSemanticScore,
     SQLiteWorldStore,
     filter_compatible_memories,
     reflect_character_memories,
@@ -209,6 +213,71 @@ def test_reflection_persists_evidence_and_structured_claim(tmp_path):
     assert reflections[0].claim_confidence == 0.82
 
 
+def test_semantic_judge_score_is_persisted(tmp_path):
+    store, state, session_id = _store_with_episodes(tmp_path)
+
+    class _Judge:
+        last_error = ""
+
+        def score(self, candidate, _episodes):
+            return ReflectionSemanticScore(
+                fact_id=candidate.fact_id,
+                entailed=True,
+                contradicted=False,
+                evidence_coverage=1.0,
+                semantic_score=0.88,
+                reason="两条经历共同支持隐藏实力。",
+            )
+
+    report = reflect_character_memories(
+        store,
+        session_id,
+        state,
+        QINGQING,
+        generator=_CandidateGenerator(),
+        semantic_judge=_Judge(),
+    )
+    reflections = store.list_character_memories(
+        session_id,
+        character_id=QINGQING,
+        memory_type="reflection",
+    )
+
+    assert report.written_count == 1
+    assert report.semantic_scores["inference_hidden_power"] == 0.88
+    assert reflections[0].semantic_score == 0.88
+
+
+def test_semantic_judge_rejects_over_inference(tmp_path):
+    store, state, session_id = _store_with_episodes(tmp_path)
+
+    class _Judge:
+        last_error = ""
+
+        def score(self, candidate, _episodes):
+            return ReflectionSemanticScore(
+                fact_id=candidate.fact_id,
+                entailed=False,
+                contradicted=False,
+                evidence_coverage=0.5,
+                semantic_score=0.41,
+                reason="只有一条经历能支持该主张。",
+            )
+
+    report = reflect_character_memories(
+        store,
+        session_id,
+        state,
+        QINGQING,
+        generator=_CandidateGenerator(),
+        semantic_judge=_Judge(),
+    )
+
+    assert report.written_count == 0
+    assert report.rejected_count == 1
+    assert "不能直接支持" in report.rejection_reasons[0]
+
+
 def test_same_fact_updates_idempotently_and_merges_evidence(tmp_path):
     store, state, session_id = _store_with_episodes(tmp_path)
     generator = _CandidateGenerator()
@@ -321,3 +390,40 @@ def test_retrieval_filters_reflection_when_belief_later_conflicts():
         state,
         QINGQING,
     ) == [episode]
+
+
+@pytest.mark.llm
+def test_real_llm_semantic_judge_accepts_direct_cross_event_evidence():
+    candidate = ReflectionCandidate(
+        content="我怀疑夜轻歌一直在隐藏真正实力。",
+        fact_id="inference_hidden_power",
+        belief=Belief.suspected_true,
+        confidence=0.82,
+        evidence_event_ids=["event-1", "event-2"],
+        related_entity_ids=[NIGHT],
+        keywords=["隐藏实力"],
+    )
+    episodes = [
+        MemoryRecord(
+            memory_id=f"memory-{index}",
+            session_id="semantic-smoke",
+            character_id=QINGQING,
+            source_event_id=f"event-{index}",
+            world_version=index,
+            memory_type="episodic",
+            content=content,
+            importance=0.9,
+            created_at="2026-07-27T00:00:00+00:00",
+        )
+        for index, content in [
+            (1, "夜轻歌徒手折断侍卫刀刃，动作极快。"),
+            (2, "持刀侍卫明显畏惧夜轻歌，警告同伴不要招惹她。"),
+        ]
+    ]
+
+    score = ReflectionSemanticJudge().score(candidate, episodes)
+
+    assert score is not None
+    assert score.fact_id == candidate.fact_id
+    assert 0.0 <= score.semantic_score <= 1.0
+    assert score.reason

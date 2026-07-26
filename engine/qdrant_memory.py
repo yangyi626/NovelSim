@@ -175,6 +175,11 @@ class QdrantMemoryIndex:
                                 "claim_confidence",
                                 0.0,
                             ),
+                            "semantic_score": getattr(
+                                record,
+                                "semantic_score",
+                                0.0,
+                            ),
                         },
                     )
                 )
@@ -336,6 +341,7 @@ class QdrantBackedWorldStore:
         claim_fact_id: str = "",
         claim_belief: str = "",
         claim_confidence: float = 0.0,
+        semantic_score: float = 0.0,
     ) -> List[str]:
         memory_ids = self.delegate.record_character_memories(
             session_id,
@@ -349,6 +355,7 @@ class QdrantBackedWorldStore:
             claim_fact_id=claim_fact_id,
             claim_belief=claim_belief,
             claim_confidence=claim_confidence,
+            semantic_score=semantic_score,
         )
         self.index.upsert(self.delegate.get_character_memories(memory_ids))
         return memory_ids

@@ -324,6 +324,42 @@ def test_creator_package_clone_edit_and_start(tmp_path, monkeypatch):
     )
 
 
+def test_creator_revision_diff_and_review_api(tmp_path, monkeypatch):
+    package_store = _creator_package_store(tmp_path)
+    monkeypatch.setattr(web_app, "PACKAGES", package_store)
+    cloned = web_app.api_creator_clone("huarong_lane")["package"]
+    cloned["scenario"] = "华容巷·审核版"
+    saved = web_app.api_creator_save(
+        cloned["package_id"],
+        web_app.PackageDraftRequest(
+            package=cloned,
+            expected_revision=1,
+        ),
+    )["package"]
+
+    revisions = web_app.api_creator_revisions(
+        cloned["package_id"]
+    )
+    diff = web_app.api_creator_diff(
+        cloned["package_id"],
+        from_revision=1,
+        to_revision=2,
+    )
+    pending = web_app.api_creator_review(
+        cloned["package_id"],
+        web_app.PackageReviewRequest(
+            target_status="pending_review",
+            expected_revision=saved["revision"],
+            note="请审核。",
+        ),
+    )
+
+    assert [item["revision"] for item in revisions["revisions"]] == [2, 1]
+    assert diff["diff"]["change_count"] > 0
+    assert pending["package"]["review_status"] == "pending_review"
+    assert pending["package"]["revision"] == 3
+
+
 def test_creator_validation_returns_all_reference_errors(
     tmp_path, monkeypatch
 ):

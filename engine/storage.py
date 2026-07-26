@@ -83,6 +83,7 @@ class WorldStore(Protocol):
         claim_fact_id: str = "",
         claim_belief: str = "",
         claim_confidence: float = 0.0,
+        semantic_score: float = 0.0,
     ) -> List[str]:
         ...
 

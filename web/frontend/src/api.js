@@ -117,6 +117,49 @@ export async function saveWorldPackage(packageId, pkg, expectedRevision) {
   return parseResponse(resp)
 }
 
+export async function listWorldPackageRevisions(packageId) {
+  const resp = await fetch(
+    `/api/creator/packages/${encodeURIComponent(packageId)}/revisions`,
+  )
+  return parseResponse(resp)
+}
+
+export async function diffWorldPackageRevisions(
+  packageId,
+  fromRevision,
+  toRevision = null,
+) {
+  const params = new URLSearchParams({
+    from_revision: String(fromRevision),
+  })
+  if (toRevision != null) params.set('to_revision', String(toRevision))
+  const resp = await fetch(
+    `/api/creator/packages/${encodeURIComponent(packageId)}/diff?${params}`,
+  )
+  return parseResponse(resp)
+}
+
+export async function transitionWorldPackageReview(
+  packageId,
+  targetStatus,
+  expectedRevision,
+  note = '',
+) {
+  const resp = await fetch(
+    `/api/creator/packages/${encodeURIComponent(packageId)}/review`,
+    {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        target_status: targetStatus,
+        expected_revision: expectedRevision,
+        note,
+      }),
+    },
+  )
+  return parseResponse(resp)
+}
+
 export async function submitTurn(sessionId, text, useNpcAgents) {
   const resp = await fetch('/api/turn', {
     method: 'POST',
