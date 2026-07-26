@@ -70,6 +70,7 @@ cd web/frontend && npm run dev
 - **世界创作台**：点击顶栏“创作台”，可编辑角色、角色心理、角色认知、地点、物品、关系、世界规则、剧情线和介入锚点。
 - **版本化创作**：内置包只读，可另存为可编辑版本；保存后可直接从该世界包开局试玩。
 - **创作治理**：人物关系图、不可变修订历史、版本差异，以及草稿→审核→批准→发布状态流。
+- **全书编译**：SQLite 任务进度、场景缓存、暂停/继续/取消、章节/卷/全书快照和自动质量审核。
 
 ## 创作者后台
 
@@ -103,6 +104,8 @@ cd web/frontend && npm run dev
 - `GET /api/creator/packages`、`GET /api/creator/packages/<id>` 读取世界包。
 - `POST /api/creator/packages/<id>/clone` 创建可编辑版本。
 - `POST /api/creator/packages/validate` 校验草稿；`PUT /api/creator/packages/<id>` 保存新修订。
+- `POST /api/creator/compiler/jobs` 创建全书编译任务；`GET /api/creator/compiler/jobs` 查询进度。
+- `GET /api/creator/compiler/jobs/<id>` 查看逐章状态和快照；`POST .../actions` 执行暂停、继续或取消。
 - 恢复会话时会重建玩家输入、旁白、对白、系统提示和 NPC 反应卡片。
 
 PostgreSQL 启动、配置、SQLite 迁移和真实契约测试见 [`docs/PostgreSQL部署与迁移.md`](../docs/PostgreSQL部署与迁移.md)。
@@ -111,6 +114,7 @@ Qdrant 架构、配置、重建与升级方式见 [`docs/Qdrant向量检索.md`]
 反思生成、证据链、冲突保护和离线重建见 [`docs/反思与语义记忆.md`](../docs/反思与语义记忆.md)。
 真实 LLM 长轨迹评分见 [`docs/LLM长轨迹评分.md`](../docs/LLM长轨迹评分.md)。
 编译器 C 与创作者审核发布流见 [`docs/编译器C阶段与创作者发布流.md`](../docs/编译器C阶段与创作者发布流.md)。
+SQLite 编译任务、断点续跑和编译器 D 见 [`docs/编译任务与全书编译D.md`](../docs/编译任务与全书编译D.md)。
 
 ## 架构
 
@@ -123,6 +127,7 @@ web/
     ├── src/App.vue     # 三栏布局根组件
     ├── src/components/
     │   ├── CreatorStudio.vue # 世界包创作者后台
+    │   ├── CompilationJobs.vue # 全书编译任务进度页
     │   ├── StoryFeed.vue   # 左栏剧情流
     │   ├── SaveManager.vue # 多世界线存档管理
     │   ├── StatePanel.vue  # 右栏世界状态

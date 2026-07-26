@@ -11,6 +11,7 @@ import {
   validateWorldPackage,
 } from '../api.js'
 import RelationshipGraph from './RelationshipGraph.vue'
+import CompilationJobs from './CompilationJobs.vue'
 
 const emit = defineEmits(['back', 'play'])
 
@@ -30,6 +31,7 @@ const rawSnapshot = ref('')
 const revisions = ref([])
 const diffReport = ref(null)
 const reviewNote = ref('')
+const compilerMode = ref(false)
 
 const tabs = [
   ['overview', '总览'],
@@ -175,6 +177,12 @@ async function loadPackage(packageId) {
   initializeSelections()
   syncRawSnapshot()
   await loadGovernance()
+}
+
+async function openCompiledPackage(packageId) {
+  compilerMode.value = false
+  await refreshPackages(packageId)
+  notice.value = `编译产物 ${packageId} 已进入创作者审核流`
 }
 
 function initializeSelections() {
@@ -538,15 +546,18 @@ onMounted(refreshPackages)
         </div>
       </div>
       <div class="toolbar">
-        <button class="ghost" :disabled="loading || !draft" @click="validateDraft">校验</button>
-        <button class="ghost" :disabled="loading || !draft" @click="clonePackage">另存为新版本</button>
-        <button class="primary" :disabled="loading || !editable" @click="saveDraft">保存世界包</button>
-        <button class="play" :disabled="loading || !draft" @click="playCurrent">保存并试玩</button>
+        <button class="ghost" @click="compilerMode = !compilerMode">
+          {{ compilerMode ? '返回世界包' : '全书编译' }}
+        </button>
+        <button class="ghost" :disabled="compilerMode || loading || !draft" @click="validateDraft">校验</button>
+        <button class="ghost" :disabled="compilerMode || loading || !draft" @click="clonePackage">另存为新版本</button>
+        <button class="primary" :disabled="compilerMode || loading || !editable" @click="saveDraft">保存世界包</button>
+        <button class="play" :disabled="compilerMode || loading || !draft" @click="playCurrent">保存并试玩</button>
       </div>
     </header>
 
-    <div class="studio-body">
-      <aside class="package-rail">
+    <div class="studio-body" :class="{ compiler: compilerMode }">
+      <aside v-if="!compilerMode" class="package-rail">
         <div class="rail-title">
           <span>世界包</span>
           <small>{{ packages.length }}</small>
@@ -573,7 +584,11 @@ onMounted(refreshPackages)
         <p class="rail-hint">内置包保持只读。点击“另存为新版本”后即可自由编辑。</p>
       </aside>
 
-      <main v-if="draft" class="workspace">
+      <main v-if="compilerMode" class="workspace compiler-workspace">
+        <CompilationJobs @package-created="openCompiledPackage" />
+      </main>
+
+      <main v-else-if="draft" class="workspace">
         <section class="package-heading">
           <div>
             <div class="eyebrow">{{ editable ? '可编辑版本' : '只读基准包' }} · {{ draft.package_id }}</div>
@@ -1202,6 +1217,12 @@ onMounted(refreshPackages)
   flex: 1;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
+}
+.studio-body.compiler {
+  grid-template-columns: minmax(0, 1fr);
+}
+.compiler-workspace {
+  background: #f7f0e6;
 }
 .package-rail {
   padding: 18px 14px;
