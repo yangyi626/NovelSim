@@ -78,6 +78,21 @@ def _json(d):
 
 
 class TestAgentDecideLogic:
+    def test_long_term_memory_is_injected_with_authority_warning(
+        self, snapshot
+    ):
+        ag = CharacterAgent(QINGQING)
+        context = ag._build_context(
+            snapshot,
+            snapshot.character_psyches[QINGQING],
+            snapshot.characters[QINGQING],
+            long_term_memories=["三日前在旧书店发现过一本秘密账本"],
+        )
+
+        assert "# 与当前局势相关的长期记忆" in context
+        assert "秘密账本" in context
+        assert "以当前状态为准" in context
+
     def test_decide_with_action_returns_valid_patch(self, snapshot):
         """夜清清被夺外衫后，LLM 让她含讽反击。"""
         raw = _json({

@@ -122,7 +122,11 @@ class CharacterAgent:
     # 公开接口
     # ------------------------------------------------------------------
 
-    def decide(self, state: WorldState) -> Optional[AgentDecision]:
+    def decide(
+        self,
+        state: WorldState,
+        long_term_memories: Optional[List[str]] = None,
+    ) -> Optional[AgentDecision]:
         """让该角色做一次自主决策。失败返回 None (查 last_error)。
 
         返回的 AgentDecision 里:
@@ -143,7 +147,12 @@ class CharacterAgent:
             self.last_error = "dead characters do not act"
             return None
 
-        context = self._build_context(state, psy, char)
+        context = self._build_context(
+            state,
+            psy,
+            char,
+            long_term_memories=long_term_memories,
+        )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": context},
@@ -192,7 +201,14 @@ class CharacterAgent:
     # 上下文构造 (只暴露该角色"该知道的")
     # ------------------------------------------------------------------
 
-    def _build_context(self, state: WorldState, psy, char) -> str:
+    def _build_context(
+        self,
+        state: WorldState,
+        psy,
+        char,
+        *,
+        long_term_memories: Optional[List[str]] = None,
+    ) -> str:
         cid = self.character_id
         lines = [
             "# 你的身份",
@@ -227,6 +243,14 @@ class CharacterAgent:
             lines.append("\n# 你最近感知到的")
             for s in psy.recent_perceptions[-5:]:
                 lines.append(f"- {s}")
+
+        # 长期记忆由持久化检索层按会话和角色隔离后注入。它是相关历史的
+        # 召回结果，不覆盖当前权威世界状态。
+        if long_term_memories:
+            lines.append("\n# 与当前局势相关的长期记忆")
+            lines.append("以下记忆可能不完整；若与当前世界状态冲突，以当前状态为准。")
+            for memory in long_term_memories[:5]:
+                lines.append(f"- {memory}")
 
         # 在场角色 (能看到的人) + 与他们的关系
         scene_chars = [c for c in state.characters.values()

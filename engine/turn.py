@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from world_schema import Action, NarrativeOutput, WorldEvent, WorldState
 
@@ -93,6 +93,7 @@ class TurnPipeline:
         use_llm_proposer: bool = True,
         use_narrative: bool = True,
         use_npc_agents: bool = False,
+        npc_memory_context: Optional[Dict[str, List[str]]] = None,
     ) -> TurnResult:
         """跑一个完整回合。返回 TurnResult。
 
@@ -137,7 +138,11 @@ class TurnPipeline:
             from .patch import apply_patch
             hypothetical = apply_patch(state, patch)
             hypothetical.version = state.version + 1
-            npc_schedule = scheduler.react(hypothetical, trigger_event=None)
+            npc_schedule = scheduler.react(
+                hypothetical,
+                trigger_event=None,
+                memory_context=npc_memory_context,
+            )
             npc_reactions = list(npc_schedule.order)
             if npc_schedule.combined_patch.operations:
                 patch = merge_player_and_npc(patch, npc_schedule.combined_patch)

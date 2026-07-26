@@ -13,10 +13,10 @@
 开发顺序遵循 plan 第十二节的 A→B→C→D：
     A. 单场景编译   (SceneCompiler)
     B. 单章节编译   (ChapterCompiler，多场景 + 别名消歧)
-    C. 单卷编译     (后续)
+    C. 单卷编译     (已完成：跨章状态/伏笔/目标演化)
     D. 全书编译     (后续)
 
-本阶段先打通 A + B，用《第一狂妃》前 2 章"华容巷"做端到端验证，
+当前已打通 A + B + C，用《第一狂妃》前几章做端到端验证，
 产出的 WorldPackage 与手工版 examples/huarong_lane 可对照。
 """
 
@@ -34,6 +34,9 @@ from .extractors import (
     RawEntity,
     RawRelation,
     RawEvent,
+    RawCharacterState,
+    RawForeshadow,
+    RawGoalEvolution,
     RawWorldRule,
 )
 from .scene_compiler import (
@@ -43,6 +46,9 @@ from .scene_compiler import (
     ChapterCompiler,
     ChapterCompileResult,
     PackageBuilder,
+    StoryEvolutionAccumulator,
+    VolumeCompiler,
+    VolumeCompileResult,
     WorldPackage,
 )
 from .cli import compile_novel
@@ -61,6 +67,9 @@ __all__ = [
     "RawEntity",
     "RawRelation",
     "RawEvent",
+    "RawCharacterState",
+    "RawForeshadow",
+    "RawGoalEvolution",
     "RawWorldRule",
     # compilers
     "EntityRegistry",
@@ -69,6 +78,9 @@ __all__ = [
     "ChapterCompiler",
     "ChapterCompileResult",
     "PackageBuilder",
+    "StoryEvolutionAccumulator",
+    "VolumeCompiler",
+    "VolumeCompileResult",
     "WorldPackage",
     # entrypoint
     "compile_novel",

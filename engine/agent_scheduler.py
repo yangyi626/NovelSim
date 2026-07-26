@@ -85,6 +85,7 @@ class CharacterScheduler:
         self,
         state: WorldState,
         trigger_event: Optional[WorldEvent] = None,
+        memory_context: Optional[Dict[str, List[str]]] = None,
     ) -> AgentScheduleResult:
         """在一轮玩家行动后，调度相关 NPC 做出反应。
 
@@ -103,7 +104,12 @@ class CharacterScheduler:
         # 2. 依次决策 (确定性顺序)
         combined_ops: List[Operation] = []
         for cid in candidates:
-            reaction = self._run_one(cid, state, trigger_event)
+            reaction = self._run_one(
+                cid,
+                state,
+                trigger_event,
+                (memory_context or {}).get(cid, []),
+            )
             result.reactions.append(reaction)
             # 无论是否行动，NPC 的情绪/感知更新都计入合并 patch
             # (按兵不动也是世界状态的演化: 情绪、认知在工作记忆里沉淀)
@@ -190,10 +196,17 @@ class CharacterScheduler:
     # ------------------------------------------------------------------
 
     def _run_one(
-        self, cid: str, state: WorldState, trigger_event: Optional[WorldEvent]
+        self,
+        cid: str,
+        state: WorldState,
+        trigger_event: Optional[WorldEvent],
+        long_term_memories: Optional[List[str]] = None,
     ) -> NPCReaction:
         agent = self._agent_factory(cid)
-        decision = agent.decide(state)
+        decision = agent.decide(
+            state,
+            long_term_memories=long_term_memories,
+        )
 
         if decision is None:
             return NPCReaction(
