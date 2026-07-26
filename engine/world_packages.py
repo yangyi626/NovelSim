@@ -349,6 +349,14 @@ def validate_world_package_payload(
         raise WorldPackageValidationError(errors)
 
     now = _now()
+    provided_manifest = payload.get("manifest")
+    manifest = (
+        dict(provided_manifest)
+        if isinstance(provided_manifest, dict)
+        else {}
+    )
+    # 数量由严格解析后的状态重新计算；编译器和质量门禁元数据保留。
+    manifest.update(_manifest(state))
     return WorldPackageRecord(
         package_id=package_id,
         novel=novel,
@@ -357,7 +365,7 @@ def validate_world_package_payload(
         default_actor_id=default_actor_id,
         source_chapters=list(source_chapters),
         snapshot=state,
-        manifest=_manifest(state),
+        manifest=manifest,
         revision=revision,
         source=source,
         created_at=str(payload.get("created_at") or now),

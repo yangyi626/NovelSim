@@ -42,6 +42,11 @@ class RawEntity(BaseModel):
     canonical_id: str = ""  # 消歧后稳定 id；空则由 compiler 生成
     aliases: List[str] = Field(default_factory=list)
     identity_tags: List[str] = Field(default_factory=list)
+    # D 阶段：同一灵魂/人物跨时间线、改名或转世时使用稳定身份键。
+    # 若只是同名但并非同一人物，应使用不同 global_identity。
+    global_identity: str = ""
+    incarnation: str = ""
+    timeline_id: str = ""
     description: str = ""
     evidence: str = ""  # 原文依据
     confidence: float = Field(0.5, ge=0.0, le=1.0)
@@ -179,6 +184,7 @@ SYSTEM_PROMPT = """你是一个小说世界编译器。你会收到一段小说�
 7. character_states 只记录能延续到后续章节的身份、伤势、情绪或处境变化。
 8. foreshadows 用稳定 title 识别同一伏笔，status 仅可为 planted/reinforced/resolved。
 9. goal_evolutions 用稳定 goal_key 识别同一角色目标，记录目标建立、推进、完成、放弃或被替代。
+10. 同一人物跨时间线、改名或转世时，global_identity 使用稳定身份键；incarnation 标记当前肉身/身份，timeline_id 标记明确出现的时间线。无法判断时留空，不要猜测。
 
 # 合法 patch op (事件 patch_operations 数组里每条的 op 字段)
 - set_flag: path, value
@@ -196,7 +202,7 @@ SYSTEM_PROMPT = """你是一个小说世界编译器。你会收到一段小说�
 {
   "summary": "这段场景讲了什么 (1-2句)",
   "entities": [
-    {"raw_name": "夜轻歌", "entity_type": "character", "aliases": ["三小姐"], "identity_tags": ["嫡系","废柴"], "description": "...", "evidence": "原文...", "confidence": 0.9}
+    {"raw_name": "夜轻歌", "entity_type": "character", "aliases": ["三小姐"], "identity_tags": ["嫡系","废柴"], "global_identity": "soul_yeqingge", "incarnation": "夜家三小姐", "timeline_id": "", "description": "...", "evidence": "原文...", "confidence": 0.9}
   ],
   "relations": [
     {"source_name": "夜清清", "target_name": "夜轻歌", "public_relation": "庶妹-嫡姐", "private_relation": "嫉妒陷害", "dimensions": {"hostility": 0.7, "affection": -0.5}, "evidence": "...", "confidence": 0.8}

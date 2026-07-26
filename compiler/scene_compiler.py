@@ -78,10 +78,25 @@ class EntityRegistry:
     def resolve_or_register_character(self, raw: RawEntity) -> str:
         """返回该角色的稳定 id。已存在则复用，否则新建。"""
         # 1. 显式指定
-        if raw.canonical_id and raw.canonical_id in self.characters:
-            self._merge_character(self.characters[raw.canonical_id], raw)
-            self._index_aliases(raw.canonical_id, raw)
-            return raw.canonical_id
+        if raw.canonical_id:
+            if raw.canonical_id in self.characters:
+                self._merge_character(self.characters[raw.canonical_id], raw)
+                self._index_aliases(raw.canonical_id, raw)
+                return raw.canonical_id
+            cid = raw.canonical_id
+            self.characters[cid] = Character(
+                character_id=cid,
+                display_name=raw.raw_name,
+                aliases=list(raw.aliases),
+                identity_tags=list(raw.identity_tags),
+                attrs=(
+                    {"description": raw.description}
+                    if raw.description
+                    else {}
+                ),
+            )
+            self._index_aliases(cid, raw)
+            return cid
         # 2. 别名命中
         for name in [raw.raw_name, *raw.aliases]:
             if name and name in self.alias_index:
@@ -433,6 +448,7 @@ class ChapterCompiler:
         state: WorldState,
         *,
         max_scenes: Optional[int] = None,
+        extraction_hook=None,
     ) -> ChapterCompileResult:
         result = ChapterCompileResult(chapter_index=chapter.index)
         scenes = split_scenes(chapter)
@@ -452,6 +468,8 @@ class ChapterCompiler:
                 result.warnings.append(
                     f"{sc.scene_id}: 抽取失败 ({getattr(extractor,'last_error','')})")
                 continue
+            if extraction_hook is not None:
+                extraction = extraction_hook(extraction)
             result.extraction_count += 1
             sr = self._scene_compiler.compile(extraction, registry, state)
             result.scene_results.append(sr)

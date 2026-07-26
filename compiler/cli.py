@@ -31,6 +31,7 @@ from .scene_compiler import (
     VolumeCompiler,
     WorldPackage,
 )
+from .book_compiler import BookCompiler
 
 
 def compile_novel(
@@ -77,6 +78,54 @@ def compile_novel(
     )
 
 
+def compile_book(
+    path: str,
+    *,
+    chapters: Optional[List[int]] = None,
+    package_id: str = "compiled_book",
+    novel_name: str = "",
+    extractor: Optional[EntityExtractor] = None,
+    timeline_plan: Optional[dict] = None,
+    volume_plan: Optional[dict] = None,
+    volume_size: int = 20,
+) -> WorldPackage:
+    """按 D 阶段编译整本书或指定章节，产出分层快照元数据。"""
+
+    text = load_novel(path)
+    all_chapters = split_chapters(text)
+    targets = set(chapters or [])
+    selected = [
+        chapter
+        for chapter in all_chapters
+        if not targets or chapter.index in targets
+    ]
+    if not selected:
+        raise ValueError(
+            f"未找到章节 {chapters or '全部'} "
+            f"(全书共 {len(all_chapters)} 章)"
+        )
+    state = _fresh_state(package_id)
+    registry = EntityRegistry()
+    result = BookCompiler(
+        extractor=extractor or EntityExtractor(),
+        volume_size=volume_size,
+    ).compile(
+        selected,
+        registry,
+        state,
+        timeline_plan=timeline_plan,
+        volume_plan=volume_plan,
+    )
+    return PackageBuilder().build(
+        package_id=package_id,
+        novel=novel_name or _guess_novel_name(path),
+        source_chapters=result.source_chapters,
+        state=state,
+        registry=registry,
+        compiler_metadata=result.manifest(),
+    )
+
+
 def _fresh_state(package_id: str) -> WorldState:
     return WorldState(
         timeline_id=f"runtime_{package_id}_root",
@@ -113,8 +162,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument("novel_path", help="小说 TXT 路径")
     parser.add_argument(
-        "--chapters", "-c", type=int, nargs="+", default=[1],
-        help="要编译的章节序号 (从 1 开始)，默认前 1 章",
+        "--chapters", "-c", type=int, nargs="+", default=None,
+        help="要编译的章节序号；D 阶段不指定表示全书",
+    )
+    parser.add_argument(
+        "--stage", choices=["C", "D"], default="C",
+        help="C=跨章节单卷，D=全书/多时间线/分层快照",
+    )
+    parser.add_argument(
+        "--volume-size", type=int, default=20,
+        help="D 阶段每卷章节数，默认 20",
     )
     parser.add_argument(
         "--out", "-o", default=None,
@@ -126,12 +183,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    print(f"[编译] 加载 {args.novel_path}，目标章节 {args.chapters}")
-    pkg = compile_novel(
-        args.novel_path,
-        chapters=args.chapters,
-        package_id=args.package_id,
+    target_chapters = args.chapters or (
+        [1] if args.stage == "C" else None
     )
+    print(
+        f"[编译] 加载 {args.novel_path}，阶段 {args.stage}，"
+        f"目标章节 {target_chapters or '全书'}"
+    )
+    if args.stage == "D":
+        pkg = compile_book(
+            args.novel_path,
+            chapters=target_chapters,
+            package_id=args.package_id,
+            volume_size=args.volume_size,
+        )
+    else:
+        pkg = compile_novel(
+            args.novel_path,
+            chapters=target_chapters,
+            package_id=args.package_id,
+        )
 
     snap = pkg.snapshot
     print(f"\n{'='*60}")

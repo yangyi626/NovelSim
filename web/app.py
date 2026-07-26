@@ -27,16 +27,18 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from world_schema import WorldState
 from engine import (
+    LLMTrajectoryEvaluator,
     PersistenceError,
     ReflectionSemanticJudge,
     SessionNotFound,
@@ -51,6 +53,14 @@ from engine import (
     filter_compatible_memories,
     record_event_memory,
     reflect_character_memories,
+)
+from compiler import (
+    EXTRACTOR_PROMPT_VERSION,
+    CompilationJobConflict,
+    CompilationJobManager,
+    CompilationJobNotFound,
+    CompilationJobRunner,
+    CompilationJobStore,
 )
 
 from examples.huarong_lane import build_snapshot, build_world_package
@@ -78,6 +88,15 @@ WORLD_PACKAGE_DIR = (
     if _configured_world_dir.is_absolute()
     else PROJECT_ROOT / _configured_world_dir
 )
+_configured_compiler_database = Path(
+    os.environ.get("COMPILER_DB_PATH", "data/compiler.sqlite3")
+)
+COMPILER_DATABASE_PATH = (
+    _configured_compiler_database
+    if _configured_compiler_database.is_absolute()
+    else PROJECT_ROOT / _configured_compiler_database
+)
+NOVEL_DIRECTORY = (PROJECT_ROOT / "novels").resolve()
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +122,23 @@ PACKAGES = WorldPackageStore(
         }
     },
 )
+COMPILATION_JOBS = CompilationJobStore(COMPILER_DATABASE_PATH)
+_quality_gate_enabled = (
+    os.environ.get("COMPILER_QUALITY_GATE_ENABLED", "true")
+    .strip()
+    .lower()
+    not in {"0", "false", "no", "off"}
+)
+COMPILATION_RUNNER = CompilationJobRunner(
+    COMPILATION_JOBS,
+    package_store=PACKAGES,
+    quality_evaluator_factory=(
+        (lambda: LLMTrajectoryEvaluator())
+        if _quality_gate_enabled
+        else None
+    ),
+)
+COMPILATION_MANAGER: Optional[CompilationJobManager] = None
 
 # TurnPipeline 全局单例 (构造不触发 key 检查，懒加载各 LLM 组件)
 PIPELINE = TurnPipeline()
@@ -141,6 +177,45 @@ class PackageReviewRequest(BaseModel):
     target_status: str
     expected_revision: int
     note: str = ""
+
+
+class CompilationJobRequest(BaseModel):
+    novel_path: str
+    package_id: str
+    novel_name: str = ""
+    chapters: List[int] = Field(default_factory=list)
+    timeline_plan: Dict[int, str] = Field(default_factory=dict)
+    volume_plan: Dict[int, str] = Field(default_factory=dict)
+    volume_size: int = 20
+    model: str = ""
+    auto_start: bool = True
+
+
+class CompilationJobActionRequest(BaseModel):
+    action: str
+
+
+def _compilation_manager() -> CompilationJobManager:
+    global COMPILATION_MANAGER
+    if COMPILATION_MANAGER is None:
+        COMPILATION_MANAGER = CompilationJobManager(
+            COMPILATION_RUNNER,
+            max_workers=1,
+        )
+    return COMPILATION_MANAGER
+
+
+def _resolve_novel_path(value: str) -> Path:
+    raw = Path((value or "").strip())
+    candidate = raw if raw.is_absolute() else NOVEL_DIRECTORY / raw
+    resolved = candidate.resolve()
+    if resolved != NOVEL_DIRECTORY and NOVEL_DIRECTORY not in resolved.parents:
+        raise ValueError("小说文件必须位于 novels/ 目录内")
+    if resolved.suffix.lower() != ".txt":
+        raise ValueError("目前只支持 novels/ 下的 TXT 小说")
+    if not resolved.is_file():
+        raise ValueError(f"小说文件不存在: {resolved.name}")
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +440,10 @@ app = FastAPI(title="AI 快穿系统 Web", version="0.1.0")
 def close_storage_clients() -> None:
     """释放 Qdrant Local Mode 文件锁；SQLite 本身无需常驻连接。"""
 
+    global COMPILATION_MANAGER
+    if COMPILATION_MANAGER is not None:
+        COMPILATION_MANAGER.shutdown(wait=False)
+        COMPILATION_MANAGER = None
     closer = getattr(SESSIONS, "close", None)
     if callable(closer):
         closer()
@@ -658,6 +737,123 @@ def api_delete_save(session_id: str):
 # ---------------------------------------------------------------------------
 # 创作者后台 API
 # ---------------------------------------------------------------------------
+
+
+@app.post("/api/creator/compiler/jobs")
+def api_create_compilation_job(req: CompilationJobRequest):
+    """创建全书/选章编译任务，并默认交给单 worker 后台执行。"""
+
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{2,63}", req.package_id):
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": "package_id 格式无效",
+            },
+            status_code=422,
+        )
+    try:
+        novel_path = _resolve_novel_path(req.novel_path)
+    except ValueError as exc:
+        return JSONResponse(
+            {"status": "invalid", "error": str(exc)},
+            status_code=422,
+        )
+    chapters = sorted(
+        {
+            int(chapter)
+            for chapter in req.chapters
+            if int(chapter) > 0
+        }
+    )
+    job = COMPILATION_JOBS.create_job(
+        package_id=req.package_id,
+        novel_path=str(novel_path),
+        novel_name=req.novel_name.strip(),
+        chapters=chapters,
+        timeline_plan=req.timeline_plan,
+        volume_plan=req.volume_plan,
+        volume_size=max(1, req.volume_size),
+        prompt_version=EXTRACTOR_PROMPT_VERSION,
+        model=req.model.strip(),
+    )
+    if req.auto_start:
+        _compilation_manager().start(job.job_id)
+    return {
+        "status": "ok",
+        "job": COMPILATION_JOBS.get_job(job.job_id).payload(),
+    }
+
+
+@app.get("/api/creator/compiler/jobs")
+def api_list_compilation_jobs(limit: int = 100):
+    """返回最近编译任务和稳定进度。"""
+
+    return {
+        "status": "ok",
+        "jobs": [
+            job.payload(include_plan=False)
+            for job in COMPILATION_JOBS.list_jobs(limit=limit)
+        ],
+    }
+
+
+@app.get("/api/creator/compiler/jobs/{job_id}")
+def api_get_compilation_job(job_id: str):
+    """返回任务、逐章进度和分层快照元数据。"""
+
+    try:
+        job = COMPILATION_JOBS.get_job(job_id)
+        chapters = COMPILATION_JOBS.list_chapters(job_id)
+        snapshots = COMPILATION_JOBS.list_snapshots(job_id)
+    except CompilationJobNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    return {
+        "status": "ok",
+        "job": job.payload(),
+        "chapters": chapters,
+        "snapshots": snapshots,
+        "worker_active": _compilation_manager().is_running(job_id),
+    }
+
+
+@app.post("/api/creator/compiler/jobs/{job_id}/actions")
+def api_control_compilation_job(
+    job_id: str,
+    req: CompilationJobActionRequest,
+):
+    """协作式暂停、继续或取消编译任务。"""
+
+    action = req.action.strip().lower()
+    try:
+        if action == "pause":
+            job = COMPILATION_JOBS.request_pause(job_id)
+        elif action == "cancel":
+            job = COMPILATION_JOBS.request_cancel(job_id)
+        elif action == "resume":
+            job = COMPILATION_JOBS.resume(job_id)
+            _compilation_manager().start(job_id)
+        else:
+            return JSONResponse(
+                {
+                    "status": "invalid",
+                    "error": "action 仅支持 pause、resume、cancel",
+                },
+                status_code=422,
+            )
+    except CompilationJobNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except CompilationJobConflict as exc:
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc)},
+            status_code=409,
+        )
+    return {"status": "ok", "job": job.payload()}
 
 
 @app.get("/api/creator/packages")

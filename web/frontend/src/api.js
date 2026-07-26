@@ -160,6 +160,41 @@ export async function transitionWorldPackageReview(
   return parseResponse(resp)
 }
 
+export async function listCompilationJobs(limit = 100) {
+  const resp = await fetch(
+    `/api/creator/compiler/jobs?limit=${encodeURIComponent(limit)}`,
+  )
+  return parseResponse(resp)
+}
+
+export async function getCompilationJob(jobId) {
+  const resp = await fetch(
+    `/api/creator/compiler/jobs/${encodeURIComponent(jobId)}`,
+  )
+  return parseResponse(resp)
+}
+
+export async function createCompilationJob(payload) {
+  const resp = await fetch('/api/creator/compiler/jobs', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  })
+  return parseResponse(resp)
+}
+
+export async function controlCompilationJob(jobId, action) {
+  const resp = await fetch(
+    `/api/creator/compiler/jobs/${encodeURIComponent(jobId)}/actions`,
+    {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ action }),
+    },
+  )
+  return parseResponse(resp)
+}
+
 export async function submitTurn(sessionId, text, useNpcAgents) {
   const resp = await fetch('/api/turn', {
     method: 'POST',

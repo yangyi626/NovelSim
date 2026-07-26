@@ -14,9 +14,9 @@
     A. 单场景编译   (SceneCompiler)
     B. 单章节编译   (ChapterCompiler，多场景 + 别名消歧)
     C. 单卷编译     (已完成：跨章状态/伏笔/目标演化)
-    D. 全书编译     (后续)
+    D. 全书编译     (已完成：全局身份、多时间线与分层快照)
 
-当前已打通 A + B + C，用《第一狂妃》前几章做端到端验证，
+当前已打通 A + B + C + D，用《第一狂妃》前几章做端到端验证，
 产出的 WorldPackage 与手工版 examples/huarong_lane 可对照。
 """
 
@@ -51,7 +51,29 @@ from .scene_compiler import (
     VolumeCompileResult,
     WorldPackage,
 )
-from .cli import compile_novel
+from .cli import compile_book, compile_novel
+from .book_compiler import (
+    BookCompiler,
+    BookCompileResult,
+    GlobalEntityResolver,
+    HierarchicalSnapshot,
+)
+from .job_store import (
+    ACTIVE_JOB_STATUSES,
+    JOB_STATUSES,
+    CompilationJob,
+    CompilationJobConflict,
+    CompilationJobError,
+    CompilationJobNotFound,
+    CompilationJobStore,
+)
+from .job_runner import (
+    EXTRACTOR_PROMPT_VERSION,
+    CacheAwareExtractor,
+    CompilationJobManager,
+    CompilationJobRunner,
+    CompilationQualityGate,
+)
 
 __all__ = [
     # text loader
@@ -82,6 +104,24 @@ __all__ = [
     "VolumeCompiler",
     "VolumeCompileResult",
     "WorldPackage",
+    "BookCompiler",
+    "BookCompileResult",
+    "GlobalEntityResolver",
+    "HierarchicalSnapshot",
+    # task system
+    "ACTIVE_JOB_STATUSES",
+    "JOB_STATUSES",
+    "CompilationJob",
+    "CompilationJobConflict",
+    "CompilationJobError",
+    "CompilationJobNotFound",
+    "CompilationJobStore",
+    "EXTRACTOR_PROMPT_VERSION",
+    "CacheAwareExtractor",
+    "CompilationJobManager",
+    "CompilationJobRunner",
+    "CompilationQualityGate",
     # entrypoint
     "compile_novel",
+    "compile_book",
 ]
