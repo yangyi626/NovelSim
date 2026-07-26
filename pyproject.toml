@@ -17,7 +17,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["world_schema", "engine", "compiler"]
+packages = ["world_schema", "engine", "compiler", "web"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

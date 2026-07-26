@@ -23,6 +23,7 @@ htmlcov/
 # editor
 .vscode/
 .idea/
+.zcode/
 
 # OS
 Thumbs.db
@@ -31,3 +32,8 @@ get-pip.py
 
 # 编译产出的 WorldPackage (产物，不纳入版本控制；保留 README)
 worlds/*.json
+
+# Web 前端：node_modules / 构建产物 (源码纳入版本控制)
+web/frontend/node_modules/
+web/frontend/dist/
+web/static/

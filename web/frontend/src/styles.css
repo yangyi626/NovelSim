@@ -1,0 +1,58 @@
+/* AI 快穿 Web · 古风全局样式 */
+
+:root {
+  --bg: #1a1612;
+  --bg-panel: #241e18;
+  --bg-card: #2c241c;
+  --bg-input: #1a1612;
+  --border: #4a3d2e;
+  --border-soft: #3a2f24;
+  --text: #e8dcc8;
+  --text-dim: #9c8a72;
+  --text-faint: #6b5d4a;
+  --accent: #c9a96a;        /* 暖金 */
+  --accent-dim: #8a7344;
+  --player: #7aa2c9;        /* 玩家/夜轻歌 冷蓝 */
+  --npc: #c97a7a;           /* NPC 红 */
+  --system: #8aa86b;        /* 系统提示 绿 */
+  --danger: #c95a5a;
+  --warn: #c9a45a;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Serif SC", serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 18px;
+  font-size: 15px;
+  transition: opacity 0.15s, background 0.15s;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
