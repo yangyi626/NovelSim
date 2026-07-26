@@ -22,11 +22,11 @@ npm run build      # 产物输出到 ../static/
 
 ### 3. 启动后端
 ```bash
-# 在项目根目录
+# 推荐在项目根目录运行（run.py 会自动把根目录加入路径，所以在哪跑都行）
 .venv/Scripts/python.exe web/run.py
-# 或
-.venv/Scripts/python.exe -m uvicorn web.app:app --port 8000
 ```
+
+> 若直接在 `web/` 目录里跑 `python run.py` 也可以——`run.py` 已处理路径，会自动切回项目根目录。
 
 浏览器打开 **http://localhost:8000** 即可游玩。
 
