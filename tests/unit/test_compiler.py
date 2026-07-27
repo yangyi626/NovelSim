@@ -76,6 +76,17 @@ class TestTextLoader:
         assert chs[1].index == 2
         assert "那就脱" in chs[1].title
 
+    def test_split_chapters_accepts_numbered_export_headings(self):
+        chs = split_chapters(
+            "正文\n1.第1章穿越【1】\n人物醒来。\n"
+            "2、第2章 穿越【2】\n人物继续行动。"
+        )
+        assert [chapter.raw_number for chapter in chs] == ["1", "2"]
+        assert [chapter.title for chapter in chs] == [
+            "穿越【1】",
+            "穿越【2】",
+        ]
+
     def test_chapter_paragraphs_extracted(self):
         chs = split_chapters(SAMPLE_TXT)
         assert len(chs[0].paragraphs) >= 3

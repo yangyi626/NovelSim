@@ -9,17 +9,6 @@ from compiler import CompilationJobStore
 web_app = importlib.import_module("web.app")
 
 
-class FakeManager:
-    def __init__(self):
-        self.started = []
-
-    def start(self, job_id):
-        self.started.append(job_id)
-
-    def is_running(self, job_id):
-        return job_id in self.started
-
-
 def _configure(tmp_path, monkeypatch):
     novel_dir = tmp_path / "novels"
     novel_dir.mkdir()
@@ -28,18 +17,16 @@ def _configure(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     store = CompilationJobStore(tmp_path / "compiler.sqlite3")
-    manager = FakeManager()
     monkeypatch.setattr(web_app, "NOVEL_DIRECTORY", novel_dir.resolve())
     monkeypatch.setattr(web_app, "COMPILATION_JOBS", store)
-    monkeypatch.setattr(web_app, "COMPILATION_MANAGER", manager)
-    return store, manager
+    return store
 
 
 def test_create_list_get_and_control_compilation_job(
     tmp_path,
     monkeypatch,
 ):
-    store, manager = _configure(tmp_path, monkeypatch)
+    store = _configure(tmp_path, monkeypatch)
     created = web_app.api_create_compilation_job(
         web_app.CompilationJobRequest(
             novel_path="book.txt",
@@ -51,7 +38,7 @@ def test_create_list_get_and_control_compilation_job(
     )
     job_id = created["job"]["job_id"]
 
-    assert manager.started == [job_id]
+    assert store.get_job(job_id).status == "queued"
     assert created["job"]["chapters"] == [1, 2]
     listed = web_app.api_list_compilation_jobs()
     assert listed["jobs"][0]["job_id"] == job_id
@@ -60,7 +47,7 @@ def test_create_list_get_and_control_compilation_job(
         "1": "origin",
         "2": "novel",
     }
-    assert detail["worker_active"] is True
+    assert detail["worker_active"] is False
 
     paused = web_app.api_control_compilation_job(
         job_id,

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "benchmark": "novelsim-real-fullbook-v1",
+  "books": [
+    {
+      "book_id": "first_crazy_waste_third_lady",
+      "filename": "第一狂妃：废柴三小姐.txt",
+      "package_id": "first_crazy_waste_third_lady",
+      "volume_size": 20,
+      "expected": {
+        "bytes": 29348994,
+        "sha256": "b99a311179755c6a9fe4d5905739a7e55986ac7c14fb107d123308ccd65b1ecb",
+        "chapters": 4228,
+        "scenes": 7362
+      }
+    },
+    {
+      "book_id": "first_crazy_evil_king",
+      "filename": "第一狂妃：绝色邪王宠妻无度.txt",
+      "package_id": "first_crazy_evil_king",
+      "volume_size": 20,
+      "expected": {
+        "bytes": 6638708,
+        "sha256": "04494f28a0529eee372242d195271560c0bfe1137fc40f7b4199c8eddd017304",
+        "chapters": 1935,
+        "scenes": 2317
+      }
+    }
+  ]
+}

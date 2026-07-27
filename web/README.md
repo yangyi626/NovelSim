@@ -25,6 +25,10 @@ MEMORY_REFLECTION_INTERVAL=5
 MEMORY_REFLECTION_MIN_EPISODES=3
 # 可选，创作者世界包目录
 WORLD_PACKAGE_DIR=worlds
+# 创作者账户、令牌和审核审计
+AUTH_DB_PATH=data/auth.sqlite3
+# 独立 Worker 使用的 SQLite 控制面
+COMPILER_DB_PATH=data/compiler.sqlite3
 ```
 
 ### 2. 构建前端（首次/改前端后）
@@ -41,6 +45,9 @@ npm run build      # 产物输出到 ../static/
 
 # 推荐在项目根目录运行（run.py 会自动把根目录加入路径，所以在哪跑都行）
 .venv/Scripts/python.exe web/run.py
+
+# 另开终端运行独立编译 Worker；Web 进程不再执行 LLM 编译任务
+.venv/Scripts/python.exe -m compiler.worker
 ```
 
 > 若直接在 `web/` 目录里跑 `python run.py` 也可以——`run.py` 已处理路径，会自动切回项目根目录。
@@ -69,8 +76,8 @@ cd web/frontend && npm run dev
 - **存档管理**：可新建多条世界线，并对存档进行改名、载入、导出、导入和删除。
 - **世界创作台**：点击顶栏“创作台”，可编辑角色、角色心理、角色认知、地点、物品、关系、世界规则、剧情线和介入锚点。
 - **版本化创作**：内置包只读，可另存为可编辑版本；保存后可直接从该世界包开局试玩。
-- **创作治理**：人物关系图、不可变修订历史、版本差异，以及草稿→审核→批准→发布状态流。
-- **全书编译**：SQLite 任务进度、场景缓存、暂停/继续/取消、章节/卷/全书快照和自动质量审核。
+- **创作治理**：账户登录、RBAC、人物关系图、不可变修订历史、版本差异、审核审计，以及草稿→审核→批准→发布状态流。
+- **全书编译**：SQLite 租约队列、独立 Worker、场景缓存、暂停/继续/取消、章节/卷/全书快照和自动质量审核。
 
 ## 创作者后台
 
@@ -84,7 +91,14 @@ cd web/frontend && npm run dev
 
 保存使用修订号防止旧页面覆盖新修改；模板版本固定为 `0`，玩家游玩后的版本变化只存在于所选数据库的世界线存档。校验会检查地点层级循环、物品归属、角色背包、Agent 目标/计划引用，以及角色认知中的重复事实、来源和关键词。
 
-每次保存和审核状态变化都会形成修订历史；修改已批准或已发布内容会自动回到草稿。当前审核流用于单机创作治理，尚未加入用户账户和 RBAC。
+每次保存和审核状态变化都会形成修订历史；修改已批准或已发布内容会自动回到草稿。创作者、审核者、发布者和管理员使用独立 RBAC 权限，关键操作记录到账户数据库的不可变审计事件。
+
+首次使用创作台可在登录页创建首个管理员，也可以使用命令行：
+
+```bash
+.venv/Scripts/python.exe -m web.manage_users bootstrap admin your-password
+.venv/Scripts/python.exe -m web.manage_users create editor your-password --roles creator
+```
 
 ## 持久化
 
@@ -106,6 +120,8 @@ cd web/frontend && npm run dev
 - `POST /api/creator/packages/validate` 校验草稿；`PUT /api/creator/packages/<id>` 保存新修订。
 - `POST /api/creator/compiler/jobs` 创建全书编译任务；`GET /api/creator/compiler/jobs` 查询进度。
 - `GET /api/creator/compiler/jobs/<id>` 查看逐章状态和快照；`POST .../actions` 执行暂停、继续或取消。
+- `POST /api/auth/login`、`GET /api/auth/me` 提供创作者 Bearer 身份；`GET /api/creator/audit` 查询审核审计。
+- 核心 API 已冻结为 `1.0.0`；机器可读清单在 `contracts/api-v1.json`，运行时可查询 `GET /api/meta/contract`。
 - 恢复会话时会重建玩家输入、旁白、对白、系统提示和 NPC 反应卡片。
 
 PostgreSQL 启动、配置、SQLite 迁移和真实契约测试见 [`docs/PostgreSQL部署与迁移.md`](../docs/PostgreSQL部署与迁移.md)。
@@ -115,12 +131,15 @@ Qdrant 架构、配置、重建与升级方式见 [`docs/Qdrant向量检索.md`]
 真实 LLM 长轨迹评分见 [`docs/LLM长轨迹评分.md`](../docs/LLM长轨迹评分.md)。
 编译器 C 与创作者审核发布流见 [`docs/编译器C阶段与创作者发布流.md`](../docs/编译器C阶段与创作者发布流.md)。
 SQLite 编译任务、断点续跑和编译器 D 见 [`docs/编译任务与全书编译D.md`](../docs/编译任务与全书编译D.md)。
+独立 Worker、RBAC、E2E 和多小说基准见 [`docs/生产化基线_Worker_RBAC_E2E.md`](../docs/生产化基线_Worker_RBAC_E2E.md)。
 
 ## 架构
 
 ```
 web/
 ├── app.py              # FastAPI: 试玩、存档、创作者 API + 托管 static
+├── auth.py             # SQLite 账户、令牌、RBAC 和审核审计
+├── manage_users.py     # 本地账户管理命令
 ├── run.py              # 启动脚本
 ├── static/             # 前端构建产物 (gitignore)
 └── frontend/           # Vue 3 + Vite 源码
@@ -138,6 +157,6 @@ web/
 ## 边界
 
 - 内置华容巷基准世界；创作者可克隆或载入编译器输出的世界包并从指定默认角色开局。
-- 支持本机多存档和完整 JSON 导入导出，但暂无云同步和用户账户隔离。
+- 支持本机创作者账户与分权审核；玩家存档仍是本机世界线，暂无云同步和租户隔离。
 - 当前正式开发组合是 SQLite + Qdrant Local Mode；PostgreSQL 后端代码保留但不参与当前运行。
 - 每回合需调 LLM，约 10–60 秒；开启 NPC 反应会更久。

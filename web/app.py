@@ -28,17 +28,17 @@ from __future__ import annotations
 
 import os
 import re
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from world_schema import WorldState
 from engine import (
-    LLMTrajectoryEvaluator,
     PersistenceError,
     ReflectionSemanticJudge,
     SessionNotFound,
@@ -57,10 +57,18 @@ from engine import (
 from compiler import (
     EXTRACTOR_PROMPT_VERSION,
     CompilationJobConflict,
-    CompilationJobManager,
     CompilationJobNotFound,
-    CompilationJobRunner,
     CompilationJobStore,
+)
+from web.auth import (
+    AuthConflict,
+    AuthError,
+    AuthenticationError,
+    AuthStore,
+    AuthUser,
+    PermissionDenied,
+    SYSTEM_ACTOR,
+    require_permission,
 )
 
 from examples.huarong_lane import build_snapshot, build_world_package
@@ -97,6 +105,15 @@ COMPILER_DATABASE_PATH = (
     else PROJECT_ROOT / _configured_compiler_database
 )
 NOVEL_DIRECTORY = (PROJECT_ROOT / "novels").resolve()
+_configured_auth_database = Path(
+    os.environ.get("AUTH_DB_PATH", "data/auth.sqlite3")
+)
+AUTH_DATABASE_PATH = (
+    _configured_auth_database
+    if _configured_auth_database.is_absolute()
+    else PROJECT_ROOT / _configured_auth_database
+)
+API_CONTRACT_VERSION = "1.0.0"
 
 
 # ---------------------------------------------------------------------------
@@ -123,22 +140,11 @@ PACKAGES = WorldPackageStore(
     },
 )
 COMPILATION_JOBS = CompilationJobStore(COMPILER_DATABASE_PATH)
-_quality_gate_enabled = (
-    os.environ.get("COMPILER_QUALITY_GATE_ENABLED", "true")
-    .strip()
-    .lower()
-    not in {"0", "false", "no", "off"}
+AUTH = AuthStore(AUTH_DATABASE_PATH)
+_CURRENT_ACTOR: ContextVar[AuthUser] = ContextVar(
+    "novelsim_current_actor",
+    default=SYSTEM_ACTOR,
 )
-COMPILATION_RUNNER = CompilationJobRunner(
-    COMPILATION_JOBS,
-    package_store=PACKAGES,
-    quality_evaluator_factory=(
-        (lambda: LLMTrajectoryEvaluator())
-        if _quality_gate_enabled
-        else None
-    ),
-)
-COMPILATION_MANAGER: Optional[CompilationJobManager] = None
 
 # TurnPipeline 全局单例 (构造不触发 key 检查，懒加载各 LLM 组件)
 PIPELINE = TurnPipeline()
@@ -182,6 +188,7 @@ class PackageReviewRequest(BaseModel):
 class CompilationJobRequest(BaseModel):
     novel_path: str
     package_id: str
+    benchmark_id: str = ""
     novel_name: str = ""
     chapters: List[int] = Field(default_factory=list)
     timeline_plan: Dict[int, str] = Field(default_factory=dict)
@@ -195,14 +202,53 @@ class CompilationJobActionRequest(BaseModel):
     action: str
 
 
-def _compilation_manager() -> CompilationJobManager:
-    global COMPILATION_MANAGER
-    if COMPILATION_MANAGER is None:
-        COMPILATION_MANAGER = CompilationJobManager(
-            COMPILATION_RUNNER,
-            max_workers=1,
+class AuthBootstrapRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthUserCreateRequest(BaseModel):
+    username: str
+    password: str
+    roles: List[str] = Field(default_factory=list)
+
+
+class AuthUserStatusRequest(BaseModel):
+    active: bool
+
+
+def _actor() -> AuthUser:
+    return _CURRENT_ACTOR.get()
+
+
+def _permission_error(
+    permission: str,
+    *,
+    resource_type: str = "api",
+    resource_id: str = "",
+):
+    actor = _actor()
+    try:
+        require_permission(actor, permission)
+    except PermissionDenied as exc:
+        AUTH.audit(
+            actor,
+            action=f"permission.{permission}",
+            resource_type=resource_type,
+            resource_id=resource_id,
+            outcome="denied",
+            detail={"error": str(exc)},
         )
-    return COMPILATION_MANAGER
+        return JSONResponse(
+            {"status": "forbidden", "error": str(exc)},
+            status_code=403,
+        )
+    return None
 
 
 def _resolve_novel_path(value: str) -> Path:
@@ -433,17 +479,81 @@ def serialize_session(session_id: str, *, resumed: bool = True) -> dict:
 # ---------------------------------------------------------------------------
 
 
-app = FastAPI(title="AI 快穿系统 Web", version="0.1.0")
+app = FastAPI(
+    title="NovelSim API",
+    version=API_CONTRACT_VERSION,
+    description=(
+        "AI 世界运行、小说编译和创作者治理 API。"
+        "主版本内保持已发布字段向后兼容。"
+    ),
+)
+
+
+@app.middleware("http")
+async def api_contract_and_auth(request: Request, call_next):
+    """为创作者控制面统一执行 Bearer 身份校验。"""
+
+    path = request.url.path
+    protected = (
+        path.startswith("/api/creator")
+        or path.startswith("/api/admin")
+        or path == "/api/auth/me"
+    )
+    actor = SYSTEM_ACTOR
+    if protected:
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return JSONResponse(
+                {
+                    "status": "unauthorized",
+                    "error": "创作者接口需要 Bearer 访问令牌",
+                },
+                status_code=401,
+                headers={"X-NovelSim-Contract": API_CONTRACT_VERSION},
+            )
+        try:
+            actor = AUTH.resolve_token(token.strip())
+            base_permission = (
+                "users.manage"
+                if path.startswith("/api/admin")
+                else "creator.read"
+            )
+            require_permission(actor, base_permission)
+        except AuthenticationError as exc:
+            return JSONResponse(
+                {"status": "unauthorized", "error": str(exc)},
+                status_code=401,
+                headers={"X-NovelSim-Contract": API_CONTRACT_VERSION},
+            )
+        except PermissionDenied as exc:
+            AUTH.audit(
+                actor,
+                action="request.access",
+                resource_type="api",
+                resource_id=path,
+                outcome="denied",
+                detail={"method": request.method, "error": str(exc)},
+            )
+            return JSONResponse(
+                {"status": "forbidden", "error": str(exc)},
+                status_code=403,
+                headers={"X-NovelSim-Contract": API_CONTRACT_VERSION},
+            )
+
+    context_token = _CURRENT_ACTOR.set(actor)
+    try:
+        response = await call_next(request)
+    finally:
+        _CURRENT_ACTOR.reset(context_token)
+    response.headers["X-NovelSim-Contract"] = API_CONTRACT_VERSION
+    return response
 
 
 @app.on_event("shutdown")
 def close_storage_clients() -> None:
     """释放 Qdrant Local Mode 文件锁；SQLite 本身无需常驻连接。"""
 
-    global COMPILATION_MANAGER
-    if COMPILATION_MANAGER is not None:
-        COMPILATION_MANAGER.shutdown(wait=False)
-        COMPILATION_MANAGER = None
     closer = getattr(SESSIONS, "close", None)
     if callable(closer):
         closer()
@@ -452,6 +562,142 @@ def close_storage_clients() -> None:
 # 静态资源 (前端构建产物里的 js/css)
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+
+@app.get("/api/meta/contract")
+def api_contract():
+    return {
+        "status": "ok",
+        "contract_version": API_CONTRACT_VERSION,
+        "stability": "stable",
+        "compatibility": {
+            "guarantee": (
+                "1.x 内不删除既有路径、请求字段或响应字段；"
+                "新增字段保持可忽略"
+            ),
+            "breaking_change": "破坏性变更必须提升主版本",
+        },
+        "authoritative_state": "SQLite WorldState + WorldEvent",
+        "compiler_control_plane": "SQLite lease queue + external worker",
+        "authentication": "Bearer token",
+    }
+
+
+@app.post("/api/auth/bootstrap")
+def api_auth_bootstrap(req: AuthBootstrapRequest):
+    """仅在空账户库中允许一次性创建首个管理员。"""
+
+    try:
+        user = AUTH.bootstrap_admin(req.username, req.password)
+        token = AUTH.issue_token(user)
+        AUTH.audit(
+            user,
+            action="auth.bootstrap",
+            resource_type="user",
+            resource_id=user.user_id,
+        )
+    except AuthConflict as exc:
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc)},
+            status_code=409,
+        )
+    except AuthError as exc:
+        return JSONResponse(
+            {"status": "invalid", "error": str(exc)},
+            status_code=422,
+        )
+    return {"status": "ok", "token": token, "user": user.payload()}
+
+
+@app.post("/api/auth/login")
+def api_auth_login(req: AuthLoginRequest):
+    try:
+        user = AUTH.authenticate(req.username, req.password)
+        token = AUTH.issue_token(user)
+        AUTH.audit(
+            user,
+            action="auth.login",
+            resource_type="user",
+            resource_id=user.user_id,
+        )
+    except AuthenticationError as exc:
+        return JSONResponse(
+            {"status": "unauthorized", "error": str(exc)},
+            status_code=401,
+        )
+    return {"status": "ok", "token": token, "user": user.payload()}
+
+
+@app.get("/api/auth/me")
+def api_auth_me():
+    return {"status": "ok", "user": _actor().payload()}
+
+
+@app.get("/api/admin/users")
+def api_admin_users():
+    return {
+        "status": "ok",
+        "users": [user.payload() for user in AUTH.list_users()],
+    }
+
+
+@app.post("/api/admin/users")
+def api_admin_create_user(req: AuthUserCreateRequest):
+    actor = _actor()
+    try:
+        user = AUTH.create_user(
+            username=req.username,
+            password=req.password,
+            roles=req.roles,
+        )
+        AUTH.audit(
+            actor,
+            action="user.create",
+            resource_type="user",
+            resource_id=user.user_id,
+            detail={"username": user.username, "roles": sorted(user.roles)},
+        )
+    except AuthConflict as exc:
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc)},
+            status_code=409,
+        )
+    except AuthError as exc:
+        return JSONResponse(
+            {"status": "invalid", "error": str(exc)},
+            status_code=422,
+        )
+    return {"status": "ok", "user": user.payload()}
+
+
+@app.patch("/api/admin/users/{user_id}")
+def api_admin_update_user(
+    user_id: str,
+    req: AuthUserStatusRequest,
+):
+    actor = _actor()
+    if actor.user_id == user_id and not req.active:
+        return JSONResponse(
+            {
+                "status": "conflict",
+                "error": "不能停用当前登录账户",
+            },
+            status_code=409,
+        )
+    try:
+        user = AUTH.set_active(user_id, req.active)
+        AUTH.audit(
+            actor,
+            action="user.activate" if req.active else "user.deactivate",
+            resource_type="user",
+            resource_id=user_id,
+        )
+    except AuthenticationError as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    return {"status": "ok", "user": user.payload()}
 
 
 @app.get("/")
@@ -741,8 +987,11 @@ def api_delete_save(session_id: str):
 
 @app.post("/api/creator/compiler/jobs")
 def api_create_compilation_job(req: CompilationJobRequest):
-    """创建全书/选章编译任务，并默认交给单 worker 后台执行。"""
+    """创建全书/选章编译任务，由独立 Worker 从 SQLite 队列领取。"""
 
+    denied = _permission_error("compiler.manage", resource_type="compiler_job")
+    if denied:
+        return denied
     if not re.fullmatch(r"[a-z][a-z0-9_-]{2,63}", req.package_id):
         return JSONResponse(
             {
@@ -768,6 +1017,7 @@ def api_create_compilation_job(req: CompilationJobRequest):
     job = COMPILATION_JOBS.create_job(
         package_id=req.package_id,
         novel_path=str(novel_path),
+        benchmark_id=req.benchmark_id,
         novel_name=req.novel_name.strip(),
         chapters=chapters,
         timeline_plan=req.timeline_plan,
@@ -776,11 +1026,22 @@ def api_create_compilation_job(req: CompilationJobRequest):
         prompt_version=EXTRACTOR_PROMPT_VERSION,
         model=req.model.strip(),
     )
-    if req.auto_start:
-        _compilation_manager().start(job.job_id)
+    if not req.auto_start:
+        job = COMPILATION_JOBS.request_pause(job.job_id)
+    AUTH.audit(
+        _actor(),
+        action="compiler_job.create",
+        resource_type="compiler_job",
+        resource_id=job.job_id,
+        detail={
+            "package_id": job.package_id,
+            "novel_path": novel_path.name,
+            "auto_start": req.auto_start,
+        },
+    )
     return {
         "status": "ok",
-        "job": COMPILATION_JOBS.get_job(job.job_id).payload(),
+        "job": job.payload(),
     }
 
 
@@ -815,7 +1076,7 @@ def api_get_compilation_job(job_id: str):
         "job": job.payload(),
         "chapters": chapters,
         "snapshots": snapshots,
-        "worker_active": _compilation_manager().is_running(job_id),
+        "worker_active": COMPILATION_JOBS.is_worker_active(job_id),
     }
 
 
@@ -826,6 +1087,13 @@ def api_control_compilation_job(
 ):
     """协作式暂停、继续或取消编译任务。"""
 
+    denied = _permission_error(
+        "compiler.manage",
+        resource_type="compiler_job",
+        resource_id=job_id,
+    )
+    if denied:
+        return denied
     action = req.action.strip().lower()
     try:
         if action == "pause":
@@ -834,7 +1102,6 @@ def api_control_compilation_job(
             job = COMPILATION_JOBS.request_cancel(job_id)
         elif action == "resume":
             job = COMPILATION_JOBS.resume(job_id)
-            _compilation_manager().start(job_id)
         else:
             return JSONResponse(
                 {
@@ -853,6 +1120,13 @@ def api_control_compilation_job(
             {"status": "conflict", "error": str(exc)},
             status_code=409,
         )
+    AUTH.audit(
+        _actor(),
+        action=f"compiler_job.{action}",
+        resource_type="compiler_job",
+        resource_id=job_id,
+        detail={"status": job.status},
+    )
     return {"status": "ok", "job": job.payload()}
 
 
@@ -896,6 +1170,9 @@ def api_creator_package(package_id: str):
 def api_creator_validate(req: PackageDraftRequest):
     """只校验草稿，不写入磁盘。"""
 
+    denied = _permission_error("creator.write", resource_type="world_package")
+    if denied:
+        return denied
     try:
         package = PACKAGES.validate(req.package)
     except WorldPackageValidationError as e:
@@ -918,6 +1195,13 @@ def api_creator_validate(req: PackageDraftRequest):
 def api_creator_clone(package_id: str):
     """把内置或已有世界包另存为新的可编辑版本。"""
 
+    denied = _permission_error(
+        "creator.write",
+        resource_type="world_package",
+        resource_id=package_id,
+    )
+    if denied:
+        return denied
     try:
         package = PACKAGES.clone(package_id)
     except WorldPackageNotFound as e:
@@ -930,6 +1214,13 @@ def api_creator_clone(package_id: str):
             {"status": "error", "error": f"另存世界包失败: {e}"},
             status_code=400,
         )
+    AUTH.audit(
+        _actor(),
+        action="world_package.clone",
+        resource_type="world_package",
+        resource_id=package.package_id,
+        detail={"source_package_id": package_id},
+    )
     return {"status": "ok", "package": package.payload()}
 
 
@@ -937,6 +1228,13 @@ def api_creator_clone(package_id: str):
 def api_creator_save(package_id: str, req: PackageDraftRequest):
     """校验并保存可编辑世界包，使用 revision 防止覆盖他人修改。"""
 
+    denied = _permission_error(
+        "creator.write",
+        resource_type="world_package",
+        resource_id=package_id,
+    )
+    if denied:
+        return denied
     try:
         package = PACKAGES.save(
             package_id,
@@ -962,6 +1260,13 @@ def api_creator_save(package_id: str, req: PackageDraftRequest):
             {"status": "error", "error": str(e)},
             status_code=400,
         )
+    AUTH.audit(
+        _actor(),
+        action="world_package.save",
+        resource_type="world_package",
+        resource_id=package_id,
+        detail={"revision": package.revision},
+    )
     return {"status": "ok", "package": package.payload()}
 
 
@@ -1018,6 +1323,20 @@ def api_creator_review(
 ):
     """按受控状态机提交审核、批准、驳回或发布。"""
 
+    permission = {
+        "pending_review": "review.submit",
+        "approved": "review.decide",
+        "rejected": "review.decide",
+        "published": "review.publish",
+        "draft": "creator.write",
+    }.get(req.target_status, "review.decide")
+    denied = _permission_error(
+        permission,
+        resource_type="world_package",
+        resource_id=package_id,
+    )
+    if denied:
+        return denied
     try:
         package = PACKAGES.transition_review(
             package_id,
@@ -1049,7 +1368,36 @@ def api_creator_review(
             {"status": "error", "error": str(e)},
             status_code=400,
         )
+    AUTH.audit(
+        _actor(),
+        action=f"world_package.review.{req.target_status}",
+        resource_type="world_package",
+        resource_id=package_id,
+        detail={
+            "revision": package.revision,
+            "note": req.note,
+        },
+    )
     return {"status": "ok", "package": package.payload()}
+
+
+@app.get("/api/creator/audit")
+def api_creator_audit(
+    limit: int = 100,
+    resource_type: str = "",
+    resource_id: str = "",
+):
+    denied = _permission_error("audit.read", resource_type="audit")
+    if denied:
+        return denied
+    return {
+        "status": "ok",
+        "events": AUTH.list_audit(
+            limit=limit,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        ),
+    }
 
 
 @app.get("/api/state")

@@ -1,0 +1,48 @@
+{
+  "contract_version": "1.0.0",
+  "stability": "stable",
+  "compatibility_policy": {
+    "minor": "1.x 内不得删除已有路径、方法、请求字段或响应字段",
+    "additive": "允许新增可选请求字段和可忽略响应字段",
+    "breaking": "破坏性变更必须提升主版本"
+  },
+  "security": {
+    "creator": "Bearer token",
+    "roles": ["creator", "reviewer", "publisher", "admin"]
+  },
+  "endpoints": {
+    "/api/meta/contract": ["GET"],
+    "/api/auth/bootstrap": ["POST"],
+    "/api/auth/login": ["POST"],
+    "/api/auth/me": ["GET"],
+    "/api/admin/users": ["GET", "POST"],
+    "/api/admin/users/{user_id}": ["PATCH"],
+    "/api/start": ["POST"],
+    "/api/session": ["GET"],
+    "/api/turn": ["POST"],
+    "/api/saves": ["GET"],
+    "/api/saves/{session_id}": ["PATCH", "DELETE"],
+    "/api/saves/{session_id}/export": ["GET"],
+    "/api/saves/import": ["POST"],
+    "/api/creator/compiler/jobs": ["GET", "POST"],
+    "/api/creator/compiler/jobs/{job_id}": ["GET"],
+    "/api/creator/compiler/jobs/{job_id}/actions": ["POST"],
+    "/api/creator/packages": ["GET"],
+    "/api/creator/packages/validate": ["POST"],
+    "/api/creator/packages/{package_id}": ["GET", "PUT"],
+    "/api/creator/packages/{package_id}/clone": ["POST"],
+    "/api/creator/packages/{package_id}/revisions": ["GET"],
+    "/api/creator/packages/{package_id}/diff": ["GET"],
+    "/api/creator/packages/{package_id}/review": ["POST"],
+    "/api/creator/audit": ["GET"],
+    "/api/state": ["GET"],
+    "/api/events": ["GET"]
+  },
+  "invariants": [
+    "WorldState 与 WorldEvent 是运行时权威事实",
+    "LLM 只能提出 Action、StatePatch 与表现文本",
+    "编译任务由 SQLite 队列与独立 Worker 执行",
+    "Qdrant 是可重建派生索引",
+    "发布必须经过 approved -> published 权限转换"
+  ]
+}

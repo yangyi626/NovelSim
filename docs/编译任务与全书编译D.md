@@ -18,14 +18,23 @@ TXT
 全部控制面数据保存在 `data/compiler.sqlite3`，不需要 Docker 或
 PostgreSQL。
 
+当前 Web 服务只写入和控制任务，不再执行后台线程。独立 Worker 使用同一个
+SQLite 领取任务：
+
+```powershell
+.venv\Scripts\python.exe -m compiler.worker
+```
+
 ## SQLite 表
 
 - `compiler_jobs`：任务状态、计划、当前章节、整体进度、质量结果和产物。
 - `compiler_job_chapters`：逐章状态、缓存命中、新抽取次数和错误。
 - `compiler_scene_cache`：可跨任务复用的结构化 `SceneExtraction`。
 - `compiler_job_snapshots`：章节、卷、全书三级 `WorldState` 快照。
+- `compiler_jobs.worker_id / lease_expires_at / heartbeat_at`：独立 Worker
+  的任务租约和心跳。
 
-运行任务在进程异常退出后会自动恢复为 `paused`。点击继续时，从第一章重建
+Worker 租约失效后任务会自动恢复为 `paused`。点击继续时，从第一章重建
 全局状态，但已成功抽取的场景全部命中缓存，不会重复调用 LLM。
 
 ## 状态机

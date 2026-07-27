@@ -9,7 +9,9 @@ from compiler import (
     RawEvent,
     SceneExtraction,
 )
+from compiler.worker import CompilationWorker
 from engine import LLMTrajectoryEvaluator, WorldPackageStore
+from web.auth import AuthStore
 
 
 NOVEL = """第1章 初见
@@ -189,6 +191,51 @@ def test_scene_cache_is_shared_between_jobs(tmp_path):
     second_chapters = store.list_chapters(second.job_id)
     assert sum(item["cache_hits"] for item in second_chapters) == 2
     assert sum(item["cache_misses"] for item in second_chapters) == 0
+
+
+def test_external_worker_claims_job_with_lease_and_completes(tmp_path):
+    novel_path = tmp_path / "novel.txt"
+    novel_path.write_text(NOVEL, encoding="utf-8")
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    package_store = WorldPackageStore(tmp_path / "worlds")
+    audit_store = AuthStore(tmp_path / "auth.sqlite3")
+    job = _create_job(store, novel_path, "worker_compiled")
+    runner = CompilationJobRunner(
+        store,
+        package_store=package_store,
+        extractor_factory=lambda current: FakeExtractor(),
+        quality_evaluator_factory=lambda: FakeEvaluator(),
+    )
+    worker = CompilationWorker(
+        store,
+        runner,
+        worker_id="worker-a",
+        lease_seconds=60,
+        poll_seconds=0.1,
+        audit_store=audit_store,
+    )
+
+    claimed = store.claim_next_job("worker-b", lease_seconds=60)
+    assert claimed.job_id == job.job_id
+    assert store.is_worker_active(job.job_id) is True
+    assert store.claim_next_job("worker-a", lease_seconds=60) is None
+    store.mark_failed(job.job_id, "归还测试任务")
+    store.resume(job.job_id)
+
+    completed = worker.run_once()
+
+    assert completed.job_id == job.job_id
+    assert completed.status == "completed"
+    assert completed.worker_id == ""
+    assert completed.attempt_count == 2
+    assert package_store.get("worker_compiled").review_status == "pending_review"
+    assert {
+        event["action"]
+        for event in audit_store.list_audit(limit=10)
+    } >= {
+        "compiler_job.completed",
+        "world_package.review.pending_review",
+    }
 
 
 @pytest.mark.llm
