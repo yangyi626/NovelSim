@@ -1,5 +1,8 @@
 # Beta 一键启动与 CI 门禁
 
+> 实现状态：已完成并通过本地验收。Git 里程碑：
+> `e12db9a feat: 建立 Beta 一键启动与 CI 门禁`。
+
 ## 一键启动
 
 Windows 用户可以直接双击项目根目录的 `start.cmd`。它会：
@@ -81,3 +84,17 @@ LLM 费用。PostgreSQL、Qdrant Local 和真实 LLM marker 继续由专门环�
 
 Playwright 启动命令已改为 Windows/Linux 双平台路径；本地仍默认使用
 `.venv\Scripts\python.exe`，CI 使用 `NOVELSIM_PYTHON=python`。
+
+## 已验证结果
+
+- `198 passed` 本地确定性测试；
+- 版本化长轨迹回归 `5/5` 通过；
+- 两本真实小说 SHA256、章节数和场景数扫描通过；
+- Vue 生产构建通过，共转换 27 个模块；
+- Playwright 创作者/RBAC/审核发布 E2E 通过；
+- 使用隔离数据库真实执行 `start → status → stop`，Web 健康检查与进程树回收通过；
+- 跨系统启动路径覆盖 Windows 本地 `.venv` 和 Linux CI `python`。
+
+CI 不负责运行高成本真实 LLM 演练。首轮 quick 全书演练使用独立数据库和 Worker，
+其状态与最终结果记录在
+[`真实全书编译生产演练.md`](./真实全书编译生产演练.md)。

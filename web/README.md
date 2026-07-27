@@ -147,6 +147,8 @@ Qdrant 架构、配置、重建与升级方式见 [`docs/Qdrant向量检索.md`]
 编译器 C 与创作者审核发布流见 [`docs/编译器C阶段与创作者发布流.md`](../docs/编译器C阶段与创作者发布流.md)。
 SQLite 编译任务、断点续跑和编译器 D 见 [`docs/编译任务与全书编译D.md`](../docs/编译任务与全书编译D.md)。
 独立 Worker、RBAC、E2E 和多小说基准见 [`docs/生产化基线_Worker_RBAC_E2E.md`](../docs/生产化基线_Worker_RBAC_E2E.md)。
+Beta 一键启停、健康检查和 CI 门禁见 [`docs/Beta一键启动与CI.md`](../docs/Beta一键启动与CI.md)。
+真实 quick/stress/full 编译演练见 [`docs/真实全书编译生产演练.md`](../docs/真实全书编译生产演练.md)。
 
 ## 架构
 
