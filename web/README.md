@@ -4,6 +4,21 @@
 
 ## 快速开始
 
+### 0. Windows 一键启动
+
+配置好项目根目录 `.env` 后，直接双击 `start.cmd`。它会自动构建缺失的前端产物，
+后台启动 Web 和独立 Worker，通过健康检查后打开浏览器。
+
+```powershell
+.\novelsim.ps1 start --open-browser
+.\novelsim.ps1 status
+.\novelsim.ps1 stop
+```
+
+运行日志和精确 PID 位于 `data/runtime/`。启动器只停止自己创建的进程树，不会
+扫描或结束其他 Python 服务。详细说明见
+[`docs/Beta一键启动与CI.md`](../docs/Beta一键启动与CI.md)。
+
 ### 1. 配置 LLM Key
 确保项目根目录有 `.env`（参考 `.env.example`）：
 ```

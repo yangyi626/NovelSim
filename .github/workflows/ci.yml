@@ -1,0 +1,76 @@
+name: NovelSim CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: novelsim-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Python 3.8 deterministic gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MEMORY_VECTOR_BACKEND: fts5
+      COMPILER_QUALITY_GATE_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+          cache: pip
+      - name: Install project
+        run: |
+          python -m pip install --upgrade "pip<25"
+          python -m pip install -e ".[dev]"
+      - name: API contract
+        run: python -m pytest -q tests/unit/test_api_contract.py
+      - name: Backend regression
+        run: python -m pytest -q
+      - name: Versioned trajectory regression
+        run: python -m engine.trajectory_regression
+      - name: Multi-novel source fingerprints
+        run: python -m compiler.benchmark scan
+
+  frontend-e2e:
+    name: Vue build and Playwright governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MEMORY_VECTOR_BACKEND: fts5
+      COMPILER_QUALITY_GATE_ENABLED: "false"
+      NOVELSIM_PYTHON: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - name: Install backend
+        run: |
+          python -m pip install --upgrade "pip<25"
+          python -m pip install -e ".[dev]"
+      - name: Install frontend
+        working-directory: web/frontend
+        run: npm ci
+      - name: Production build
+        working-directory: web/frontend
+        run: npm run build
+      - name: Install Chromium
+        working-directory: web/frontend
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E
+        working-directory: web/frontend
+        run: npm run test:e2e
