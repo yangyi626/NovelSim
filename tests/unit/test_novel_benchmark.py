@@ -3,6 +3,8 @@
 import hashlib
 import json
 
+import pytest
+
 from compiler import CompilationJobStore
 from compiler import benchmark as benchmark_module
 
@@ -60,6 +62,16 @@ def test_two_book_scan_enqueue_and_report(tmp_path, monkeypatch):
     assert scan["passed"] is True
     assert [item["actual"]["chapters"] for item in scan["books"]] == [2, 2]
 
+    estimate = benchmark_module.estimate_manifest(
+        manifest,
+        profile="quick",
+        chapter_limit=1,
+        seconds_per_call=10,
+        cost_per_call_cny=0.2,
+    )
+    assert estimate["total_scenes"] == 2
+    assert estimate["total_estimated_cost_cny"] == 0.4
+
     run = benchmark_module.enqueue_benchmark(
         manifest,
         store,
@@ -71,6 +83,10 @@ def test_two_book_scan_enqueue_and_report(tmp_path, monkeypatch):
         store.get_job(item["job_id"]).benchmark_id == run["run_id"]
         for item in run["jobs"]
     )
+    assert all(
+        store.get_job(item["job_id"]).max_llm_calls >= 3
+        for item in run["jobs"]
+    )
 
     report = benchmark_module.benchmark_report(
         tmp_path / "runs" / f"{run['run_id']}.json",
@@ -78,3 +94,14 @@ def test_two_book_scan_enqueue_and_report(tmp_path, monkeypatch):
     )
     assert report["completed"] is False
     assert {item["status"] for item in report["jobs"]} == {"queued"}
+    markdown = benchmark_module.render_markdown_report(report)
+    assert "全书编译生产演练" in markdown
+    assert "LLM 调用" in markdown
+
+    with pytest.raises(ValueError, match="显式确认"):
+        benchmark_module.enqueue_benchmark(
+            manifest,
+            store,
+            profile="full",
+            run_directory=tmp_path / "runs",
+        )

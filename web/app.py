@@ -195,6 +195,7 @@ class CompilationJobRequest(BaseModel):
     volume_plan: Dict[int, str] = Field(default_factory=dict)
     volume_size: int = 20
     model: str = ""
+    max_llm_calls: int = 100
     auto_start: bool = True
 
 
@@ -1025,6 +1026,7 @@ def api_create_compilation_job(req: CompilationJobRequest):
         volume_size=max(1, req.volume_size),
         prompt_version=EXTRACTOR_PROMPT_VERSION,
         model=req.model.strip(),
+        max_llm_calls=max(0, req.max_llm_calls),
     )
     if not req.auto_start:
         job = COMPILATION_JOBS.request_pause(job.job_id)
@@ -1037,6 +1039,7 @@ def api_create_compilation_job(req: CompilationJobRequest):
             "package_id": job.package_id,
             "novel_path": novel_path.name,
             "auto_start": req.auto_start,
+            "max_llm_calls": job.max_llm_calls,
         },
     )
     return {

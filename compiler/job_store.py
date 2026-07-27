@@ -34,6 +34,10 @@ class CompilationJobConflict(CompilationJobError):
     """编译任务状态冲突。"""
 
 
+class CompilationBudgetExceeded(CompilationJobError):
+    """编译任务已经用完真实 LLM 调用预算。"""
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -76,6 +80,8 @@ class CompilationJob:
     lease_expires_at: str
     heartbeat_at: str
     attempt_count: int
+    max_llm_calls: int
+    llm_calls_used: int
 
     def payload(self, *, include_plan: bool = True) -> Dict[str, Any]:
         result = {
@@ -107,6 +113,13 @@ class CompilationJob:
             "lease_expires_at": self.lease_expires_at,
             "heartbeat_at": self.heartbeat_at,
             "attempt_count": self.attempt_count,
+            "max_llm_calls": self.max_llm_calls,
+            "llm_calls_used": self.llm_calls_used,
+            "llm_calls_remaining": (
+                max(0, self.max_llm_calls - self.llm_calls_used)
+                if self.max_llm_calls
+                else None
+            ),
         }
         if include_plan:
             result.update(
@@ -181,6 +194,8 @@ class CompilationJobStore:
                     ,lease_expires_at TEXT NOT NULL DEFAULT ''
                     ,heartbeat_at TEXT NOT NULL DEFAULT ''
                     ,attempt_count INTEGER NOT NULL DEFAULT 0
+                    ,max_llm_calls INTEGER NOT NULL DEFAULT 0
+                    ,llm_calls_used INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_compiler_jobs_status
                 ON compiler_jobs(status, updated_at DESC);
@@ -260,6 +275,18 @@ class CompilationJobStore:
                 "attempt_count",
                 "INTEGER NOT NULL DEFAULT 0",
             )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "max_llm_calls",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "llm_calls_used",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
             # 只恢复没有租约或租约已经过期的任务。Web 与独立 Worker 可以
             # 同时打开同一个 SQLite，而不会把正在运行的任务误判为中断。
             conn.execute(
@@ -315,6 +342,7 @@ class CompilationJobStore:
         prompt_version: str,
         model: str = "",
         output_path: str = "",
+        max_llm_calls: int = 0,
     ) -> CompilationJob:
         now = _now()
         job_id = uuid.uuid4().hex
@@ -325,8 +353,10 @@ class CompilationJobStore:
                     job_id, benchmark_id, package_id, novel_path, novel_name,
                     chapters_json, timeline_plan_json, volume_plan_json,
                     volume_size, status, prompt_version, model, output_path,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
+                    max_llm_calls, created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?
+                )
                 """,
                 (
                     job_id,
@@ -341,6 +371,7 @@ class CompilationJobStore:
                     prompt_version,
                     model,
                     output_path,
+                    max(0, int(max_llm_calls)),
                     now,
                     now,
                 ),
@@ -822,6 +853,52 @@ class CompilationJobStore:
                 (status, score, _json(report), _now(), job_id),
             )
 
+    def reserve_llm_call(self, job_id: str) -> int:
+        """在真实调用前原子占用一次预算，跨 Worker/重启保持硬上限。"""
+
+        with self._connect() as conn:
+            row = self._require_job(conn, job_id)
+            maximum = int(row["max_llm_calls"])
+            used = int(row["llm_calls_used"])
+            if maximum and used >= maximum:
+                raise CompilationBudgetExceeded(
+                    f"LLM 调用预算已用完: {used}/{maximum}；"
+                    "任务已暂停，可新建更高预算任务并复用场景缓存"
+                )
+            used += 1
+            conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET llm_calls_used = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (used, _now(), job_id),
+            )
+        return used
+
+    def pause_for_budget(
+        self,
+        job_id: str,
+        error: str,
+    ) -> CompilationJob:
+        """预算耗尽时安全释放 Worker，保留章节与场景缓存。"""
+
+        now = _now()
+        with self._connect() as conn:
+            self._require_job(conn, job_id)
+            conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET status = 'paused', error = ?, current_chapter = NULL,
+                    pause_requested = 0, cancel_requested = 0,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '', updated_at = ?
+                WHERE job_id = ?
+                """,
+                (error[:4000], now, job_id),
+            )
+        return self.get_job(job_id)
+
     def get_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
             row = conn.execute(
@@ -1010,4 +1087,6 @@ class CompilationJobStore:
             lease_expires_at=row["lease_expires_at"],
             heartbeat_at=row["heartbeat_at"],
             attempt_count=int(row["attempt_count"]),
+            max_llm_calls=int(row["max_llm_calls"]),
+            llm_calls_used=int(row["llm_calls_used"]),
         )

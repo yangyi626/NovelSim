@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import openai
 from pydantic import BaseModel, Field, ValidationError
@@ -244,6 +244,7 @@ class EntityExtractor:
         model: Optional[str] = None,
         max_retries: int = 2,
         temperature: float = 0.3,
+        before_llm_call: Optional[Callable[[], None]] = None,
     ):
         cfg = get_llm_config()
         self.api_key = cfg.api_key
@@ -251,6 +252,7 @@ class EntityExtractor:
         self.model = model or cfg.model
         self.max_retries = max_retries
         self.temperature = temperature
+        self.before_llm_call = before_llm_call
         openai.api_key = self.api_key
         openai.api_base = self.base_url
         self.last_error: Optional[str] = None
@@ -321,6 +323,8 @@ class EntityExtractor:
     # ------------------------------------------------------------------
 
     def _call_llm(self, messages: list) -> str:
+        if self.before_llm_call is not None:
+            self.before_llm_call()
         resp = openai.ChatCompletion.create(
             model=self.model, messages=messages, temperature=self.temperature,
         )

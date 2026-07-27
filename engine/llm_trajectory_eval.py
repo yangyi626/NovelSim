@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import openai
 from pydantic import BaseModel, Field
@@ -102,6 +102,7 @@ class LLMTrajectoryEvaluator:
         chunk_size: int = 12,
         threshold: float = 0.72,
         minimum_dimension: float = 0.6,
+        before_llm_call: Optional[Callable[[], None]] = None,
     ):
         config = get_llm_config()
         self.api_key = config.api_key
@@ -110,6 +111,7 @@ class LLMTrajectoryEvaluator:
         self.chunk_size = max(4, int(chunk_size))
         self.threshold = float(threshold)
         self.minimum_dimension = float(minimum_dimension)
+        self.before_llm_call = before_llm_call
         self.last_error = ""
 
     def evaluate(
@@ -219,6 +221,8 @@ class LLMTrajectoryEvaluator:
             ) from exc
 
     def _call_llm(self, messages: list) -> str:
+        if self.before_llm_call is not None:
+            self.before_llm_call()
         response = openai.ChatCompletion.create(
             api_key=self.api_key,
             api_base=self.base_url,

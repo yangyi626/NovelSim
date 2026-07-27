@@ -19,6 +19,7 @@ from .book_compiler import BookCompileResult, BookCompiler
 from .cli import _fresh_state, _guess_novel_name
 from .extractors import EntityExtractor, SceneExtraction
 from .job_store import (
+    CompilationBudgetExceeded,
     CompilationJob,
     CompilationJobConflict,
     CompilationJobStore,
@@ -40,18 +41,25 @@ class CacheAwareExtractor:
         delegate=None,
         prompt_version: str = EXTRACTOR_PROMPT_VERSION,
         model: str = "",
+        job_id: str = "",
     ):
         self.store = store
         self.delegate = delegate
         self.prompt_version = prompt_version
         self.model = model or getattr(delegate, "model", "") or "default"
+        self.job_id = job_id
         self.last_error = ""
         self._chapter_stats: Dict[int, Dict[str, int]] = {}
 
     def _get_delegate(self):
         if self.delegate is None:
             self.delegate = EntityExtractor(
-                model=None if self.model == "default" else self.model
+                model=None if self.model == "default" else self.model,
+                before_llm_call=(
+                    lambda: self.store.reserve_llm_call(self.job_id)
+                    if self.job_id
+                    else None
+                ),
             )
             if self.model == "default":
                 self.model = getattr(self.delegate, "model", "default")
@@ -143,6 +151,7 @@ class CompilationQualityGate:
         result: BookCompileResult,
         *,
         final_state,
+        before_llm_call=None,
     ) -> Dict:
         if not result.trajectory_events:
             return {
@@ -159,7 +168,13 @@ class CompilationQualityGate:
                 "error": "未配置真实 LLM 长轨迹评分器",
             }
         try:
-            report = self.evaluator_factory().evaluate(
+            evaluator = self.evaluator_factory()
+            if (
+                before_llm_call is not None
+                and hasattr(evaluator, "before_llm_call")
+            ):
+                evaluator.before_llm_call = before_llm_call
+            report = evaluator.evaluate(
                 result.trajectory_events,
                 final_state=final_state,
             )
@@ -252,6 +267,7 @@ class CompilationJobRunner:
                 delegate=delegate,
                 prompt_version=job.prompt_version,
                 model=job.model,
+                job_id=job.job_id,
             )
             state = _fresh_state(job.package_id)
             registry = EntityRegistry()
@@ -325,6 +341,7 @@ class CompilationJobRunner:
             quality = self.quality_gate.evaluate(
                 result,
                 final_state=state,
+                before_llm_call=lambda: self.store.reserve_llm_call(job_id),
             )
             self.store.set_quality(
                 job_id,
@@ -352,6 +369,8 @@ class CompilationJobRunner:
                 result_package_id=package.package_id,
                 output_path=output_path,
             )
+        except CompilationBudgetExceeded as exc:
+            return self.store.pause_for_budget(job_id, str(exc))
         except CompilationJobConflict:
             raise
         except Exception as exc:  # noqa: BLE001
