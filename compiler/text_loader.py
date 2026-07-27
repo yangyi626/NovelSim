@@ -53,8 +53,13 @@ def load_novel(path: str, encoding: Optional[str] = None) -> str:
 
 # 全角空格段落前缀 (中文小说排版惯例)
 _PARA_INDENT = "\u3000\u3000"
-# 章节标题正则：第N章 标题 (N 为数字或中文数字)
-_CHAPTER_RE = re.compile(r"^第([\d零一二三四五六七八九十百千两]+)章[ 　]*(.*)$")
+# 章节标题正则：
+# - 第N章 标题
+# - 站点导出常见的 "1.第1章标题" / "1、第1章标题"
+_CHAPTER_RE = re.compile(
+    r"^(?:\d+[.、][ 　]*)?"
+    r"第([\d零一二三四五六七八九十百千两]+)章[ 　]*(.*)$"
+)
 
 
 def clean_text(text: str) -> str:
@@ -131,6 +136,11 @@ def split_chapters(text: str, *, skip_header: bool = True) -> List[Chapter]:
     章节标题行之前的内容视为前言/简介 (默认跳过)。
     """
     lines = text.split("\n")
+    line_offsets: List[int] = []
+    current_offset = 0
+    for line in lines:
+        line_offsets.append(current_offset)
+        current_offset += len(line) + 1
     # 找出所有章节标题行 (行号, raw_number, title)
     marks: List[tuple] = []
     for i, ln in enumerate(lines):
@@ -150,7 +160,7 @@ def split_chapters(text: str, *, skip_header: bool = True) -> List[Chapter]:
             raw_number=num,
             title=title,
             content=body,
-            start_offset=sum(len(l) + 1 for l in lines[:lineno]),
+            start_offset=line_offsets[lineno],
             paragraphs=paras,
         ))
 

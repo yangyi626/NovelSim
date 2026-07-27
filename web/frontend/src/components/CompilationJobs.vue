@@ -152,9 +152,9 @@ onBeforeUnmount(() => {
   <section class="compiler-page">
     <header class="compiler-hero">
       <div>
-        <span class="eyebrow">SQLite compilation control plane</span>
+        <span class="eyebrow">SQLite queue · external worker</span>
         <h1>全书编译任务</h1>
-        <p>章节抽取会自动缓存；暂停、失败或重启后只重做未命中的场景。</p>
+        <p>Web 只负责排队；独立 Worker 执行抽取。暂停、失败或重启后只重做未命中的场景。</p>
       </div>
       <div class="hero-metric">
         <strong>{{ jobs.length }}</strong>

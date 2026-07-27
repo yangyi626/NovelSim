@@ -200,9 +200,25 @@ class CompilationJobRunner:
             quality_evaluator_factory
         )
 
-    def run(self, job_id: str) -> CompilationJob:
+    def run(
+        self,
+        job_id: str,
+        *,
+        worker_id: str = "",
+        lease_seconds: int = 120,
+    ) -> CompilationJob:
         try:
-            job = self.store.start_run(job_id)
+            job = (
+                self.store.claimed_job(job_id, worker_id)
+                if worker_id
+                else self.store.start_run(job_id)
+            )
+            if worker_id:
+                self.store.heartbeat(
+                    job_id,
+                    worker_id,
+                    lease_seconds=lease_seconds,
+                )
             text = load_novel(job.novel_path)
             all_chapters = split_chapters(text)
             targets = set(job.chapters)
@@ -245,6 +261,12 @@ class CompilationJobRunner:
             )
 
             def chapter_started(chapter) -> None:
+                if worker_id:
+                    self.store.heartbeat(
+                        job_id,
+                        worker_id,
+                        lease_seconds=lease_seconds,
+                    )
                 self.store.set_current_chapter(job_id, chapter.index)
 
             def chapter_completed(
@@ -265,6 +287,12 @@ class CompilationJobRunner:
                     metadata=snapshot.metadata(),
                     state=snapshot.state.dict(),
                 )
+                if worker_id:
+                    self.store.heartbeat(
+                        job_id,
+                        worker_id,
+                        lease_seconds=lease_seconds,
+                    )
 
             result = compiler.compile(
                 selected,
@@ -288,6 +316,12 @@ class CompilationJobRunner:
                     result.interrupted,
                 )
 
+            if worker_id:
+                self.store.heartbeat(
+                    job_id,
+                    worker_id,
+                    lease_seconds=lease_seconds,
+                )
             quality = self.quality_gate.evaluate(
                 result,
                 final_state=state,

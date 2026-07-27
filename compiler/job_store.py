@@ -6,7 +6,7 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -45,6 +45,7 @@ def _json(value: Any) -> str:
 @dataclass(frozen=True)
 class CompilationJob:
     job_id: str
+    benchmark_id: str
     package_id: str
     novel_path: str
     novel_name: str
@@ -71,10 +72,15 @@ class CompilationJob:
     updated_at: str
     started_at: str
     completed_at: str
+    worker_id: str
+    lease_expires_at: str
+    heartbeat_at: str
+    attempt_count: int
 
     def payload(self, *, include_plan: bool = True) -> Dict[str, Any]:
         result = {
             "job_id": self.job_id,
+            "benchmark_id": self.benchmark_id,
             "package_id": self.package_id,
             "novel_path": self.novel_path,
             "novel_name": self.novel_name,
@@ -97,6 +103,10 @@ class CompilationJob:
             "updated_at": self.updated_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "worker_id": self.worker_id,
+            "lease_expires_at": self.lease_expires_at,
+            "heartbeat_at": self.heartbeat_at,
+            "attempt_count": self.attempt_count,
         }
         if include_plan:
             result.update(
@@ -141,6 +151,7 @@ class CompilationJobStore:
                 PRAGMA journal_mode = WAL;
                 CREATE TABLE IF NOT EXISTS compiler_jobs (
                     job_id TEXT PRIMARY KEY,
+                    benchmark_id TEXT NOT NULL DEFAULT '',
                     package_id TEXT NOT NULL,
                     novel_path TEXT NOT NULL,
                     novel_name TEXT NOT NULL DEFAULT '',
@@ -166,6 +177,10 @@ class CompilationJobStore:
                     updated_at TEXT NOT NULL,
                     started_at TEXT NOT NULL DEFAULT '',
                     completed_at TEXT NOT NULL DEFAULT ''
+                    ,worker_id TEXT NOT NULL DEFAULT ''
+                    ,lease_expires_at TEXT NOT NULL DEFAULT ''
+                    ,heartbeat_at TEXT NOT NULL DEFAULT ''
+                    ,attempt_count INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_compiler_jobs_status
                 ON compiler_jobs(status, updated_at DESC);
@@ -215,21 +230,75 @@ class CompilationJobStore:
                 );
                 """
             )
-            # 单进程 worker 异常退出后，running 不可能仍有执行者。
-            # 重启时转为 paused，保留章节缓存与已完成进度供人工继续。
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "benchmark_id",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "worker_id",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "lease_expires_at",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "heartbeat_at",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "attempt_count",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            # 只恢复没有租约或租约已经过期的任务。Web 与独立 Worker 可以
+            # 同时打开同一个 SQLite，而不会把正在运行的任务误判为中断。
             conn.execute(
                 """
                 UPDATE compiler_jobs
                 SET status = 'paused', current_chapter = NULL,
                     pause_requested = 0, cancel_requested = 0,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '',
                     error = CASE
-                        WHEN error = '' THEN '服务重启，任务已安全暂停'
+                        WHEN error = '' THEN 'Worker 租约失效或服务重启，任务已安全暂停'
                         ELSE error
                     END,
                     updated_at = ?
                 WHERE status = 'running'
+                  AND (
+                    lease_expires_at = ''
+                    OR lease_expires_at <= ?
+                  )
                 """,
-                (_now(),),
+                (_now(), _now()),
+            )
+
+    @staticmethod
+    def _ensure_column(
+        conn: sqlite3.Connection,
+        table: str,
+        column: str,
+        definition: str,
+    ) -> None:
+        columns = {
+            row["name"]
+            for row in conn.execute(
+                f"PRAGMA table_info({table})"
+            ).fetchall()
+        }
+        if column not in columns:
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
             )
 
     def create_job(
@@ -237,6 +306,7 @@ class CompilationJobStore:
         *,
         package_id: str,
         novel_path: str,
+        benchmark_id: str = "",
         novel_name: str = "",
         chapters: Optional[List[int]] = None,
         timeline_plan: Optional[Dict[int, str]] = None,
@@ -252,14 +322,15 @@ class CompilationJobStore:
             conn.execute(
                 """
                 INSERT INTO compiler_jobs (
-                    job_id, package_id, novel_path, novel_name,
+                    job_id, benchmark_id, package_id, novel_path, novel_name,
                     chapters_json, timeline_plan_json, volume_plan_json,
                     volume_size, status, prompt_version, model, output_path,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
+                    benchmark_id.strip(),
                     package_id,
                     novel_path,
                     novel_name,
@@ -342,6 +413,8 @@ class CompilationJobStore:
                 UPDATE compiler_jobs
                 SET status = 'running', pause_requested = 0,
                     cancel_requested = 0, error = '', updated_at = ?,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '', attempt_count = attempt_count + 1,
                     started_at = CASE
                         WHEN started_at = '' THEN ?
                         ELSE started_at
@@ -351,6 +424,135 @@ class CompilationJobStore:
                 (now, now, job_id),
             )
         return self.get_job(job_id)
+
+    def claim_next_job(
+        self,
+        worker_id: str,
+        *,
+        lease_seconds: int = 120,
+    ) -> Optional[CompilationJob]:
+        """原子领取最早的排队任务，防止多个 Worker 重复执行。"""
+
+        worker_id = worker_id.strip()
+        if not worker_id:
+            raise ValueError("worker_id 不能为空")
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(seconds=max(30, int(lease_seconds)))
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT job_id FROM compiler_jobs
+                WHERE status = 'queued'
+                ORDER BY created_at
+                LIMIT 1
+                """
+            ).fetchone()
+            if row is None:
+                conn.commit()
+                return None
+            job_id = row["job_id"]
+            cursor = conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET status = 'running', pause_requested = 0,
+                    cancel_requested = 0, error = '',
+                    worker_id = ?, lease_expires_at = ?,
+                    heartbeat_at = ?, updated_at = ?,
+                    attempt_count = attempt_count + 1,
+                    started_at = CASE
+                        WHEN started_at = '' THEN ?
+                        ELSE started_at
+                    END
+                WHERE job_id = ? AND status = 'queued'
+                """,
+                (
+                    worker_id,
+                    expires.isoformat(),
+                    now.isoformat(),
+                    now.isoformat(),
+                    now.isoformat(),
+                    job_id,
+                ),
+            )
+            conn.commit()
+            if cursor.rowcount != 1:
+                return None
+        return self.get_job(job_id)
+
+    def claimed_job(self, job_id: str, worker_id: str) -> CompilationJob:
+        job = self.get_job(job_id)
+        if job.status != "running" or job.worker_id != worker_id:
+            raise CompilationJobConflict(
+                f"任务 {job_id} 不属于 Worker {worker_id}"
+            )
+        return job
+
+    def heartbeat(
+        self,
+        job_id: str,
+        worker_id: str,
+        *,
+        lease_seconds: int = 120,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(seconds=max(30, int(lease_seconds)))
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET heartbeat_at = ?, lease_expires_at = ?, updated_at = ?
+                WHERE job_id = ? AND status = 'running'
+                  AND worker_id = ?
+                """,
+                (
+                    now.isoformat(),
+                    expires.isoformat(),
+                    now.isoformat(),
+                    job_id,
+                    worker_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise CompilationJobConflict(
+                    f"任务 {job_id} 的 Worker 租约已经失效"
+                )
+
+    def is_worker_active(self, job_id: str) -> bool:
+        job = self.get_job(job_id)
+        return bool(
+            job.status == "running"
+            and job.worker_id
+            and job.lease_expires_at
+            and job.lease_expires_at > _now()
+        )
+
+    def recover_stale_jobs(self) -> int:
+        """将租约过期的运行任务暂停，等待显式继续。"""
+
+        now = _now()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET status = 'paused', current_chapter = NULL,
+                    pause_requested = 0, cancel_requested = 0,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '',
+                    error = CASE
+                        WHEN error = '' THEN 'Worker 租约失效或服务重启，任务已安全暂停'
+                        ELSE error
+                    END,
+                    updated_at = ?
+                WHERE status = 'running'
+                  AND (
+                    lease_expires_at = ''
+                    OR lease_expires_at <= ?
+                  )
+                """,
+                (now, now),
+            )
+        return int(cursor.rowcount)
 
     def set_current_chapter(
         self,
@@ -483,7 +685,9 @@ class CompilationJobStore:
                 """
                 UPDATE compiler_jobs
                 SET status = 'queued', pause_requested = 0,
-                    cancel_requested = 0, error = '', updated_at = ?
+                    cancel_requested = 0, error = '',
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '', updated_at = ?
                 WHERE job_id = ?
                 """,
                 (_now(), job_id),
@@ -500,6 +704,8 @@ class CompilationJobStore:
                     UPDATE compiler_jobs
                     SET status = 'cancelled', cancel_requested = 0,
                         current_chapter = NULL, updated_at = ?,
+                        worker_id = '', lease_expires_at = '',
+                        heartbeat_at = '',
                         completed_at = ?
                     WHERE job_id = ?
                     """,
@@ -539,6 +745,8 @@ class CompilationJobStore:
                 UPDATE compiler_jobs
                 SET status = ?, pause_requested = 0,
                     cancel_requested = 0, current_chapter = NULL,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '',
                     updated_at = ?,
                     completed_at = CASE
                         WHEN ? = 'cancelled' THEN ?
@@ -559,6 +767,8 @@ class CompilationJobStore:
                 UPDATE compiler_jobs
                 SET status = 'failed', error = ?, current_chapter = NULL,
                     pause_requested = 0, cancel_requested = 0,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '',
                     updated_at = ?, completed_at = ?
                 WHERE job_id = ?
                 """,
@@ -583,6 +793,8 @@ class CompilationJobStore:
                     output_path = ?, current_chapter = NULL,
                     completed_chapters = total_chapters,
                     pause_requested = 0, cancel_requested = 0,
+                    worker_id = '', lease_expires_at = '',
+                    heartbeat_at = '',
                     updated_at = ?, completed_at = ?
                 WHERE job_id = ?
                 """,
@@ -757,6 +969,7 @@ class CompilationJobStore:
         progress = (completed / total) if total else 0.0
         return CompilationJob(
             job_id=row["job_id"],
+            benchmark_id=row["benchmark_id"],
             package_id=row["package_id"],
             novel_path=row["novel_path"],
             novel_name=row["novel_name"],
@@ -793,4 +1006,8 @@ class CompilationJobStore:
             updated_at=row["updated_at"],
             started_at=row["started_at"],
             completed_at=row["completed_at"],
+            worker_id=row["worker_id"],
+            lease_expires_at=row["lease_expires_at"],
+            heartbeat_at=row["heartbeat_at"],
+            attempt_count=int(row["attempt_count"]),
         )

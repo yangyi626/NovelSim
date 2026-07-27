@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "suite": "novelsim-trajectory-regression-v1",
+  "description": "核心事件链的 20/60 回合发布门禁与故障注入基准",
+  "cases": [
+    {
+      "case_id": "twenty_turn_goal_progression",
+      "kind": "flag_sequence",
+      "event_count": 20,
+      "expected_passed": true,
+      "expected_codes": []
+    },
+    {
+      "case_id": "sixty_turn_state_endurance",
+      "kind": "flag_sequence",
+      "event_count": 60,
+      "expected_passed": true,
+      "expected_codes": []
+    },
+    {
+      "case_id": "broken_version_chain",
+      "kind": "broken_version",
+      "event_count": 3,
+      "expected_passed": false,
+      "expected_codes": ["version_chain"]
+    },
+    {
+      "case_id": "dead_character_cannot_act",
+      "kind": "dead_actor",
+      "event_count": 2,
+      "expected_passed": false,
+      "expected_codes": ["dead_actor"]
+    },
+    {
+      "case_id": "unknown_target_rejected",
+      "kind": "unknown_target",
+      "event_count": 1,
+      "expected_passed": false,
+      "expected_codes": ["unknown_target"]
+    }
+  ]
+}

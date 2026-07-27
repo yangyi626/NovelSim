@@ -1,11 +1,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import {
+  bootstrapAdmin,
+  clearAuthToken,
   cloneWorldPackage,
   diffWorldPackageRevisions,
+  getAuthToken,
+  getCurrentUser,
   getWorldPackage,
+  listAuditEvents,
   listWorldPackages,
   listWorldPackageRevisions,
+  loginCreator,
   saveWorldPackage,
   transitionWorldPackageReview,
   validateWorldPackage,
@@ -32,6 +38,12 @@ const revisions = ref([])
 const diffReport = ref(null)
 const reviewNote = ref('')
 const compilerMode = ref(false)
+const currentUser = ref(null)
+const authReady = ref(false)
+const authMode = ref('login')
+const authForm = ref({ username: '', password: '' })
+const authError = ref('')
+const auditEvents = ref([])
 
 const tabs = [
   ['overview', '总览'],
@@ -97,6 +109,13 @@ const reviewStatusLabel = computed(() => ({
   published: '已发布',
   rejected: '已驳回',
 }[draft.value?.review_status] || '未知状态'))
+const hasPermission = (permission) => (
+  currentUser.value?.permissions?.includes('*')
+  || currentUser.value?.permissions?.includes(permission)
+)
+const canWrite = computed(() => hasPermission('creator.write'))
+const canCompile = computed(() => hasPermission('compiler.manage'))
+const canReadAudit = computed(() => hasPermission('audit.read'))
 const reviewActions = computed(() => {
   const actions = {
     draft: [['pending_review', '提交审核']],
@@ -115,8 +134,64 @@ const reviewActions = computed(() => {
       ['pending_review', '重新提交'],
     ],
   }
-  return actions[draft.value?.review_status] || []
+  const permissions = {
+    pending_review: 'review.submit',
+    approved: 'review.decide',
+    rejected: 'review.decide',
+    published: 'review.publish',
+    draft: 'creator.write',
+  }
+  return (actions[draft.value?.review_status] || []).filter(
+    ([status]) => hasPermission(permissions[status]),
+  )
 })
+
+async function initializeAuth() {
+  if (!getAuthToken()) {
+    authReady.value = true
+    return
+  }
+  const data = await getCurrentUser()
+  authReady.value = true
+  if (data.status === 'ok') {
+    currentUser.value = data.user
+    await refreshPackages()
+  }
+}
+
+async function submitAuth() {
+  authError.value = ''
+  const { username, password } = authForm.value
+  if (!username.trim() || password.length < 8) {
+    authError.value = '请输入用户名和至少 8 位密码'
+    return
+  }
+  const data = authMode.value === 'bootstrap'
+    ? await bootstrapAdmin(username.trim(), password)
+    : await loginCreator(username.trim(), password)
+  if (data.status !== 'ok') {
+    authError.value = data.error
+    return
+  }
+  currentUser.value = data.user
+  authForm.value.password = ''
+  await refreshPackages()
+}
+
+function logout() {
+  clearAuthToken()
+  currentUser.value = null
+  packages.value = []
+  draft.value = null
+  auditEvents.value = []
+}
+
+async function loadAudit() {
+  if (!canReadAudit.value) return
+  const data = await listAuditEvents(50)
+  if (data.status === 'ok') auditEvents.value = data.events || []
+  else errors.value = [data.error]
+}
 
 function clearFeedback() {
   notice.value = ''
@@ -532,11 +607,30 @@ function selectTab(tabId) {
   if (tabId === 'json') syncRawSnapshot()
 }
 
-onMounted(refreshPackages)
+onMounted(initializeAuth)
 </script>
 
 <template>
   <div class="studio">
+    <section v-if="authReady && !currentUser" class="auth-gate">
+      <form class="auth-card" @submit.prevent="submitAuth">
+        <span class="eyebrow">Creator governance</span>
+        <h1>创作者账户</h1>
+        <p>创作、审核与发布使用独立角色权限，所有关键操作进入审计日志。</p>
+        <div class="auth-tabs">
+          <button type="button" :class="{ active: authMode === 'login' }" @click="authMode = 'login'">账户登录</button>
+          <button type="button" :class="{ active: authMode === 'bootstrap' }" @click="authMode = 'bootstrap'">首次初始化</button>
+        </div>
+        <label>用户名<input v-model="authForm.username" autocomplete="username" /></label>
+        <label>密码<input v-model="authForm.password" type="password" autocomplete="current-password" /></label>
+        <div v-if="authError" class="notice error">{{ authError }}</div>
+        <button class="primary" type="submit">
+          {{ authMode === 'bootstrap' ? '创建首个管理员' : '登录创作台' }}
+        </button>
+      </form>
+    </section>
+    <section v-else-if="!authReady" class="auth-gate">正在验证创作者身份…</section>
+    <template v-else>
     <header class="studio-bar">
       <div class="brand">
         <button class="back-button" @click="emit('back')">← 返回试玩</button>
@@ -546,13 +640,15 @@ onMounted(refreshPackages)
         </div>
       </div>
       <div class="toolbar">
-        <button class="ghost" @click="compilerMode = !compilerMode">
+        <span class="account-chip">{{ currentUser.username }} · {{ currentUser.roles.join('/') }}</span>
+        <button v-if="canCompile" class="ghost" @click="compilerMode = !compilerMode">
           {{ compilerMode ? '返回世界包' : '全书编译' }}
         </button>
         <button class="ghost" :disabled="compilerMode || loading || !draft" @click="validateDraft">校验</button>
-        <button class="ghost" :disabled="compilerMode || loading || !draft" @click="clonePackage">另存为新版本</button>
-        <button class="primary" :disabled="compilerMode || loading || !editable" @click="saveDraft">保存世界包</button>
-        <button class="play" :disabled="compilerMode || loading || !draft" @click="playCurrent">保存并试玩</button>
+        <button class="ghost" :disabled="compilerMode || loading || !draft || !canWrite" @click="clonePackage">另存为新版本</button>
+        <button class="primary" :disabled="compilerMode || loading || !editable || !canWrite" @click="saveDraft">保存世界包</button>
+        <button class="play" :disabled="compilerMode || loading || !draft || (editable && !canWrite)" @click="playCurrent">保存并试玩</button>
+        <button class="ghost" @click="logout">退出</button>
       </div>
     </header>
 
@@ -631,6 +727,12 @@ onMounted(refreshPackages)
           <div v-if="revisions.length" class="revision-strip">
             <span v-for="item in revisions.slice(0, 8)" :key="item.revision">
               r{{ item.revision }} · {{ item.review_status }}
+            </span>
+          </div>
+          <div v-if="canReadAudit" class="audit-strip">
+            <button class="ghost" @click="loadAudit">刷新审核审计</button>
+            <span v-for="event in auditEvents.slice(0, 8)" :key="event.event_id">
+              {{ event.actor_username }} · {{ event.action }} · {{ event.resource_id }}
             </span>
           </div>
           <div v-if="diffReport" class="diff-report">
@@ -1146,6 +1248,7 @@ onMounted(refreshPackages)
         <div>{{ loading ? '正在载入世界包…' : '暂无可用世界包' }}</div>
       </main>
     </div>
+    </template>
   </div>
 </template>
 
@@ -1157,6 +1260,63 @@ onMounted(refreshPackages)
   background:
     radial-gradient(circle at 80% -20%, rgba(201, 169, 106, 0.12), transparent 38%),
     var(--bg);
+}
+.auth-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(201, 169, 106, 0.18), transparent 42%),
+    var(--bg);
+}
+.auth-card {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(36, 30, 24, 0.97);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+.auth-card h1, .auth-card p {
+  margin: 0;
+}
+.auth-card label {
+  display: grid;
+  gap: 7px;
+}
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.auth-tabs button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.account-chip {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+.audit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.audit-strip span {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
 }
 .studio-bar {
   min-height: 66px;

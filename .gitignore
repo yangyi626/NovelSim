@@ -42,8 +42,12 @@ data/*.sqlite3-shm
 data/*.sqlite3-wal
 data/qdrant/
 data/memory-retrieval-report*.json
+data/benchmarks/
 
 # Web 前端：node_modules / 构建产物 (源码纳入版本控制)
 web/frontend/node_modules/
 web/frontend/dist/
 web/static/
+web/frontend/playwright-report/
+web/frontend/test-results/
+web/frontend/data/
