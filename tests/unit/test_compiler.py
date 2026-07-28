@@ -159,6 +159,22 @@ class TestEntityRegistry:
         assert reg.resolve_name("林管家") == cid
         assert reg.resolve_name("查无此人") is None
 
+    def test_character_lookup_rejects_location_and_item(self):
+        reg = EntityRegistry()
+        character_id = reg.resolve_or_register_character(
+            RawEntity(raw_name="夜轻歌")
+        )
+        reg.resolve_or_register_location(
+            RawEntity(raw_name="华容巷", entity_type="location")
+        )
+        reg.resolve_or_register_item(
+            RawEntity(raw_name="外衫", entity_type="item")
+        )
+
+        assert reg.resolve_character_name("夜轻歌") == character_id
+        assert reg.resolve_character_name("华容巷") is None
+        assert reg.resolve_character_name("外衫") is None
+
 
 # ---------------------------------------------------------------------------
 # SceneCompiler (mock extraction)
@@ -234,6 +250,38 @@ class TestSceneCompiler:
         kinds = {op.op for op in result.applied_patch.operations}
         assert OperationKind.set_flag in kinds
         assert OperationKind.transfer_item in kinds
+
+    def test_relation_with_location_endpoint_is_dropped(self):
+        extraction = SceneExtraction(
+            scene_id="sc_relation_boundary",
+            summary="夜轻歌进入华容巷",
+            entities=[
+                RawEntity(
+                    raw_name="夜轻歌",
+                    entity_type="character",
+                ),
+                RawEntity(
+                    raw_name="华容巷",
+                    entity_type="location",
+                ),
+            ],
+            relations=[
+                RawRelation(
+                    source_name="华容巷",
+                    target_name="夜轻歌",
+                    public_relation="所在地",
+                )
+            ],
+        )
+        state = WorldState(timeline_id="t1")
+
+        SceneCompiler().compile(
+            extraction,
+            EntityRegistry(),
+            state,
+        )
+
+        assert state.relations == []
 
     def test_transfer_item_resolved_to_canonical_id(self):
         """草稿里 item_id="外衫" (中文名) 应被解析成 registry 里的稳定 id。"""

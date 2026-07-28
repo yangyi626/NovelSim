@@ -151,6 +151,13 @@ class EntityRegistry:
         """仅查表，不新建。用于把事件 actor_names 映射到 id。"""
         return self.alias_index.get(name)
 
+    def resolve_character_name(self, name: str) -> Optional[str]:
+        """仅解析角色，拒绝把地点或物品用作人物关系端点。"""
+        entity_id = self.alias_index.get(name)
+        if entity_id in self.characters:
+            return entity_id
+        return None
+
     # ---- 内部 ----
 
     def _mint_id(self, prefix: str, name: str) -> str:
@@ -210,8 +217,8 @@ def accumulate_relations(
     """把抽取的关系合并进 registry，返回更新后的关系列表。"""
     out: List[CharacterRelation] = []
     for rr in raw_relations:
-        src = registry.resolve_name(rr.source_name)
-        tgt = registry.resolve_name(rr.target_name)
+        src = registry.resolve_character_name(rr.source_name)
+        tgt = registry.resolve_character_name(rr.target_name)
         if not src or not tgt:
             continue
         rel = _find_relation(registry, src, tgt)

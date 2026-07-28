@@ -88,6 +88,7 @@ class LLMTrajectoryReport(BaseModel):
     passed: bool
     threshold: float
     minimum_dimension: float
+    blocking_issue_count: int = 0
     aggregate: TrajectoryQualityScore
     chunks: List[TrajectoryQualityScore] = Field(default_factory=list)
 
@@ -177,9 +178,16 @@ class LLMTrajectoryEvaluator:
             aggregate.world_state_consistency,
             aggregate.repetition_control,
         ]
+        blocking_issues = [
+            issue
+            for issue in aggregate.issues
+            if issue.severity.strip().lower()
+            in {"high", "critical", "error"}
+        ]
         passed = (
             aggregate.overall >= self.threshold
             and min(dimensions) >= self.minimum_dimension
+            and not blocking_issues
         )
         return LLMTrajectoryReport(
             event_count=len(events),
@@ -188,6 +196,7 @@ class LLMTrajectoryEvaluator:
             passed=passed,
             threshold=self.threshold,
             minimum_dimension=self.minimum_dimension,
+            blocking_issue_count=len(blocking_issues),
             aggregate=aggregate,
             chunks=chunk_scores,
         )
