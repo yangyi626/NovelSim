@@ -5,10 +5,12 @@ from compiler import (
     EntityRegistry,
     RawEntity,
     RawEvent,
+    RawGoalEvolution,
     SceneExtraction,
 )
 from compiler.cli import _fresh_state
 from compiler.text_loader import Chapter
+from engine import LLMTrajectoryEvaluator
 
 
 def _chapter(index, title=""):
@@ -160,3 +162,98 @@ def test_extracted_timeline_is_used_when_no_manual_plan():
 
     assert result.timelines == {"timeline_future": [1]}
     assert result.snapshots[0].timeline_ids == ["timeline_future"]
+
+
+def test_world_transition_expires_origin_goals_and_hides_them_from_gate():
+    origin = _extraction("华曦", "soul_huaxi")
+    origin.entities[0].incarnation = "现代特工"
+    origin.goal_evolutions = [
+        RawGoalEvolution(
+            character_name="华曦",
+            goal_key="obtain_painting",
+            description="劫持飞机并取得画作",
+            status="active",
+            evidence="她在飞机上逼问画作下落，并称这一生最痛恨背叛",
+        )
+    ]
+    reborn = _extraction("墨华曦", "soul_huaxi", ["华曦"])
+    reborn.entities[0].incarnation = "墨家三小姐"
+    reborn.entities[0].evidence = "现代华曦死后穿越到墨家三小姐身体"
+    reborn.goal_evolutions = [
+        RawGoalEvolution(
+            character_name="墨华曦",
+            goal_key="adapt_new_identity",
+            description="适应新身份并查明原身死亡真相",
+            status="active",
+            scope="world",
+            evidence="她决定先弄清当前处境",
+        )
+    ]
+    state = _fresh_state("world_transition")
+    BookCompiler(
+        extractor=SequenceExtractor([origin, reborn])
+    ).compile(
+        [
+            _chapter(1, "现代任务"),
+            Chapter(
+                index=3,
+                raw_number="3",
+                title="异世苏醒",
+                content="华曦死后穿越到陌生的古代世界。",
+                paragraphs=["华曦死后穿越到陌生的古代世界。"],
+            ),
+        ],
+        EntityRegistry(),
+        state,
+    )
+
+    psyche = next(iter(state.character_psyches.values()))
+    goals = {goal.goal_key: goal for goal in psyche.goals}
+    assert goals["obtain_painting"].status == "expired"
+    assert goals["obtain_painting"].terminal_chapter == 3
+    assert goals["obtain_painting"].terminal_reason == (
+        "世界切换使旧世界目标失效"
+    )
+    assert goals["adapt_new_identity"].status == "active"
+    assert (
+        goals["obtain_painting"].world_id
+        != goals["adapt_new_identity"].world_id
+    )
+    gate_payload = LLMTrajectoryEvaluator._goal_payload(state)
+    active_keys = {
+        goal["goal_key"]
+        for character in gate_payload
+        for goal in character["goals"]
+    }
+    assert active_keys == {"adapt_new_identity"}
+
+
+def test_stale_arc_goal_becomes_dormant_but_can_be_reactivated():
+    first = _extraction("华曦", "soul_huaxi")
+    first.goal_evolutions = [
+        RawGoalEvolution(
+            character_name="华曦",
+            goal_key="repay_rescuer",
+            description="寻找并报答救命恩人",
+            status="active",
+            evidence="有机会一定当面感谢",
+        )
+    ]
+    quiet = [
+        _extraction("华曦", "soul_huaxi")
+        for _ in range(9)
+    ]
+    state = _fresh_state("stale_arc")
+    BookCompiler(
+        extractor=SequenceExtractor([first, *quiet])
+    ).compile(
+        [_chapter(index) for index in range(1, 11)],
+        EntityRegistry(),
+        state,
+    )
+
+    goal = next(iter(state.character_psyches.values())).goals[0]
+    assert goal.scope == "arc"
+    assert goal.status == "dormant"
+    assert goal.terminal_chapter == 10
+    assert goal.terminal_reason == "连续章节未出现推进证据"

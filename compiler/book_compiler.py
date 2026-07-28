@@ -347,6 +347,8 @@ class BookCompiler:
                         extraction,
                         registry,
                         state,
+                        timeline_id=timeline_id,
+                        chapter_text=chapter.content,
                     )
                 )
                 result.character_state_updates += character_count

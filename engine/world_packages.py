@@ -33,6 +33,15 @@ REVIEW_TRANSITIONS = {
     "published": {"draft"},
     "rejected": {"draft", "pending_review"},
 }
+GOAL_STATUSES = {
+    "active",
+    "dormant",
+    "achieved",
+    "abandoned",
+    "superseded",
+    "expired",
+}
+GOAL_SCOPES = {"chapter", "arc", "timeline", "world", "book"}
 
 
 class WorldPackageError(RuntimeError):
@@ -298,6 +307,16 @@ def validate_world_package_payload(
         if len(goal_ids) != len(set(goal_ids)):
             errors.append(f"角色 {character_id} 的目标 ID 不能重复")
         for goal in psyche.goals:
+            if goal.status not in GOAL_STATUSES:
+                errors.append(
+                    f"角色 {character_id} 的目标 {goal.goal_id} "
+                    f"状态无效: {goal.status}"
+                )
+            if goal.scope not in GOAL_SCOPES:
+                errors.append(
+                    f"角色 {character_id} 的目标 {goal.goal_id} "
+                    f"作用域无效: {goal.scope}"
+                )
             for target_id in goal.target_ids:
                 if target_id not in state.characters:
                     errors.append(

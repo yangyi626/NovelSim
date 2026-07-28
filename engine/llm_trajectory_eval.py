@@ -170,6 +170,10 @@ class LLMTrajectoryEvaluator:
                     "重复出现的问题应提高严重度。"
                 ),
             )
+            self._calibrate_aggregate_severity(
+                aggregate,
+                chunk_scores,
+            )
 
         dimensions = [
             aggregate.causal_coherence,
@@ -189,7 +193,7 @@ class LLMTrajectoryEvaluator:
             and min(dimensions) >= self.minimum_dimension
             and not blocking_issues
         )
-        return LLMTrajectoryReport(
+        report = LLMTrajectoryReport(
             event_count=len(events),
             chunk_count=len(chunk_scores),
             overall_score=aggregate.overall,
@@ -200,6 +204,68 @@ class LLMTrajectoryEvaluator:
             aggregate=aggregate,
             chunks=chunk_scores,
         )
+        return self.recheck_report(report)
+
+    @classmethod
+    def recheck_report(
+        cls,
+        report: LLMTrajectoryReport,
+    ) -> LLMTrajectoryReport:
+        """按当前证据策略重判已有报告，不重复调用 LLM。"""
+
+        cls._calibrate_aggregate_severity(
+            report.aggregate,
+            report.chunks,
+        )
+        dimensions = [
+            report.aggregate.causal_coherence,
+            report.aggregate.character_consistency,
+            report.aggregate.goal_progression,
+            report.aggregate.world_state_consistency,
+            report.aggregate.repetition_control,
+        ]
+        blocking = [
+            issue
+            for issue in report.aggregate.issues
+            if issue.severity.strip().lower()
+            in {"high", "critical", "error"}
+        ]
+        report.overall_score = report.aggregate.overall
+        report.blocking_issue_count = len(blocking)
+        report.passed = (
+            report.overall_score >= report.threshold
+            and min(dimensions) >= report.minimum_dimension
+            and not blocking
+        )
+        return report
+
+    @staticmethod
+    def _calibrate_aggregate_severity(
+        aggregate: TrajectoryQualityScore,
+        chunks: List[TrajectoryQualityScore],
+    ) -> None:
+        """阻止聚合器在没有窗口级高危证据时凭空制造发布阻断。
+
+        聚合模型可以把重复出现的低/中问题上调，但 ``high`` 必须至少有
+        一个详细窗口对同类问题给出 high/critical/error。否则保留问题，
+        仅把严重度校准为 medium。这样不会掩盖缺陷，同时确保阻断结论可
+        回溯到包含原始事件的窗口。
+        """
+
+        supported_categories = {
+            issue.category.strip().lower()
+            for chunk in chunks
+            for issue in chunk.issues
+            if issue.severity.strip().lower()
+            in {"high", "critical", "error"}
+        }
+        for issue in aggregate.issues:
+            if (
+                issue.severity.strip().lower() == "high"
+                and issue.category.strip().lower()
+                not in supported_categories
+            ):
+                issue.severity = "medium"
 
     def _score_payload(
         self,
@@ -269,13 +335,39 @@ class LLMTrajectoryEvaluator:
     @staticmethod
     def _goal_payload(state: WorldState) -> List[Dict]:
         payload = []
+        current_timeline = str(
+            state.flags.get("compiler.current_timeline")
+            or state.timeline_id
+        )
         for character_id, psyche in state.character_psyches.items():
+            active_goals = [
+                goal.dict()
+                for goal in psyche.goals
+                if (
+                    not goal.achieved
+                    and getattr(goal, "status", "active") == "active"
+                    and (
+                        not getattr(goal, "timeline_id", "")
+                        or goal.timeline_id == current_timeline
+                        or goal.scope in {"world", "book", "arc"}
+                    )
+                )
+            ]
+            if not active_goals and not psyche.plans:
+                continue
             payload.append(
                 {
                     "character_id": character_id,
                     "traits": list(psyche.traits),
                     "emotion": psyche.emotion,
-                    "goals": [goal.dict() for goal in psyche.goals],
+                    "goals": active_goals,
+                    "terminal_goal_count": sum(
+                        1
+                        for goal in psyche.goals
+                        if getattr(goal, "status", "active")
+                        != "active"
+                        or goal.achieved
+                    ),
                     "plans": [plan.dict() for plan in psyche.plans],
                 }
             )

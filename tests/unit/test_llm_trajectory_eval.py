@@ -108,6 +108,55 @@ def test_high_severity_issue_fails_release_gate_even_with_high_scores():
     assert not report.passed
 
 
+def test_aggregate_only_high_issue_is_capped_without_window_evidence():
+    final_state = build_snapshot()
+    final_state.version = 25
+    evaluator = LLMTrajectoryEvaluator(chunk_size=10)
+    responses = [
+        _score(
+            issues=[
+                {
+                    "category": "repetition_control",
+                    "severity": "medium",
+                    "event_ids": ["event-2"],
+                    "message": "局部事件拆分略细。",
+                }
+            ]
+        ),
+        _score(),
+        _score(
+            issues=[
+                {
+                    "category": "repetition_control",
+                    "severity": "medium",
+                    "event_ids": ["event-22"],
+                    "message": "另一个局部冲突略有重复。",
+                }
+            ]
+        ),
+        _score(
+            issues=[
+                {
+                    "category": "repetition_control",
+                    "severity": "high",
+                    "event_ids": ["event-2", "event-22"],
+                    "message": "聚合阶段将两个独立中危问题升级。",
+                }
+            ]
+        ),
+    ]
+    evaluator._call_llm = lambda _messages: responses.pop(0)
+
+    report = evaluator.evaluate(
+        _events(25),
+        final_state=final_state,
+    )
+
+    assert report.aggregate.issues[0].severity == "medium"
+    assert report.blocking_issue_count == 0
+    assert report.passed
+
+
 @pytest.mark.llm
 def test_real_llm_scores_twenty_event_trajectory():
     final_state = build_snapshot()

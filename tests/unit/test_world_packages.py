@@ -146,6 +146,8 @@ def test_validation_rejects_broken_psyche_goal_and_plan_refs(tmp_path):
     payload = _payload("broken_psyche")
     psyche = payload["snapshot"]["character_psyches"][NIGHT]
     psyche["goals"][0]["target_ids"] = ["char_missing"]
+    psyche["goals"][0]["status"] = "forgotten"
+    psyche["goals"][0]["scope"] = "galaxy"
     psyche["plans"][0]["goal_id"] = "goal_missing"
     psyche["plans"][0]["current_step"] = 99
 
@@ -153,6 +155,8 @@ def test_validation_rejects_broken_psyche_goal_and_plan_refs(tmp_path):
         store.validate(payload)
 
     assert "引用未知角色 char_missing" in str(exc.value)
+    assert "状态无效: forgotten" in str(exc.value)
+    assert "作用域无效: galaxy" in str(exc.value)
     assert "引用未知目标 goal_missing" in str(exc.value)
     assert "当前步骤超出范围" in str(exc.value)
 

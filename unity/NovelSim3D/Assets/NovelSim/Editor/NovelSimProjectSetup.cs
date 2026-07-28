@@ -2,6 +2,8 @@ using System.IO;
 using System.Linq;
 using System;
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -132,6 +134,63 @@ namespace NovelSim.Editor
             GraphicsSettings.defaultRenderPipeline = pipeline;
             QualitySettings.renderPipeline = pipeline;
             EditorUtility.SetDirty(pipeline);
+        }
+    }
+
+    public static class NovelSimWindowsBuild
+    {
+        private const string DefaultOutput =
+            "Builds/Windows/NovelSim3D.exe";
+
+        [MenuItem("NovelSim/Build Windows x64")]
+        public static void BuildWindows()
+        {
+            NovelSimProjectSetup.EnsureVerticalSlice();
+            var configured = Environment.GetEnvironmentVariable(
+                "NOVELSIM_WINDOWS_BUILD_PATH");
+            var outputPath = Path.GetFullPath(
+                string.IsNullOrWhiteSpace(configured)
+                    ? DefaultOutput
+                    : configured);
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            var scenes = EditorBuildSettings.scenes
+                .Where(item => item.enabled)
+                .Select(item => item.path)
+                .ToArray();
+            if (scenes.Length == 0)
+            {
+                throw new BuildFailedException(
+                    "没有启用的 Unity 构建场景。");
+            }
+
+            PlayerSettings.SetApplicationIdentifier(
+                NamedBuildTarget.Standalone,
+                "com.novelsim.verticalslice");
+            var report = BuildPipeline.BuildPlayer(
+                new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = outputPath,
+                    target = BuildTarget.StandaloneWindows64,
+                    options = BuildOptions.None,
+                });
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                throw new BuildFailedException(
+                    $"Windows 构建失败：{report.summary.result}");
+            }
+            Debug.Log(
+                $"NOVELSIM_WINDOWS_BUILD_OK path={outputPath} "
+                + $"bytes={report.summary.totalSize}");
+        }
+
+        public static void BuildWindowsFromCommandLine()
+        {
+            BuildWindows();
         }
     }
 }

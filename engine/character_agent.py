@@ -221,8 +221,23 @@ class CharacterAgent:
         # 目标与计划
         if psy.goals:
             lines.append("\n# 你的目标")
+            current_timeline = str(
+                state.flags.get("compiler.current_timeline")
+                or state.timeline_id
+            )
             for g in psy.goals:
-                tag = "[已达成]" if g.achieved else "[活跃]"
+                status = getattr(g, "status", "active")
+                timeline_id = getattr(g, "timeline_id", "")
+                if (
+                    g.achieved
+                    or status != "active"
+                    or (
+                        timeline_id
+                        and timeline_id != current_timeline
+                    )
+                ):
+                    continue
+                tag = "[活跃]"
                 lines.append(f"- {tag} {g.goal_id} (优先级{g.priority}): {g.description}")
         if psy.plans:
             lines.append("\n# 你的计划")

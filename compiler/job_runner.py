@@ -28,7 +28,7 @@ from .scene_compiler import EntityRegistry, PackageBuilder
 from .text_loader import load_novel, split_chapters
 
 
-EXTRACTOR_PROMPT_VERSION = "book-d-2026-07-27-v1"
+EXTRACTOR_PROMPT_VERSION = "book-d-2026-07-29-v2-goal-lifecycle"
 
 
 class CacheAwareExtractor:

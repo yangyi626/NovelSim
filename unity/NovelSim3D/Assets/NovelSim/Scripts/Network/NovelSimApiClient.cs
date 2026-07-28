@@ -6,7 +6,26 @@ using UnityEngine.Networking;
 
 namespace NovelSim.Network
 {
-    public sealed class NovelSimApiClient : MonoBehaviour
+    public interface INovelSimApiClient
+    {
+        IEnumerator StartSession(
+            string packageId,
+            Action<SessionResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator ResumeSession(
+            string sessionId,
+            Action<SessionResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator SubmitTurn(
+            string sessionId,
+            string text,
+            Action<TurnResponse> onSuccess,
+            Action<string> onFailure);
+    }
+
+    public sealed class NovelSimApiClient : MonoBehaviour, INovelSimApiClient
     {
         private const string DefaultBaseUrl = "http://127.0.0.1:8000";
 
@@ -14,7 +33,7 @@ namespace NovelSim.Network
         private string baseUrl = DefaultBaseUrl;
 
         [SerializeField]
-        private int timeoutSeconds = 90;
+        private int timeoutSeconds = 300;
 
         public string BaseUrl => baseUrl;
 
@@ -105,19 +124,19 @@ namespace NovelSim.Network
 
                 yield return request.SendWebRequest();
 
-                var contractError = ValidateContractHeader(
-                    request.GetResponseHeader("X-NovelSim-Contract"));
-                if (!string.IsNullOrEmpty(contractError))
-                {
-                    onFailure?.Invoke(contractError);
-                    yield break;
-                }
-
                 var raw = request.downloadHandler?.text ?? string.Empty;
                 if (request.result != UnityWebRequest.Result.Success)
                 {
                     onFailure?.Invoke(
                         $"HTTP {request.responseCode}: {ExtractError(raw, request.error)}");
+                    yield break;
+                }
+
+                var contractError = ValidateContractHeader(
+                    request.GetResponseHeader("X-NovelSim-Contract"));
+                if (!string.IsNullOrEmpty(contractError))
+                {
+                    onFailure?.Invoke(contractError);
                     yield break;
                 }
 

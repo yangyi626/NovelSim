@@ -9,23 +9,41 @@ namespace NovelSim.World
     /// </summary>
     public sealed class WorldSessionManager : MonoBehaviour
     {
+        public const string LastSessionKey = "NovelSim.LastSessionId";
+
         [SerializeField]
         private string packageId = "huarong_lane";
 
-        private NovelSimApiClient api;
+        private INovelSimApiClient api;
 
         public string SessionId { get; private set; }
         public WorldStateDto State { get; private set; }
         public bool Busy { get; private set; }
+        public string LastError { get; private set; }
+        public TurnResponse LastTurn { get; private set; }
+        public bool HasSession => !string.IsNullOrWhiteSpace(SessionId);
 
         public event Action<string> StatusChanged;
         public event Action<string> ErrorRaised;
         public event Action<SessionResponse> SessionChanged;
         public event Action<TurnResponse> TurnCompleted;
 
-        public void Configure(NovelSimApiClient apiClient)
+        public void Configure(INovelSimApiClient apiClient)
         {
             api = apiClient;
+        }
+
+        public void ResumeLastOrStart()
+        {
+            var storedSession = PlayerPrefs.GetString(
+                LastSessionKey,
+                string.Empty);
+            if (string.IsNullOrWhiteSpace(storedSession))
+            {
+                StartNewSession();
+                return;
+            }
+            ResumeSessionInternal(storedSession, true);
         }
 
         public void StartNewSession()
@@ -39,8 +57,7 @@ namespace NovelSim.World
                 packageId,
                 response =>
                 {
-                    SessionId = response.session_id;
-                    State = response.state;
+                    AcceptSession(response);
                     SetBusy(false, $"已进入 {response.world_meta?.scenario ?? "NovelSim"}");
                     SessionChanged?.Invoke(response);
                 },
@@ -48,6 +65,19 @@ namespace NovelSim.World
         }
 
         public void ResumeSession(string sessionId)
+        {
+            ResumeSessionInternal(sessionId, false);
+        }
+
+        public static void ClearSavedSession()
+        {
+            PlayerPrefs.DeleteKey(LastSessionKey);
+            PlayerPrefs.Save();
+        }
+
+        private void ResumeSessionInternal(
+            string sessionId,
+            bool startIfMissing)
         {
             if (!CanRequest() || string.IsNullOrWhiteSpace(sessionId))
             {
@@ -58,12 +88,23 @@ namespace NovelSim.World
                 sessionId,
                 response =>
                 {
-                    SessionId = response.session_id;
-                    State = response.state;
+                    AcceptSession(response);
                     SetBusy(false, $"世界线已恢复至 v{State?.version ?? 0}");
                     SessionChanged?.Invoke(response);
                 },
-                Fail));
+                message =>
+                {
+                    if (startIfMissing && IsMissingSession(message))
+                    {
+                        Busy = false;
+                        ClearSavedSession();
+                        StatusChanged?.Invoke(
+                            "本地存档已失效，正在创建新世界线……");
+                        StartNewSession();
+                        return;
+                    }
+                    Fail(message);
+                }));
         }
 
         public void SubmitAction(string text)
@@ -93,6 +134,8 @@ namespace NovelSim.World
                     {
                         State = response.state;
                     }
+                    LastTurn = response;
+                    LastError = string.Empty;
                     SetBusy(false, $"世界线已推进至 v{State?.version ?? 0}");
                     TurnCompleted?.Invoke(response);
                 },
@@ -112,8 +155,27 @@ namespace NovelSim.World
         private void Fail(string message)
         {
             Busy = false;
+            LastError = message ?? "请求失败";
             ErrorRaised?.Invoke(message);
             StatusChanged?.Invoke("请求失败，可修改服务地址后重试。");
+        }
+
+        private void AcceptSession(SessionResponse response)
+        {
+            SessionId = response.session_id;
+            State = response.state;
+            LastTurn = null;
+            LastError = string.Empty;
+            PlayerPrefs.SetString(LastSessionKey, SessionId);
+            PlayerPrefs.Save();
+        }
+
+        private static bool IsMissingSession(string message)
+        {
+            return !string.IsNullOrWhiteSpace(message)
+                && message.StartsWith(
+                    "HTTP 404:",
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         private void SetBusy(bool value, string message)

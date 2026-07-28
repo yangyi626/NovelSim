@@ -21,16 +21,18 @@ TXT 长篇小说
 - 向量检索：Qdrant Local Mode，可降级到 SQLite FTS5；
 - 后端：FastAPI + Pydantic；
 - 前端：Vue 3 + Vite；
-- 3D 客户端：Unity 6.3 LTS + URP，雨夜华容巷可玩竖切片已运行；
+- 3D 客户端：Unity 6.3 LTS + URP，雨夜华容巷、真实 E 交互、存档恢复和 Windows x64 构建已验证；
 - 编译任务：SQLite 租约队列 + 独立 Worker；
 - 治理：账户、RBAC、修订历史、审核审计和发布权限；
-- 质量：209 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
+- 质量：212 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
 - API：核心契约冻结为 `1.0.0`。
 
 截至 2026-07-28，首轮两本小说 quick 真实 LLM 编译演练已经完成，共验证40章、
 49个场景、断网暂停恢复、缓存重放、质量门禁和自动审核。第一本评分0.896且进入
 `pending_review`；第二本评分0.826，但因2个高严重度问题被硬门禁退回`draft`。
-`stress`和正式全书档尚未启动。
+2026-07-29复用25个场景缓存完成目标生命周期修复，重评分0.880、阻断项0，
+活跃现代目标0；修复世界包revision 2已进入`pending_review`。`stress`和正式
+全书档尚未启动。
 
 ## 快速体验
 
@@ -57,8 +59,19 @@ TXT 长篇小说
 运行，进入 Play Mode 后即可用 WASD 接近守卫并按 E，把交互送入真实世界引擎。
 场景包含程序化湿石路、古宅、牌楼、雨雾、灯笼、风格化人物和剧情 HUD；
 按住鼠标右键环视，滚轮调整镜头，F1 打开世界调试面板。
-锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `1/1`
-已经通过。
+锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `3/3`
+已经通过。启动后会自动恢复上次服务端世界线；没有有效存档时才创建新世界线。
+
+生成并验收 Windows 包：
+
+```powershell
+Set-Location unity\NovelSim3D
+.\build-windows.ps1
+.\run-windows-smoke.ps1
+```
+
+后一个脚本会通过与 E 键相同的代码路径执行真实回合，再重启程序验证同一
+`session_id` 和世界版本被恢复。
 详见 [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md)。
 
 ## 验证
@@ -75,6 +88,10 @@ TXT 长篇小说
 
 # Unity 工程与 API v1 静态契约
 .venv\Scripts\python.exe -m pytest -q tests/unit/test_unity_contract.py
+
+# Unity C#、交互/恢复回归与 Windows 构建
+unity\NovelSim3D\run-tests.ps1
+unity\NovelSim3D\build-windows.ps1
 
 # Vue 构建与正式浏览器 E2E
 Set-Location web\frontend
@@ -102,8 +119,8 @@ Pull Request 和 `main` 推送会由 `.github/workflows/ci.yml` 自动执行无�
 
 ## 当前边界
 
-- Unity 3D 已完成程序化风格化竖切片的首轮画面联调；正式角色模型、动画、
-  战斗和多模态尚未开始。
+- Unity 3D 已完成程序化风格化可玩竖切片、真实服务端回合、存档恢复和 Windows
+  x64 交付闭环；正式角色模型、动画、战斗和多模态尚未开始。
 - SQLite 是当前正式开发基线；PostgreSQL 后端保留，但不要求 Docker 或数据库服务。
 - Qdrant Local Mode 适合本机单进程；多 Worker 或多机部署需要 Qdrant Server/Cloud。
 - 玩家存档仍为本地世界线，团队多租户和云同步尚未实现。
