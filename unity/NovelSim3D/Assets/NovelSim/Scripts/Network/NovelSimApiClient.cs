@@ -6,7 +6,26 @@ using UnityEngine.Networking;
 
 namespace NovelSim.Network
 {
-    public sealed class NovelSimApiClient : MonoBehaviour
+    public interface INovelSimApiClient
+    {
+        IEnumerator StartSession(
+            string packageId,
+            Action<SessionResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator ResumeSession(
+            string sessionId,
+            Action<SessionResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator SubmitTurn(
+            string sessionId,
+            string text,
+            Action<TurnResponse> onSuccess,
+            Action<string> onFailure);
+    }
+
+    public sealed class NovelSimApiClient : MonoBehaviour, INovelSimApiClient
     {
         private const string DefaultBaseUrl = "http://127.0.0.1:8000";
 

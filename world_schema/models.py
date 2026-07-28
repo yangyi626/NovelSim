@@ -365,7 +365,8 @@ class NarrativeOutput(BaseModel):
 class AgentGoal(AllowExtra):
     """角色的一个目标。Utility 决策会对活跃目标打分。
 
-    priority 是初始权重 (可在剧情中调整)；achieved=True 后调度器跳过。
+    priority 是初始权重 (可在剧情中调整)；只有 status=active 且处于
+    当前时间线/世界作用域的目标才会进入 Agent 决策。
     """
 
     goal_id: str
@@ -373,6 +374,16 @@ class AgentGoal(AllowExtra):
     priority: float = Field(0.5, ge=0.0, le=1.0)
     target_ids: List[str] = Field(default_factory=list)  # 目标针对谁
     achieved: bool = False
+    goal_key: str = ""
+    status: str = "active"
+    scope: str = "world"  # chapter / arc / timeline / world / book
+    timeline_id: str = ""
+    world_id: str = ""
+    introduced_chapter: int = 0
+    last_progress_chapter: int = 0
+    terminal_chapter: Optional[int] = None
+    terminal_reason: str = ""
+    evolution: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class AgentPlan(AllowExtra):
@@ -442,5 +453,4 @@ class AgentDecision(BaseModel):
 # WorldState 用了前向引用字符串 "CharacterPsyche" (定义在其后)，
 # Pydantic 1.x 需要在所有相关模型定义完成后解析一次。
 WorldState.update_forward_refs()
-
 

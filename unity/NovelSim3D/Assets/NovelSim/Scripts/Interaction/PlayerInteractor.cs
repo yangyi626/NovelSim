@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using NovelSim.UI;
 using NovelSim.World;
@@ -16,6 +17,9 @@ namespace NovelSim.Interaction
         private NovelSimHud hud;
         private InteractionTarget current;
 
+        public InteractionTarget CurrentTarget => current;
+        public event Action<InteractionTarget> InteractionSubmitted;
+
         public void Configure(WorldSessionManager manager, NovelSimHud targetHud)
         {
             session = manager;
@@ -23,6 +27,33 @@ namespace NovelSim.Interaction
         }
 
         private void Update()
+        {
+            RefreshCurrentTarget();
+
+            if (current != null && InteractionPressed())
+            {
+                TryInteract();
+            }
+        }
+
+        public bool TryInteract()
+        {
+            RefreshCurrentTarget();
+            if (
+                current == null
+                || session == null
+                || session.Busy
+                || !session.HasSession)
+            {
+                return false;
+            }
+            var submitted = current;
+            session.SubmitAction(submitted.ServerAction);
+            InteractionSubmitted?.Invoke(submitted);
+            return true;
+        }
+
+        private void RefreshCurrentTarget()
         {
             var closest = FindClosestTarget();
             if (closest != current)
@@ -32,11 +63,6 @@ namespace NovelSim.Interaction
                     current == null
                         ? string.Empty
                         : $"按 E 与 {current.DisplayName} 交互");
-            }
-
-            if (current != null && InteractionPressed())
-            {
-                session?.SubmitAction(current.ServerAction);
             }
         }
 

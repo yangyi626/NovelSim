@@ -528,7 +528,26 @@ class StoryEvolutionAccumulator:
     """把每章抽取结果合并成可追踪的角色、伏笔与目标生命周期。"""
 
     FORESHADOW_STATES = {"planted", "reinforced", "resolved"}
-    GOAL_STATES = {"active", "achieved", "abandoned", "superseded"}
+    GOAL_STATES = {
+        "active",
+        "dormant",
+        "achieved",
+        "abandoned",
+        "superseded",
+        "expired",
+    }
+    GOAL_SCOPES = {"chapter", "arc", "timeline", "world", "book"}
+    TERMINAL_GOAL_STATES = {
+        "achieved",
+        "abandoned",
+        "superseded",
+        "expired",
+    }
+    WORLD_TRANSITION_PATTERN = re.compile(
+        r"穿越到|穿越至|转世|重生|借尸还魂|夺舍|投胎|"
+        r"进入.{0,8}(?:异世|世界)|降临.{0,8}(?:异世|世界)"
+    )
+    DEFAULT_ARC_IDLE_CHAPTERS = 8
 
     def apply(
         self,
@@ -536,11 +555,26 @@ class StoryEvolutionAccumulator:
         extraction: SceneExtraction,
         registry: EntityRegistry,
         state: WorldState,
+        *,
+        timeline_id: str = "",
+        chapter_text: str = "",
     ) -> Tuple[int, int, int, List[str]]:
         character_updates = 0
         foreshadow_updates = 0
         goal_updates = 0
         warnings: List[str] = []
+        effective_timeline = (
+            timeline_id
+            or str(state.flags.get("compiler.current_timeline") or "")
+            or state.timeline_id
+        )
+        goal_updates += self._begin_scope(
+            chapter_index,
+            extraction,
+            state,
+            effective_timeline,
+            chapter_text,
+        )
 
         for raw in extraction.character_states:
             character_id = registry.resolve_name(raw.character_name)
@@ -657,10 +691,18 @@ class StoryEvolutionAccumulator:
                 )
                 continue
             psyche = self._psyche(state, character_id)
+            world_id = str(
+                state.flags.get("compiler.current_world")
+                or self._world_id(state, effective_timeline)
+            )
+            scope = self._goal_scope(raw)
+            goal_timeline = raw.timeline_id or effective_timeline
             goal_id = _stable_id(
                 "goal",
                 character_id,
                 raw.goal_key,
+                world_id if scope != "book" else "book",
+                goal_timeline if scope == "timeline" else "",
             )
             goal = next(
                 (
@@ -680,6 +722,10 @@ class StoryEvolutionAccumulator:
                 "chapter": chapter_index,
                 "status": status,
                 "description": raw.description,
+                "scope": scope,
+                "timeline_id": goal_timeline,
+                "world_id": world_id,
+                "terminal_reason": raw.terminal_reason,
                 "evidence": raw.evidence,
                 "confidence": raw.confidence,
             }
@@ -692,6 +738,17 @@ class StoryEvolutionAccumulator:
                     achieved=status == "achieved",
                     goal_key=raw.goal_key,
                     status=status,
+                    scope=scope,
+                    timeline_id=goal_timeline,
+                    world_id=world_id,
+                    introduced_chapter=chapter_index,
+                    last_progress_chapter=chapter_index,
+                    terminal_chapter=(
+                        chapter_index
+                        if status in self.TERMINAL_GOAL_STATES
+                        else None
+                    ),
+                    terminal_reason=raw.terminal_reason,
                     evolution=[evolution_entry],
                 )
                 psyche.goals.append(goal)
@@ -702,9 +759,31 @@ class StoryEvolutionAccumulator:
                     dict.fromkeys(goal.target_ids + target_ids)
                 )
                 goal.achieved = status == "achieved"
-                goal.__dict__["status"] = status
-                evolution = goal.__dict__.setdefault("evolution", [])
+                goal.status = status
+                goal.scope = scope
+                goal.timeline_id = goal_timeline
+                goal.world_id = world_id
+                goal.last_progress_chapter = chapter_index
+                goal.terminal_chapter = (
+                    chapter_index
+                    if status in self.TERMINAL_GOAL_STATES
+                    else None
+                )
+                goal.terminal_reason = raw.terminal_reason
+                evolution = goal.evolution
                 evolution.append(evolution_entry)
+            if status == "active":
+                goal.achieved = False
+                goal.terminal_chapter = None
+                goal.terminal_reason = ""
+            for superseded_key in raw.supersedes_goal_keys:
+                goal_updates += self._close_goal_key(
+                    psyche,
+                    superseded_key,
+                    chapter_index,
+                    "superseded",
+                    f"被目标 {raw.goal_key} 替代",
+                )
             goal_updates += 1
 
         return (
@@ -712,6 +791,203 @@ class StoryEvolutionAccumulator:
             foreshadow_updates,
             goal_updates,
             warnings,
+        )
+
+    def _begin_scope(
+        self,
+        chapter_index: int,
+        extraction: SceneExtraction,
+        state: WorldState,
+        timeline_id: str,
+        chapter_text: str,
+    ) -> int:
+        updates = 0
+        previous_timeline = str(
+            state.flags.get("compiler.goal_timeline") or ""
+        )
+        if previous_timeline and previous_timeline != timeline_id:
+            updates += self._close_scoped_goals(
+                state,
+                chapter_index,
+                scopes={"timeline"},
+                status="expired",
+                reason=(
+                    f"时间线从 {previous_timeline} 切换到 {timeline_id}"
+                ),
+            )
+        state.flags["compiler.goal_timeline"] = timeline_id
+
+        evidence = " ".join(
+            [
+                chapter_text,
+                *[
+                    " ".join(
+                        [
+                            raw.description,
+                            raw.evidence,
+                            raw.incarnation,
+                        ]
+                    )
+                    for raw in extraction.entities
+                    if (raw.entity_type or "character").lower()
+                    == "character"
+                ],
+            ]
+        )
+        last_transition = int(
+            state.flags.get("compiler.last_world_transition_chapter") or 0
+        )
+        transition = (
+            bool(self.WORLD_TRANSITION_PATTERN.search(evidence))
+            and chapter_index - last_transition > 2
+            and any(
+                goal.status == "active" and not goal.achieved
+                for psyche in state.character_psyches.values()
+                for goal in psyche.goals
+            )
+        )
+        if transition:
+            updates += self._close_scoped_goals(
+                state,
+                chapter_index,
+                scopes={"chapter", "arc", "timeline", "world"},
+                status="expired",
+                reason="世界切换使旧世界目标失效",
+            )
+            epoch = int(state.flags.get("compiler.world_epoch") or 1) + 1
+            state.flags["compiler.world_epoch"] = epoch
+            state.flags["compiler.last_world_transition_chapter"] = (
+                chapter_index
+            )
+        state.flags["compiler.current_world"] = self._world_id(
+            state,
+            timeline_id,
+        )
+        updates += self._dormant_stale_goals(state, chapter_index)
+        return updates
+
+    @staticmethod
+    def _world_id(state: WorldState, timeline_id: str) -> str:
+        epoch = int(state.flags.get("compiler.world_epoch") or 1)
+        return f"{timeline_id or 'timeline_root'}:world:{epoch}"
+
+    def _goal_scope(self, raw: RawGoalEvolution) -> str:
+        scope = (raw.scope or "").strip().lower()
+        if scope in self.GOAL_SCOPES:
+            return scope
+        description = f"{raw.description} {raw.evidence}"
+        if re.search(r"此生|终身|一生|跨越世界|所有世界", description):
+            return "book"
+        return "arc"
+
+    def _dormant_stale_goals(
+        self,
+        state: WorldState,
+        chapter_index: int,
+    ) -> int:
+        updates = 0
+        for psyche in state.character_psyches.values():
+            for goal in psyche.goals:
+                if (
+                    goal.status != "active"
+                    or goal.achieved
+                    or goal.scope != "arc"
+                    or chapter_index - goal.last_progress_chapter
+                    <= self.DEFAULT_ARC_IDLE_CHAPTERS
+                ):
+                    continue
+                goal.status = "dormant"
+                goal.terminal_chapter = chapter_index
+                goal.terminal_reason = "连续章节未出现推进证据"
+                goal.evolution.append(
+                    {
+                        "chapter": chapter_index,
+                        "status": "dormant",
+                        "description": goal.description,
+                        "scope": goal.scope,
+                        "timeline_id": goal.timeline_id,
+                        "world_id": goal.world_id,
+                        "terminal_reason": goal.terminal_reason,
+                        "evidence": "",
+                        "confidence": 1.0,
+                    }
+                )
+                updates += 1
+        return updates
+
+    def _close_scoped_goals(
+        self,
+        state: WorldState,
+        chapter_index: int,
+        *,
+        scopes,
+        status: str,
+        reason: str,
+    ) -> int:
+        updates = 0
+        for psyche in state.character_psyches.values():
+            for goal in psyche.goals:
+                if (
+                    goal.status != "active"
+                    or goal.achieved
+                    or goal.scope not in scopes
+                ):
+                    continue
+                self._close_goal(
+                    goal,
+                    chapter_index,
+                    status,
+                    reason,
+                )
+                updates += 1
+        return updates
+
+    def _close_goal_key(
+        self,
+        psyche: CharacterPsyche,
+        goal_key: str,
+        chapter_index: int,
+        status: str,
+        reason: str,
+    ) -> int:
+        for goal in psyche.goals:
+            if (
+                goal.goal_key == goal_key
+                and goal.status == "active"
+                and not goal.achieved
+            ):
+                self._close_goal(
+                    goal,
+                    chapter_index,
+                    status,
+                    reason,
+                )
+                return 1
+        return 0
+
+    @staticmethod
+    def _close_goal(
+        goal: AgentGoal,
+        chapter_index: int,
+        status: str,
+        reason: str,
+    ) -> None:
+        goal.status = status
+        goal.achieved = status == "achieved"
+        goal.terminal_chapter = chapter_index
+        goal.terminal_reason = reason
+        goal.evolution.append(
+            {
+                "chapter": chapter_index,
+                "status": status,
+                "description": goal.description,
+                "scope": goal.scope,
+                "timeline_id": goal.timeline_id,
+                "world_id": goal.world_id,
+                "terminal_reason": reason,
+                "evidence": "",
+                "confidence": 1.0,
+            }
         )
 
     @staticmethod
@@ -775,6 +1051,8 @@ class VolumeCompiler:
                     extraction,
                     registry,
                     state,
+                    timeline_id=state.timeline_id,
+                    chapter_text=chapter.content,
                 )
                 result.character_state_updates += character_count
                 result.foreshadow_updates += foreshadow_count

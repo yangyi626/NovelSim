@@ -269,13 +269,39 @@ class LLMTrajectoryEvaluator:
     @staticmethod
     def _goal_payload(state: WorldState) -> List[Dict]:
         payload = []
+        current_timeline = str(
+            state.flags.get("compiler.current_timeline")
+            or state.timeline_id
+        )
         for character_id, psyche in state.character_psyches.items():
+            active_goals = [
+                goal.dict()
+                for goal in psyche.goals
+                if (
+                    not goal.achieved
+                    and getattr(goal, "status", "active") == "active"
+                    and (
+                        not getattr(goal, "timeline_id", "")
+                        or goal.timeline_id == current_timeline
+                        or goal.scope in {"world", "book", "arc"}
+                    )
+                )
+            ]
+            if not active_goals and not psyche.plans:
+                continue
             payload.append(
                 {
                     "character_id": character_id,
                     "traits": list(psyche.traits),
                     "emotion": psyche.emotion,
-                    "goals": [goal.dict() for goal in psyche.goals],
+                    "goals": active_goals,
+                    "terminal_goal_count": sum(
+                        1
+                        for goal in psyche.goals
+                        if getattr(goal, "status", "active")
+                        != "active"
+                        or goal.achieved
+                    ),
                     "plans": [plan.dict() for plan in psyche.plans],
                 }
             )

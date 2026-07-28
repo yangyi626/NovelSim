@@ -139,9 +139,14 @@ class RawGoalEvolution(BaseModel):
     character_name: str
     goal_key: str
     description: str
-    status: str = "active"  # active / achieved / abandoned / superseded
+    status: str = "active"
     priority: float = Field(0.5, ge=0.0, le=1.0)
     target_names: List[str] = Field(default_factory=list)
+    # chapter / arc / timeline / world / book；空值交给编译器按证据推断。
+    scope: str = ""
+    timeline_id: str = ""
+    supersedes_goal_keys: List[str] = Field(default_factory=list)
+    terminal_reason: str = ""
     evidence: str = ""
     confidence: float = Field(0.5, ge=0.0, le=1.0)
 
@@ -183,7 +188,7 @@ SYSTEM_PROMPT = """你是一个小说世界编译器。你会收到一段小说�
 6. 若某类内容这段文本里没有，对应数组留空即可。
 7. character_states 只记录能延续到后续章节的身份、伤势、情绪或处境变化。
 8. foreshadows 用稳定 title 识别同一伏笔，status 仅可为 planted/reinforced/resolved。
-9. goal_evolutions 用稳定 goal_key 识别同一角色目标，记录目标建立、推进、完成、放弃或被替代。
+9. goal_evolutions 用稳定 goal_key 识别同一角色目标。status 仅可为 active/achieved/abandoned/superseded/expired；scope 仅可为 chapter/arc/timeline/world/book。一次性调查或报答通常是 arc，随当前世界存在的是 world，跨世界长期使命才是 book。目标完成、放弃、被替代或因世界切换失效时必须给 terminal_reason；新目标替代旧目标时把旧 goal_key 写入 supersedes_goal_keys。
 10. 同一人物跨时间线、改名或转世时，global_identity 使用稳定身份键；incarnation 标记当前肉身/身份，timeline_id 标记明确出现的时间线。无法判断时留空，不要猜测。
 
 # 合法 patch op (事件 patch_operations 数组里每条的 op 字段)
@@ -220,7 +225,7 @@ SYSTEM_PROMPT = """你是一个小说世界编译器。你会收到一段小说�
     {"title": "毒茶真相", "description": "毒茶来源尚未查明", "status": "planted", "related_names": ["夜轻歌","夜清清"], "payoff_hint": "后续查出下毒者", "evidence": "...", "confidence": 0.75}
   ],
   "goal_evolutions": [
-    {"character_name": "夜轻歌", "goal_key": "clear_name", "description": "查清陷害并洗刷污名", "status": "active", "priority": 0.9, "target_names": ["夜清清"], "evidence": "...", "confidence": 0.8}
+    {"character_name": "夜轻歌", "goal_key": "clear_name", "description": "查清陷害并洗刷污名", "status": "active", "scope": "arc", "timeline_id": "", "priority": 0.9, "target_names": ["夜清清"], "supersedes_goal_keys": [], "terminal_reason": "", "evidence": "...", "confidence": 0.8}
   ]
 }
 """
