@@ -47,9 +47,13 @@ class CacheAwareExtractor:
         self.delegate = delegate
         self.prompt_version = prompt_version
         self.model = model or getattr(delegate, "model", "") or "default"
+        self._legacy_models: List[str] = []
         self.job_id = job_id
         self.last_error = ""
         self._chapter_stats: Dict[int, Dict[str, int]] = {}
+        if self.model == "default":
+            self._legacy_models.append("default")
+            self._get_delegate()
 
     def _get_delegate(self):
         if self.delegate is None:
@@ -61,8 +65,8 @@ class CacheAwareExtractor:
                     else None
                 ),
             )
-            if self.model == "default":
-                self.model = getattr(self.delegate, "model", "default")
+        if self.model == "default":
+            self.model = getattr(self.delegate, "model", "default")
         return self.delegate
 
     def extract(
@@ -81,22 +85,36 @@ class CacheAwareExtractor:
         source_hash = hashlib.sha256(
             scene_text.encode("utf-8")
         ).hexdigest()
-        material = json.dumps(
-            {
-                "source_hash": source_hash,
-                "prompt_version": self.prompt_version,
-                "model": self.model,
-                "scene_id": scene_id,
-                "chapter_hint": chapter_hint,
-                "known_entities": sorted(
-                    (known_entities or {}).items()
-                ),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
+        cache_key = _scene_cache_key(
+            source_hash=source_hash,
+            prompt_version=self.prompt_version,
+            model=self.model,
+            scene_id=scene_id,
+            chapter_hint=chapter_hint,
+            known_entities=known_entities,
         )
-        cache_key = hashlib.sha256(material.encode("utf-8")).hexdigest()
         cached = self.store.get_cache(cache_key)
+        if cached is None:
+            for legacy_model in self._legacy_models:
+                legacy_key = _scene_cache_key(
+                    source_hash=source_hash,
+                    prompt_version=self.prompt_version,
+                    model=legacy_model,
+                    scene_id=scene_id,
+                    chapter_hint=chapter_hint,
+                    known_entities=known_entities,
+                )
+                cached = self.store.get_cache(legacy_key)
+                if cached is not None:
+                    self.store.put_cache(
+                        cache_key=cache_key,
+                        source_hash=source_hash,
+                        prompt_version=self.prompt_version,
+                        model=self.model,
+                        scene_id=scene_id,
+                        extraction=cached,
+                    )
+                    break
         if cached is not None:
             stats["hits"] += 1
             return SceneExtraction.parse_obj(cached)
@@ -135,6 +153,32 @@ def _chapter_from_scene_id(scene_id: str) -> int:
         return int(scene_id.split("_", 1)[0].replace("ch", ""))
     except (ValueError, IndexError):
         return 0
+
+
+def _scene_cache_key(
+    *,
+    source_hash: str,
+    prompt_version: str,
+    model: str,
+    scene_id: str,
+    chapter_hint: str,
+    known_entities=None,
+) -> str:
+    material = json.dumps(
+        {
+            "source_hash": source_hash,
+            "prompt_version": prompt_version,
+            "model": model,
+            "scene_id": scene_id,
+            "chapter_hint": chapter_hint,
+            "known_entities": sorted(
+                (known_entities or {}).items()
+            ),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 class CompilationQualityGate:

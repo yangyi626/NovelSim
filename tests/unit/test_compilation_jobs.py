@@ -1,8 +1,11 @@
 """SQLite 编译任务、缓存、断点续跑和自动审核测试。"""
 
+import hashlib
+
 import pytest
 
 from compiler import (
+    CacheAwareExtractor,
     CompilationBudgetExceeded,
     CompilationJobRunner,
     CompilationJobStore,
@@ -10,6 +13,7 @@ from compiler import (
     RawEvent,
     SceneExtraction,
 )
+from compiler.job_runner import _scene_cache_key
 from compiler.worker import CompilationWorker
 from engine import LLMTrajectoryEvaluator, WorldPackageStore
 from web.auth import AuthStore
@@ -182,6 +186,62 @@ def test_runner_resumes_from_scene_cache_and_sends_package_to_review(tmp_path):
     assert package.review_status == "pending_review"
     assert package.manifest["compiler"]["stage"] == "D"
     assert package.manifest["compiler"]["quality_gate"]["passed"] is True
+
+
+def test_default_model_resume_uses_canonical_and_legacy_cache_keys(tmp_path):
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    delegate = FakeExtractor()
+    source_text = "夜轻歌在雨夜醒来。"
+    source_hash = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    scene_id = "ch0001_sc01"
+    chapter_hint = "第1章 初见"
+    extraction = SceneExtraction(
+        scene_id=scene_id,
+        summary="夜轻歌醒来",
+    )
+    legacy_key = _scene_cache_key(
+        source_hash=source_hash,
+        prompt_version="test-v1",
+        model="default",
+        scene_id=scene_id,
+        chapter_hint=chapter_hint,
+        known_entities={},
+    )
+    store.put_cache(
+        cache_key=legacy_key,
+        source_hash=source_hash,
+        prompt_version="test-v1",
+        model="fake-compiler-model",
+        scene_id=scene_id,
+        extraction=extraction.dict(),
+    )
+
+    extractor = CacheAwareExtractor(
+        store,
+        delegate=delegate,
+        prompt_version="test-v1",
+        model="default",
+    )
+    restored = extractor.extract(
+        source_text,
+        scene_id=scene_id,
+        chapter_hint=chapter_hint,
+        known_entities={},
+    )
+
+    assert extractor.model == "fake-compiler-model"
+    assert restored.summary == "夜轻歌醒来"
+    assert delegate.calls == 0
+    assert extractor.chapter_stats(1) == {"hits": 1, "misses": 0}
+    canonical_key = _scene_cache_key(
+        source_hash=source_hash,
+        prompt_version="test-v1",
+        model="fake-compiler-model",
+        scene_id=scene_id,
+        chapter_hint=chapter_hint,
+        known_entities={},
+    )
+    assert store.get_cache(canonical_key)["summary"] == "夜轻歌醒来"
 
 
 def test_scene_cache_is_shared_between_jobs(tmp_path):
