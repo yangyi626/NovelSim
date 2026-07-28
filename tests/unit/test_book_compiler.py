@@ -173,8 +173,7 @@ def test_world_transition_expires_origin_goals_and_hides_them_from_gate():
             goal_key="obtain_painting",
             description="劫持飞机并取得画作",
             status="active",
-            scope="world",
-            evidence="她在飞机上逼问画作下落",
+            evidence="她在飞机上逼问画作下落，并称这一生最痛恨背叛",
         )
     ]
     reborn = _extraction("墨华曦", "soul_huaxi", ["华曦"])

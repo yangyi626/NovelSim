@@ -875,8 +875,11 @@ class StoryEvolutionAccumulator:
         scope = (raw.scope or "").strip().lower()
         if scope in self.GOAL_SCOPES:
             return scope
-        description = f"{raw.description} {raw.evidence}"
-        if re.search(r"此生|终身|一生|跨越世界|所有世界", description):
+        description = raw.description
+        if re.search(
+            r"跨越(?:时间线|世界)|所有世界|终身使命|永恒使命",
+            description,
+        ):
             return "book"
         return "arc"
 
