@@ -7,6 +7,7 @@ using NovelSim.Core;
 using NovelSim.Interaction;
 using NovelSim.Network;
 using NovelSim.World;
+using Object = UnityEngine.Object;
 
 namespace NovelSim.Tests
 {

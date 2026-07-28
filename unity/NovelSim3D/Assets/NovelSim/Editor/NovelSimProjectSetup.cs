@@ -168,7 +168,7 @@ namespace NovelSim.Editor
             }
 
             PlayerSettings.SetApplicationIdentifier(
-                BuildTargetGroup.Standalone,
+                NamedBuildTarget.Standalone,
                 "com.novelsim.verticalslice");
             var report = BuildPipeline.BuildPlayer(
                 new BuildPlayerOptions
