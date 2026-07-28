@@ -1,5 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using NovelSim.Network;
 
 namespace NovelSim.Tests
@@ -29,6 +31,13 @@ namespace NovelSim.Tests
             Assert.AreEqual(2, response.state.version);
             Assert.AreEqual("lane", response.state.current_scene_id);
             Assert.AreEqual("她走近守卫。", response.narrative.narration);
+        }
+
+        [Test]
+        public void ProjectUsesUniversalRenderPipeline()
+        {
+            Assert.IsInstanceOf<UniversalRenderPipelineAsset>(
+                GraphicsSettings.defaultRenderPipeline);
         }
     }
 }

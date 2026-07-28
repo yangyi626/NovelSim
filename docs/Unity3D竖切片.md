@@ -20,7 +20,7 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 ## 技术基线
 
 - Unity：`6000.3.15f1`，属于 Unity 6.3 LTS；
-- 渲染：URP `17.3.0` 依赖已锁定；渲染管线资产待 Unity 首次导入后创建和验证；
+- 渲染：URP `17.3.0` 依赖、Universal Renderer 和 Pipeline Asset；
 - 输入：Input System，保留 Legacy Input Manager 编译降级；
 - 网络：`UnityWebRequest` + JSON；
 - API：冻结的 NovelSim `1.0.0` 契约；
@@ -45,21 +45,23 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 - 已检查响应头 `X-NovelSim-Contract`，拒绝不兼容主版本；
 - 已实现第三人称移动、NPC 接近交互和剧情 HUD；
 - 已提供首次导入自动创建场景和 Build Settings 的 Editor 工具；
-- 已提供 2 个 Unity EditMode 测试和 2 个 Python 静态契约门禁。
+- 已提供 3 个 Unity EditMode 测试、1 个 PlayMode 冒烟测试和 2 个 Python
+  静态契约门禁。
 
 ## 验证边界
 
-当前工作机没有 Unity Editor 和 .NET SDK，所以已完成 Python 契约与后端回归，
-但 C# 编译、Unity Test Runner 和 Play Mode 尚未在本机执行。安装
-Unity `6000.3.15f1` 后，首要验收是：
+当前工作机已经使用 Unity `6000.3.15f1` 完成首次导入、C# 编译、EditMode
+`3/3` 和无图形 PlayMode `1/1`。剩余首要验收是：
 
-1. Package Manager 无解析错误；
-2. 创建并绑定 URP Render Pipeline Asset，确认基础材质正常显示；
-3. `NovelSim.EditModeTests` 2/2 通过；
-4. 空场景进入 Play Mode 后自动出现玩家、地面和守卫；
-5. `start.cmd` 启动的后端可创建世界线；
-6. 玩家靠近守卫按 E 后，SQLite 世界版本增加，HUD 展示服务端剧情；
-7. 后端停止时只显示错误，不产生本地伪状态。
+```powershell
+Set-Location unity\NovelSim3D
+.\run-tests.ps1
+```
+
+1. 有图形设备的 Play Mode 中确认基础材质正常显示；
+2. `start.cmd` 启动的后端可创建世界线；
+3. 玩家靠近守卫按 E 后，SQLite 世界版本增加，HUD 展示服务端剧情；
+4. 后端停止时只显示错误，不产生本地伪状态。
 
 ## 后续
 

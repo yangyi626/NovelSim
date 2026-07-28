@@ -55,6 +55,8 @@ TXT 长篇小说
 安装 Unity `6000.3.15f1` 后，在 Unity Hub 中打开
 `unity/NovelSim3D`。首次导入会生成 `VerticalSlice` 场景；保持 `start.cmd`
 运行，进入 Play Mode 后即可用 WASD 接近守卫并按 E，把交互送入真实世界引擎。
+锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `1/1`
+已经通过。
 详见 [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md)。
 
 ## 验证

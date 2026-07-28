@@ -2,7 +2,9 @@
   "name": "NovelSim.EditModeTests",
   "rootNamespace": "NovelSim.Tests",
   "references": [
-    "NovelSim.Runtime"
+    "NovelSim.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "includePlatforms": [
     "Editor"
