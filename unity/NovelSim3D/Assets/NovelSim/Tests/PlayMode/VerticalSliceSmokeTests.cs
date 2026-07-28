@@ -29,6 +29,15 @@ namespace NovelSim.Tests
             Assert.IsNotNull(npc);
             Assert.IsNotNull(player.GetComponent<CharacterController>());
             Assert.IsNotNull(npc.GetComponent<InteractionTarget>());
+            Assert.GreaterOrEqual(
+                player.GetComponentsInChildren<Renderer>().Length,
+                8);
+            Assert.GreaterOrEqual(
+                npc.GetComponentsInChildren<Renderer>().Length,
+                8);
+            Assert.IsNotNull(GameObject.Find("Huarong Lane Art"));
+            Assert.IsTrue(RenderSettings.fog);
+            Assert.AreEqual(52f, Camera.main.fieldOfView, 0.1f);
             Assert.IsNotNull(Object.FindFirstObjectByType<
                 WorldSessionManager>());
         }

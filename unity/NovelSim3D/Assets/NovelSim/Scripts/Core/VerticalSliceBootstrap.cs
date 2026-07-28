@@ -4,12 +4,13 @@ using NovelSim.Characters;
 using NovelSim.Interaction;
 using NovelSim.Network;
 using NovelSim.UI;
+using NovelSim.Visuals;
 using NovelSim.World;
 
 namespace NovelSim.Core
 {
     /// <summary>
-    /// 首个竖切片不依赖美术资产：运行时生成地面、玩家、NPC、相机和 HUD。
+    /// Builds the playable rain-night Huarong Lane vertical slice.
     /// </summary>
     public sealed class VerticalSliceBootstrap : MonoBehaviour
     {
@@ -41,7 +42,7 @@ namespace NovelSim.Core
 
             var cameraTransform = EnsureCamera();
             CreateLighting();
-            CreateFloor();
+            HuarongLaneVisualDirector.BuildEnvironment(transform);
             CreateNpc();
             CreatePlayer(cameraTransform, session, hud);
             StartCoroutine(StartSessionNextFrame(session));
@@ -59,75 +60,75 @@ namespace NovelSim.Core
             var existing = Camera.main;
             if (existing != null)
             {
+                ConfigureCamera(existing);
                 return existing.transform;
             }
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
-            cameraObject.AddComponent<Camera>();
+            var sceneCamera = cameraObject.AddComponent<Camera>();
+            ConfigureCamera(sceneCamera);
             cameraObject.AddComponent<AudioListener>();
-            cameraObject.transform.position = new Vector3(0f, 4f, -6f);
+            cameraObject.transform.position = new Vector3(0f, 3.2f, -11f);
             return cameraObject.transform;
         }
 
-        private static void CreateLighting()
+        private static void ConfigureCamera(Camera sceneCamera)
         {
-            if (FindFirstObjectByType<Light>() != null)
-            {
-                return;
-            }
-            var lightObject = new GameObject("Sun");
+            sceneCamera.fieldOfView = 52f;
+            sceneCamera.nearClipPlane = 0.12f;
+            sceneCamera.farClipPlane = 90f;
+            sceneCamera.allowHDR = true;
+            sceneCamera.clearFlags = CameraClearFlags.SolidColor;
+            sceneCamera.backgroundColor =
+                new Color(0.018f, 0.038f, 0.062f);
+        }
+
+        private void CreateLighting()
+        {
+            var lightObject = new GameObject("Rain Moon");
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.intensity = 1.2f;
-            lightObject.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
+            light.color = new Color(0.43f, 0.58f, 0.78f);
+            light.intensity = 0.86f;
+            light.shadows = LightShadows.Soft;
+            light.shadowStrength = 0.72f;
+            lightObject.transform.SetParent(transform);
+            lightObject.transform.rotation = Quaternion.Euler(52f, -28f, 0f);
         }
 
-        private static void CreateFloor()
+        private void CreateNpc()
         {
-            var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "Huarong Lane Ground";
-            floor.transform.localScale = new Vector3(3f, 1f, 3f);
-            SetColor(floor, new Color(0.22f, 0.24f, 0.28f));
-        }
-
-        private static void CreateNpc()
-        {
-            var npc = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            var npc = new GameObject("Lane Guard NPC");
             npc.name = "Lane Guard NPC";
-            npc.transform.position = new Vector3(0f, 1f, 5f);
+            npc.transform.SetParent(transform);
+            npc.transform.position = new Vector3(0.85f, 0.08f, 6f);
+            npc.transform.rotation = Quaternion.Euler(0f, 198f, 0f);
+            var collider = npc.AddComponent<CapsuleCollider>();
+            collider.center = new Vector3(0f, 1.15f, 0f);
+            collider.height = 2.3f;
+            collider.radius = 0.52f;
             npc.AddComponent<InteractionTarget>().Configure(
                 "华容巷守卫",
                 "走近守卫，询问华容巷里刚才发生了什么");
-            SetColor(npc, new Color(0.58f, 0.30f, 0.22f));
+            HuarongLaneVisualDirector.BuildGuardVisual(npc.transform);
         }
 
-        private static void CreatePlayer(
+        private void CreatePlayer(
             Transform cameraTransform,
             WorldSessionManager session,
             NovelSimHud hud)
         {
-            var player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            player.name = "Player";
-            player.transform.position = new Vector3(0f, 1f, 0f);
-            var primitiveCollider = player.GetComponent<CapsuleCollider>();
-            primitiveCollider.enabled = false;
-            Destroy(primitiveCollider);
+            var player = new GameObject("Player");
+            player.transform.SetParent(transform);
+            player.transform.position = new Vector3(0f, 0.08f, -5.5f);
             var controller = player.AddComponent<CharacterController>();
-            controller.height = 2f;
-            controller.radius = 0.45f;
-            controller.center = Vector3.zero;
+            controller.height = 2.35f;
+            controller.radius = 0.5f;
+            controller.center = new Vector3(0f, 1.16f, 0f);
+            controller.skinWidth = 0.06f;
             player.AddComponent<ThirdPersonMotor>().Configure(cameraTransform);
             player.AddComponent<PlayerInteractor>().Configure(session, hud);
-            SetColor(player, new Color(0.22f, 0.48f, 0.66f));
-        }
-
-        private static void SetColor(GameObject target, Color color)
-        {
-            var renderer = target.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = color;
-            }
+            HuarongLaneVisualDirector.BuildPlayerVisual(player.transform);
         }
     }
 }

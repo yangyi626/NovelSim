@@ -36,7 +36,8 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 | `ThirdPersonMotor` | WASD 移动与第三人称相机 |
 | `PlayerInteractor` | 发现附近 NPC 并把交互转成服务端行动 |
 | `NovelSimHud` | 服务地址、行动输入、状态和剧情回传 |
-| `VerticalSliceBootstrap` | 无美术资产时生成可玩的验证场景 |
+| `HuarongLaneVisualDirector` | 程序化生成雨夜古巷、人物、灯光和天气 |
+| `VerticalSliceBootstrap` | 装配可玩的服务器权威验证场景 |
 
 ## 当前完成
 
@@ -44,27 +45,30 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 - 已实现 `/api/start`、`/api/session`、`/api/turn` 客户端；
 - 已检查响应头 `X-NovelSim-Contract`，拒绝不兼容主版本；
 - 已实现第三人称移动、NPC 接近交互和剧情 HUD；
+- 已实现湿石路、古宅、牌楼、灯笼、雨雾、积水、竹影和低多边形人物；
+- 已实现右键环视、滚轮变焦，以及适配剧情游戏的半透明 HUD；
 - 已提供首次导入自动创建场景和 Build Settings 的 Editor 工具；
+- `NovelSim > Play Vertical Slice` 会自动进入 Play Mode 并聚焦 Game 视图；
 - 已提供 3 个 Unity EditMode 测试、1 个 PlayMode 冒烟测试和 2 个 Python
   静态契约门禁。
 
 ## 验证边界
 
 当前工作机已经使用 Unity `6000.3.15f1` 完成首次导入、C# 编译、EditMode
-`3/3` 和无图形 PlayMode `1/1`。剩余首要验收是：
+`3/3`、无图形 PlayMode `1/1` 和 DX12 可视化 Play Mode。剩余首要验收是：
 
 ```powershell
 Set-Location unity\NovelSim3D
 .\run-tests.ps1
 ```
 
-1. 有图形设备的 Play Mode 中确认基础材质正常显示；
-2. `start.cmd` 启动的后端可创建世界线；
-3. 玩家靠近守卫按 E 后，SQLite 世界版本增加，HUD 展示服务端剧情；
-4. 后端停止时只显示错误，不产生本地伪状态。
+1. 玩家靠近守卫按 E 后，SQLite 世界版本增加，HUD 展示服务端剧情；
+2. 后端停止时只显示错误，不产生本地伪状态；
+3. 在程序化占位人物上替换正式模型、动画和面部表现。
 
 ## 后续
 
-完成上述 Play Mode 验收后，再推进角色模型/动画、NavMesh、Addressables、
-场景资源映射和 Timeline 演出。第二本小说的目标生命周期修复可以与美术资产
-生产并行，但不会改变客户端“服务端权威”的边界。
+完成真实回合验收后，再推进正式角色模型/动画、NavMesh、Addressables、
+场景资源映射和 Timeline 演出。当前程序化场景保留为低成本回归基准；第二本
+小说的目标生命周期修复可以与正式美术资产生产并行，但不会改变客户端
+“服务端权威”的边界。

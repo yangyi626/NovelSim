@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -87,6 +88,20 @@ namespace NovelSim.Editor
         {
             OpenVerticalSlice();
             EditorApplication.isPlaying = true;
+            EditorApplication.delayCall += FocusGameView;
+        }
+
+        private static void FocusGameView()
+        {
+            var gameViewType = typeof(EditorWindow).Assembly.GetType(
+                "UnityEditor.GameView");
+            if (gameViewType == null)
+            {
+                return;
+            }
+            var gameView = EditorWindow.GetWindow(gameViewType);
+            gameView.Show();
+            gameView.Focus();
         }
 
         private static void EnsureRendering()

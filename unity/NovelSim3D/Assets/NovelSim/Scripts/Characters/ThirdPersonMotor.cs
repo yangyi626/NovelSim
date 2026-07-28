@@ -15,15 +15,23 @@ namespace NovelSim.Characters
         private float turnSpeed = 12f;
 
         [SerializeField]
-        private Vector3 cameraOffset = new Vector3(0f, 3.6f, -6f);
+        private float cameraDistance = 6.8f;
+
+        [SerializeField]
+        private float cameraHeight = 1.55f;
+
+        [SerializeField]
+        private float cameraPitch = 17f;
 
         private CharacterController controller;
         private Transform cameraTransform;
         private float verticalVelocity;
+        private float cameraYaw;
 
         public void Configure(Transform targetCamera)
         {
             cameraTransform = targetCamera;
+            cameraYaw = transform.eulerAngles.y;
         }
 
         private void Awake()
@@ -68,12 +76,32 @@ namespace NovelSim.Characters
             {
                 return;
             }
-            var targetPosition = transform.TransformPoint(cameraOffset);
+
+            var look = ReadLookInput();
+            cameraYaw += look.x * 0.11f;
+            cameraPitch = Mathf.Clamp(
+                cameraPitch - look.y * 0.09f,
+                8f,
+                34f);
+            cameraDistance = Mathf.Clamp(
+                cameraDistance - ReadZoomInput() * 0.008f,
+                4.5f,
+                8.5f);
+
+            var target = transform.position + Vector3.up * cameraHeight;
+            var orbit = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+            var targetPosition =
+                target - orbit * Vector3.forward * cameraDistance;
             cameraTransform.position = Vector3.Lerp(
                 cameraTransform.position,
                 targetPosition,
+                8f * Time.deltaTime);
+            cameraTransform.rotation = Quaternion.Slerp(
+                cameraTransform.rotation,
+                Quaternion.LookRotation(
+                    target - cameraTransform.position,
+                    Vector3.up),
                 10f * Time.deltaTime);
-            cameraTransform.LookAt(transform.position + Vector3.up * 1.2f);
         }
 
         private static Vector2 ReadMoveInput()
@@ -95,6 +123,35 @@ namespace NovelSim.Characters
                 Input.GetAxisRaw("Vertical"));
 #else
             return Vector2.zero;
+#endif
+        }
+
+        private static Vector2 ReadLookInput()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var mouse = Mouse.current;
+            return mouse != null && mouse.rightButton.isPressed
+                ? mouse.delta.ReadValue()
+                : Vector2.zero;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetMouseButton(1)
+                ? new Vector2(
+                    Input.GetAxis("Mouse X") * 10f,
+                    Input.GetAxis("Mouse Y") * 10f)
+                : Vector2.zero;
+#else
+            return Vector2.zero;
+#endif
+        }
+
+        private static float ReadZoomInput()
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Mouse.current?.scroll.ReadValue().y ?? 0f;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.mouseScrollDelta.y * 120f;
+#else
+            return 0f;
 #endif
         }
     }

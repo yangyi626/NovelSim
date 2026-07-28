@@ -13,8 +13,26 @@ namespace NovelSim.UI
         private string actionText = "观察四周并询问守卫";
         private string status = "正在初始化……";
         private string error = string.Empty;
-        private string narrative = string.Empty;
+        private string narrative =
+            "暴雨洗过华容巷的青石，檐下灯火在积水里摇晃。"
+            + "守卫按住刀柄，正审视着每一个靠近的人。";
         private string interactionHint = string.Empty;
+        private bool developerPanel;
+        private Texture2D panelTexture;
+        private Texture2D softPanelTexture;
+        private Texture2D accentTexture;
+        private Texture2D dangerTexture;
+        private Texture2D buttonTexture;
+        private Texture2D buttonHoverTexture;
+        private GUIStyle titleStyle;
+        private GUIStyle eyebrowStyle;
+        private GUIStyle bodyStyle;
+        private GUIStyle mutedStyle;
+        private GUIStyle narrativeStyle;
+        private GUIStyle statusStyle;
+        private GUIStyle hintStyle;
+        private GUIStyle inputStyle;
+        private GUIStyle buttonStyle;
 
         public void Configure(
             WorldSessionManager manager,
@@ -36,29 +54,200 @@ namespace NovelSim.UI
 
         private void OnDestroy()
         {
-            if (session == null)
+            if (session != null)
             {
-                return;
+                session.StatusChanged -= OnStatusChanged;
+                session.ErrorRaised -= OnErrorRaised;
+                session.SessionChanged -= OnSessionChanged;
+                session.TurnCompleted -= OnTurnCompleted;
             }
-            session.StatusChanged -= OnStatusChanged;
-            session.ErrorRaised -= OnErrorRaised;
-            session.SessionChanged -= OnSessionChanged;
-            session.TurnCompleted -= OnTurnCompleted;
+            DestroyTexture(panelTexture);
+            DestroyTexture(softPanelTexture);
+            DestroyTexture(accentTexture);
+            DestroyTexture(dangerTexture);
+            DestroyTexture(buttonTexture);
+            DestroyTexture(buttonHoverTexture);
         }
 
         private void OnGUI()
         {
-            GUILayout.BeginArea(
-                new Rect(16f, 16f, 520f, Mathf.Max(300f, Screen.height - 32f)),
-                GUI.skin.box);
-            GUILayout.Label("NovelSim · Unity 3D 竖切片");
-            GUILayout.Label("WASD 移动 · 靠近 NPC 后按 E · 服务端状态为权威");
-            GUILayout.Space(8f);
+            EnsureStyles();
+            ToggleDeveloperPanel();
+            GUI.depth = -20;
 
-            GUILayout.Label("FastAPI 地址");
+            DrawHeader();
+            DrawObjective();
+            DrawNarrative();
+            DrawControls();
+            DrawInteractionHint();
+            if (developerPanel)
+            {
+                DrawDeveloperPanel();
+            }
+        }
+
+        private void DrawHeader()
+        {
+            GUI.DrawTexture(
+                new Rect(0f, 0f, Screen.width, 78f),
+                panelTexture);
+            GUI.DrawTexture(
+                new Rect(24f, 18f, 3f, 42f),
+                accentTexture);
+            GUI.Label(
+                new Rect(42f, 14f, 460f, 22f),
+                "NOVELSIM  /  SERVER-AUTHORITATIVE WORLD",
+                eyebrowStyle);
+            GUI.Label(
+                new Rect(41f, 33f, 460f, 36f),
+                "华容巷 · 暴雨夜",
+                titleStyle);
+
+            var statusText = session != null && session.Busy
+                ? "世界演算中"
+                : session?.State != null
+                    ? $"已连接 · 世界版本 v{session.State.version}"
+                    : status;
+            var width = Mathf.Min(310f, Screen.width * 0.32f);
+            var statusRect = new Rect(
+                Screen.width - width - 26f,
+                21f,
+                width,
+                34f);
+            GUI.DrawTexture(
+                statusRect,
+                string.IsNullOrWhiteSpace(error)
+                    ? softPanelTexture
+                    : dangerTexture);
+            GUI.Label(
+                new Rect(
+                    statusRect.x + 14f,
+                    statusRect.y + 5f,
+                    statusRect.width - 28f,
+                    24f),
+                string.IsNullOrWhiteSpace(error)
+                    ? $"●  {statusText}"
+                    : $"!  {error}",
+                statusStyle);
+        }
+
+        private void DrawObjective()
+        {
+            var panel = new Rect(24f, 94f, 322f, 80f);
+            GUI.DrawTexture(panel, softPanelTexture);
+            GUI.Label(
+                new Rect(panel.x + 18f, panel.y + 13f, 310f, 22f),
+                "当前目标",
+                eyebrowStyle);
+            GUI.Label(
+                new Rect(panel.x + 18f, panel.y + 35f, 286f, 36f),
+                "穿过雨幕，向守卫打听华容巷刚才发生的事。",
+                bodyStyle);
+        }
+
+        private void DrawNarrative()
+        {
+            var width = Mathf.Min(650f, Screen.width - 48f);
+            var height = Mathf.Min(145f, Screen.height * 0.24f);
+            var panel = new Rect(
+                24f,
+                Screen.height - height - 24f,
+                width,
+                height);
+            GUI.DrawTexture(panel, panelTexture);
+            GUI.DrawTexture(
+                new Rect(panel.x, panel.y, 4f, panel.height),
+                accentTexture);
+            GUI.Label(
+                new Rect(panel.x + 22f, panel.y + 12f, 180f, 20f),
+                "世界叙事",
+                eyebrowStyle);
+            GUI.Label(
+                new Rect(
+                    panel.x + 22f,
+                    panel.y + 36f,
+                    panel.width - 44f,
+                    panel.height - 48f),
+                narrative,
+                narrativeStyle);
+        }
+
+        private void DrawControls()
+        {
+            var width = 300f;
+            var panel = new Rect(
+                Screen.width - width - 24f,
+                Screen.height - 82f,
+                width,
+                58f);
+            GUI.DrawTexture(panel, softPanelTexture);
+            GUI.Label(
+                new Rect(panel.x + 14f, panel.y + 7f, width - 28f, 21f),
+                "WASD  移动     按住右键  环视",
+                bodyStyle);
+            GUI.Label(
+                new Rect(panel.x + 14f, panel.y + 31f, width - 28f, 19f),
+                "滚轮  镜头远近     F1  世界调试",
+                mutedStyle);
+        }
+
+        private void DrawInteractionHint()
+        {
+            if (string.IsNullOrWhiteSpace(interactionHint))
+            {
+                return;
+            }
+            var width = Mathf.Min(440f, Screen.width - 48f);
+            var panel = new Rect(
+                (Screen.width - width) * 0.5f,
+                Screen.height * 0.61f,
+                width,
+                54f);
+            GUI.DrawTexture(panel, softPanelTexture);
+            GUI.DrawTexture(
+                new Rect(panel.x + 10f, panel.y + 10f, 34f, 34f),
+                accentTexture);
+            GUI.Label(
+                new Rect(panel.x + 10f, panel.y + 11f, 34f, 30f),
+                "E",
+                hintStyle);
+            GUI.Label(
+                new Rect(
+                    panel.x + 58f,
+                    panel.y + 13f,
+                    panel.width - 72f,
+                    30f),
+                interactionHint.Replace("按 E ", string.Empty),
+                bodyStyle);
+        }
+
+        private void DrawDeveloperPanel()
+        {
+            var width = Mathf.Min(440f, Screen.width - 48f);
+            var panel = new Rect(
+                Screen.width - width - 24f,
+                112f,
+                width,
+                262f);
+            GUI.DrawTexture(panel, panelTexture);
+            GUILayout.BeginArea(new Rect(
+                panel.x + 18f,
+                panel.y + 15f,
+                panel.width - 36f,
+                panel.height - 30f));
+            GUILayout.Label("世界调试 / F1 关闭", eyebrowStyle);
+            GUILayout.Space(8f);
+            GUILayout.Label("FastAPI 地址", mutedStyle);
             GUILayout.BeginHorizontal();
-            apiUrl = GUILayout.TextField(apiUrl);
-            if (GUILayout.Button("应用", GUILayout.Width(64f)))
+            apiUrl = GUILayout.TextField(
+                apiUrl,
+                inputStyle,
+                GUILayout.Height(34f));
+            if (GUILayout.Button(
+                "应用",
+                buttonStyle,
+                GUILayout.Width(68f),
+                GUILayout.Height(34f)))
             {
                 api.Configure(apiUrl);
                 PlayerPrefs.SetString("NovelSim.ApiBaseUrl", api.BaseUrl);
@@ -66,53 +255,164 @@ namespace NovelSim.UI
                 error = string.Empty;
             }
             GUILayout.EndHorizontal();
-
+            GUILayout.Space(8f);
+            actionText = GUILayout.TextField(
+                actionText,
+                inputStyle,
+                GUILayout.Height(34f));
             GUI.enabled = session != null && !session.Busy;
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("新建世界线"))
+            if (GUILayout.Button(
+                "新建世界线",
+                buttonStyle,
+                GUILayout.Height(34f)))
             {
                 session.StartNewSession();
             }
-            if (GUILayout.Button("提交行动"))
+            if (GUILayout.Button(
+                "提交行动",
+                buttonStyle,
+                GUILayout.Height(34f)))
             {
                 session.SubmitAction(actionText);
             }
             GUILayout.EndHorizontal();
-            actionText = GUILayout.TextField(actionText);
             GUI.enabled = true;
-
             GUILayout.Space(8f);
-            GUILayout.Label(status);
-            if (!string.IsNullOrWhiteSpace(error))
-            {
-                GUILayout.Label($"错误：{error}");
-            }
             if (session?.State != null)
             {
                 GUILayout.Label(
-                    $"世界线 {session.State.timeline_id} · v{session.State.version}");
+                    $"世界线 {session.State.timeline_id}  ·  "
+                    + $"v{session.State.version}",
+                    mutedStyle);
                 GUILayout.Label(
-                    $"时间 {session.State.world_time} · 场景 {session.State.current_scene_id}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(narrative))
-            {
-                GUILayout.Space(8f);
-                GUILayout.Label("剧情回传");
-                GUILayout.TextArea(narrative, GUILayout.MinHeight(120f));
+                    $"时间 {session.State.world_time}  ·  "
+                    + $"场景 {session.State.current_scene_id}",
+                    mutedStyle);
             }
             GUILayout.EndArea();
+        }
 
-            if (!string.IsNullOrWhiteSpace(interactionHint))
+        private void ToggleDeveloperPanel()
+        {
+            var currentEvent = Event.current;
+            if (currentEvent.type == EventType.KeyDown
+                && currentEvent.keyCode == KeyCode.F1)
             {
-                var width = 360f;
-                GUI.Box(
-                    new Rect(
-                        (Screen.width - width) * 0.5f,
-                        Screen.height - 70f,
-                        width,
-                        42f),
-                    interactionHint);
+                developerPanel = !developerPanel;
+                currentEvent.Use();
+            }
+        }
+
+        private void EnsureStyles()
+        {
+            if (panelTexture != null)
+            {
+                return;
+            }
+
+            panelTexture = Texture(new Color(0.012f, 0.02f, 0.03f, 0.78f));
+            softPanelTexture = Texture(
+                new Color(0.035f, 0.06f, 0.075f, 0.66f));
+            accentTexture = Texture(new Color(0.83f, 0.47f, 0.14f, 1f));
+            dangerTexture = Texture(new Color(0.36f, 0.045f, 0.04f, 0.9f));
+            buttonTexture = Texture(new Color(0.11f, 0.18f, 0.21f, 1f));
+            buttonHoverTexture = Texture(new Color(0.18f, 0.29f, 0.32f, 1f));
+
+            titleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 24,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.95f, 0.9f, 0.78f) },
+            };
+            eyebrowStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 11,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.86f, 0.55f, 0.22f) },
+            };
+            bodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 15,
+                wordWrap = true,
+                normal = { textColor = new Color(0.86f, 0.89f, 0.9f) },
+            };
+            mutedStyle = new GUIStyle(bodyStyle)
+            {
+                fontSize = 12,
+                normal = { textColor = new Color(0.56f, 0.64f, 0.68f) },
+            };
+            narrativeStyle = new GUIStyle(bodyStyle)
+            {
+                fontSize = 15,
+                padding = new RectOffset(0, 0, 0, 0),
+            };
+            statusStyle = new GUIStyle(bodyStyle)
+            {
+                fontSize = 13,
+                alignment = TextAnchor.MiddleRight,
+                clipping = TextClipping.Clip,
+            };
+            hintStyle = new GUIStyle(bodyStyle)
+            {
+                fontSize = 18,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(0.08f, 0.04f, 0.02f) },
+            };
+            inputStyle = new GUIStyle(GUI.skin.textField)
+            {
+                fontSize = 13,
+                padding = new RectOffset(10, 10, 8, 7),
+                normal =
+                {
+                    background = softPanelTexture,
+                    textColor = new Color(0.9f, 0.92f, 0.92f),
+                },
+                focused =
+                {
+                    background = softPanelTexture,
+                    textColor = Color.white,
+                },
+            };
+            buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                normal =
+                {
+                    background = buttonTexture,
+                    textColor = new Color(0.9f, 0.88f, 0.8f),
+                },
+                hover =
+                {
+                    background = buttonHoverTexture,
+                    textColor = Color.white,
+                },
+                active =
+                {
+                    background = accentTexture,
+                    textColor = Color.black,
+                },
+            };
+        }
+
+        private static Texture2D Texture(Color color)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+            texture.SetPixel(0, 0, color);
+            texture.Apply();
+            return texture;
+        }
+
+        private static void DestroyTexture(Texture2D texture)
+        {
+            if (texture != null)
+            {
+                Destroy(texture);
             }
         }
 
@@ -134,7 +434,9 @@ namespace NovelSim.UI
         {
             narrative = response.resumed
                 ? $"已恢复存档：{response.save?.name}"
-                : $"已进入：{response.world_meta?.scenario}";
+                : "暴雨洗过华容巷的青石，檐下灯火在积水里摇晃。"
+                    + $"你已进入{response.world_meta?.scenario}，"
+                    + "守卫按住刀柄，正审视着每一个靠近的人。";
         }
 
         private void OnTurnCompleted(TurnResponse response)
