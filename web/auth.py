@@ -442,7 +442,7 @@ class AuthStore:
                 """
                 SELECT * FROM audit_events
                 {}
-                ORDER BY created_at DESC LIMIT ?
+                ORDER BY created_at DESC, rowid DESC LIMIT ?
                 """.format(where),
                 values,
             ).fetchall()
