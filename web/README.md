@@ -22,9 +22,11 @@
 ### 1. 配置 LLM Key
 确保项目根目录有 `.env`（参考 `.env.example`）：
 ```
-LLM_API_KEY=your-key
-LLM_BASE_URL=https://api.gpt.ge/v1
-LLM_MODEL=qwen3.6-plus
+# 通用兼容网关使用 LLM_API_KEY；DashScope 使用 DASHSCOPE_API_KEY
+LLM_API_KEY=
+DASHSCOPE_API_KEY=your-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL=qwen3.7-plus
 NO_PROXY=*
 # 可选，默认 data/world.sqlite3
 WORLD_DB_PATH=data/world.sqlite3
@@ -35,6 +37,9 @@ QDRANT_PATH=data/qdrant
 QDRANT_COLLECTION=character_memories
 MEMORY_EMBEDDING_MODEL=text-embedding-3-small
 MEMORY_EMBEDDING_DIMENSIONS=1536
+# 若 embedding 仍使用另一网关，请显式配置，避免跟随聊天端点切换
+MEMORY_EMBEDDING_API_KEY=your-embedding-key
+MEMORY_EMBEDDING_BASE_URL=https://your-embedding-gateway/v1
 MEMORY_REFLECTIONS_ENABLED=true
 MEMORY_REFLECTION_INTERVAL=5
 MEMORY_REFLECTION_MIN_EPISODES=3
