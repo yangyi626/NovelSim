@@ -1,0 +1,19 @@
+{
+  "name": "NovelSim.PlayModeTests",
+  "rootNamespace": "NovelSim.Tests",
+  "references": [
+    "NovelSim.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
