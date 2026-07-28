@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "benchmark": "novelsim-real-fullbook-v1",
+  "fingerprint_mode": "normalized_utf8_lf",
   "books": [
     {
       "book_id": "first_crazy_waste_third_lady",
@@ -20,8 +21,8 @@
       "package_id": "first_crazy_evil_king",
       "volume_size": 20,
       "expected": {
-        "bytes": 6638708,
-        "sha256": "04494f28a0529eee372242d195271560c0bfe1137fc40f7b4199c8eddd017304",
+        "bytes": 6564753,
+        "sha256": "9b937bbd64e6ab6cf277dfee9457c8b686bd6c97406bcd88c6de32ec7d3e8950",
         "chapters": 1935,
         "scenes": 2317
       }

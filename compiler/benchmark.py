@@ -29,6 +29,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = PROJECT_ROOT / "benchmarks" / "novels.json"
 DEFAULT_RUN_DIRECTORY = PROJECT_ROOT / "data" / "benchmarks"
 DEFAULT_SECONDS_PER_CALL = 185.793
+RAW_FINGERPRINT = "raw_bytes"
+NORMALIZED_FINGERPRINT = "normalized_utf8_lf"
+SUPPORTED_FINGERPRINT_MODES = {
+    RAW_FINGERPRINT,
+    NORMALIZED_FINGERPRINT,
+}
 PROFILES = {
     "quick": {
         "chapters": 20,
@@ -49,6 +55,9 @@ def _load_manifest(path: Path) -> Dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1:
         raise ValueError("只支持 schema_version=1 的小说基准清单")
+    fingerprint_mode = payload.get("fingerprint_mode", RAW_FINGERPRINT)
+    if fingerprint_mode not in SUPPORTED_FINGERPRINT_MODES:
+        raise ValueError(f"不支持的小说指纹模式: {fingerprint_mode}")
     books = payload.get("books")
     if not isinstance(books, list) or len(books) < 2:
         raise ValueError("多小说基准至少需要两本书")
@@ -65,16 +74,41 @@ def _novel_path(filename: str) -> Path:
     return path
 
 
-def scan_book(spec: Dict[str, Any]) -> Dict[str, Any]:
+def _source_fingerprint(path: Path, text: str, mode: str) -> Dict[str, Any]:
+    """生成跨平台可重现的书源指纹。
+
+    旧清单默认保留 raw_bytes 语义；正式基准使用 normalized_utf8_lf，
+    避免 Git 在 Windows/Unix 间转换 CRLF/LF 时误报原文变更。
+    """
+
+    if mode == RAW_FINGERPRINT:
+        source = path.read_bytes()
+    elif mode == NORMALIZED_FINGERPRINT:
+        source = (
+            text.replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .encode("utf-8")
+        )
+    else:
+        raise ValueError(f"不支持的小说指纹模式: {mode}")
+    return {
+        "bytes": len(source),
+        "sha256": hashlib.sha256(source).hexdigest(),
+    }
+
+
+def scan_book(
+    spec: Dict[str, Any],
+    *,
+    fingerprint_mode: str = RAW_FINGERPRINT,
+) -> Dict[str, Any]:
     path = _novel_path(str(spec["filename"]))
     started = time.perf_counter()
-    source = path.read_bytes()
     text = load_novel(str(path))
     chapters = split_chapters(text)
     scenes = sum(len(split_scenes(chapter)) for chapter in chapters)
     actual = {
-        "bytes": len(source),
-        "sha256": hashlib.sha256(source).hexdigest(),
+        **_source_fingerprint(path, text, fingerprint_mode),
         "characters": len(text),
         "chapters": len(chapters),
         "scenes": scenes,
@@ -88,6 +122,7 @@ def scan_book(spec: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "book_id": spec["book_id"],
         "filename": spec["filename"],
+        "fingerprint_mode": fingerprint_mode,
         "actual": actual,
         "mismatches": mismatches,
         "passed": not mismatches and actual["chapters"] > 0,
@@ -97,9 +132,14 @@ def scan_book(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 def scan_manifest(manifest_path: Path) -> Dict[str, Any]:
     manifest = _load_manifest(manifest_path)
-    books = [scan_book(spec) for spec in manifest["books"]]
+    fingerprint_mode = manifest.get("fingerprint_mode", RAW_FINGERPRINT)
+    books = [
+        scan_book(spec, fingerprint_mode=fingerprint_mode)
+        for spec in manifest["books"]
+    ]
     return {
         "benchmark": manifest["benchmark"],
+        "fingerprint_mode": fingerprint_mode,
         "scanned_at": datetime.now(timezone.utc).isoformat(),
         "passed": all(book["passed"] for book in books),
         "books": books,
