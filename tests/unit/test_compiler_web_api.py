@@ -33,6 +33,7 @@ def test_create_list_get_and_control_compilation_job(
             package_id="compiled_api",
             chapters=[2, 1, 1],
             timeline_plan={1: "origin", 2: "novel"},
+            max_llm_calls=7,
             auto_start=True,
         )
     )
@@ -40,6 +41,8 @@ def test_create_list_get_and_control_compilation_job(
 
     assert store.get_job(job_id).status == "queued"
     assert created["job"]["chapters"] == [1, 2]
+    assert created["job"]["max_llm_calls"] == 7
+    assert created["job"]["llm_calls_used"] == 0
     listed = web_app.api_list_compilation_jobs()
     assert listed["jobs"][0]["job_id"] == job_id
     detail = web_app.api_get_compilation_job(job_id)

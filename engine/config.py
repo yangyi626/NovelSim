@@ -1,6 +1,7 @@
 """LLM 网关配置。
 
-从 .env 读取 key/base_url/model，并在 import 时处理代理绕过
+从 .env 读取 key/base_url/model；支持通用 LLM_API_KEY 和 DashScope 的
+DASHSCOPE_API_KEY，并在 import 时处理代理绕过
 (本机 Clash 代理 TLS 握手会失败，必须直连)。
 
 所有需要调 LLM 的模块都通过 get_llm_config() 拿配置，不直接读环境变量。
@@ -43,10 +44,15 @@ def get_llm_config() -> LLMConfig:
     global _CONFIG
     if _CONFIG is not None:
         return _CONFIG
-    key = os.environ.get("LLM_API_KEY")
+    key = (
+        os.environ.get("DASHSCOPE_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or ""
+    ).strip()
     if not key:
         raise RuntimeError(
-            "LLM_API_KEY 未设置。请复制 .env.example 为 .env 并填入 key。"
+            "DASHSCOPE_API_KEY 或 LLM_API_KEY 未设置。"
+            "请复制 .env.example 为 .env 并填入 key。"
         )
     _CONFIG = LLMConfig(
         api_key=key,

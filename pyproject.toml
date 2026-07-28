@@ -18,6 +18,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
+    "httpx>=0.24,<0.28",
+    "python-multipart>=0.0.9,<1",
 ]
 production = [
     "psycopg2-binary>=2.9,<3",

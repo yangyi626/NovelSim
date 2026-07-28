@@ -19,6 +19,7 @@ from .book_compiler import BookCompileResult, BookCompiler
 from .cli import _fresh_state, _guess_novel_name
 from .extractors import EntityExtractor, SceneExtraction
 from .job_store import (
+    CompilationBudgetExceeded,
     CompilationJob,
     CompilationJobConflict,
     CompilationJobStore,
@@ -40,21 +41,32 @@ class CacheAwareExtractor:
         delegate=None,
         prompt_version: str = EXTRACTOR_PROMPT_VERSION,
         model: str = "",
+        job_id: str = "",
     ):
         self.store = store
         self.delegate = delegate
         self.prompt_version = prompt_version
         self.model = model or getattr(delegate, "model", "") or "default"
+        self._legacy_models: List[str] = []
+        self.job_id = job_id
         self.last_error = ""
         self._chapter_stats: Dict[int, Dict[str, int]] = {}
+        if self.model == "default":
+            self._legacy_models.append("default")
+            self._get_delegate()
 
     def _get_delegate(self):
         if self.delegate is None:
             self.delegate = EntityExtractor(
-                model=None if self.model == "default" else self.model
+                model=None if self.model == "default" else self.model,
+                before_llm_call=(
+                    lambda: self.store.reserve_llm_call(self.job_id)
+                    if self.job_id
+                    else None
+                ),
             )
-            if self.model == "default":
-                self.model = getattr(self.delegate, "model", "default")
+        if self.model == "default":
+            self.model = getattr(self.delegate, "model", "default")
         return self.delegate
 
     def extract(
@@ -73,22 +85,36 @@ class CacheAwareExtractor:
         source_hash = hashlib.sha256(
             scene_text.encode("utf-8")
         ).hexdigest()
-        material = json.dumps(
-            {
-                "source_hash": source_hash,
-                "prompt_version": self.prompt_version,
-                "model": self.model,
-                "scene_id": scene_id,
-                "chapter_hint": chapter_hint,
-                "known_entities": sorted(
-                    (known_entities or {}).items()
-                ),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
+        cache_key = _scene_cache_key(
+            source_hash=source_hash,
+            prompt_version=self.prompt_version,
+            model=self.model,
+            scene_id=scene_id,
+            chapter_hint=chapter_hint,
+            known_entities=known_entities,
         )
-        cache_key = hashlib.sha256(material.encode("utf-8")).hexdigest()
         cached = self.store.get_cache(cache_key)
+        if cached is None:
+            for legacy_model in self._legacy_models:
+                legacy_key = _scene_cache_key(
+                    source_hash=source_hash,
+                    prompt_version=self.prompt_version,
+                    model=legacy_model,
+                    scene_id=scene_id,
+                    chapter_hint=chapter_hint,
+                    known_entities=known_entities,
+                )
+                cached = self.store.get_cache(legacy_key)
+                if cached is not None:
+                    self.store.put_cache(
+                        cache_key=cache_key,
+                        source_hash=source_hash,
+                        prompt_version=self.prompt_version,
+                        model=self.model,
+                        scene_id=scene_id,
+                        extraction=cached,
+                    )
+                    break
         if cached is not None:
             stats["hits"] += 1
             return SceneExtraction.parse_obj(cached)
@@ -129,6 +155,32 @@ def _chapter_from_scene_id(scene_id: str) -> int:
         return 0
 
 
+def _scene_cache_key(
+    *,
+    source_hash: str,
+    prompt_version: str,
+    model: str,
+    scene_id: str,
+    chapter_hint: str,
+    known_entities=None,
+) -> str:
+    material = json.dumps(
+        {
+            "source_hash": source_hash,
+            "prompt_version": prompt_version,
+            "model": model,
+            "scene_id": scene_id,
+            "chapter_hint": chapter_hint,
+            "known_entities": sorted(
+                (known_entities or {}).items()
+            ),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 class CompilationQualityGate:
     """把编译场景事件送入真实长轨迹评分器。"""
 
@@ -143,6 +195,7 @@ class CompilationQualityGate:
         result: BookCompileResult,
         *,
         final_state,
+        before_llm_call=None,
     ) -> Dict:
         if not result.trajectory_events:
             return {
@@ -159,7 +212,13 @@ class CompilationQualityGate:
                 "error": "未配置真实 LLM 长轨迹评分器",
             }
         try:
-            report = self.evaluator_factory().evaluate(
+            evaluator = self.evaluator_factory()
+            if (
+                before_llm_call is not None
+                and hasattr(evaluator, "before_llm_call")
+            ):
+                evaluator.before_llm_call = before_llm_call
+            report = evaluator.evaluate(
                 result.trajectory_events,
                 final_state=final_state,
             )
@@ -252,6 +311,7 @@ class CompilationJobRunner:
                 delegate=delegate,
                 prompt_version=job.prompt_version,
                 model=job.model,
+                job_id=job.job_id,
             )
             state = _fresh_state(job.package_id)
             registry = EntityRegistry()
@@ -325,6 +385,7 @@ class CompilationJobRunner:
             quality = self.quality_gate.evaluate(
                 result,
                 final_state=state,
+                before_llm_call=lambda: self.store.reserve_llm_call(job_id),
             )
             self.store.set_quality(
                 job_id,
@@ -352,6 +413,8 @@ class CompilationJobRunner:
                 result_package_id=package.package_id,
                 output_path=output_path,
             )
+        except CompilationBudgetExceeded as exc:
+            return self.store.pause_for_budget(job_id, str(exc))
         except CompilationJobConflict:
             raise
         except Exception as exc:  # noqa: BLE001

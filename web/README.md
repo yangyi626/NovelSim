@@ -4,12 +4,29 @@
 
 ## 快速开始
 
+### 0. Windows 一键启动
+
+配置好项目根目录 `.env` 后，直接双击 `start.cmd`。它会自动构建缺失的前端产物，
+后台启动 Web 和独立 Worker，通过健康检查后打开浏览器。
+
+```powershell
+.\novelsim.ps1 start --open-browser
+.\novelsim.ps1 status
+.\novelsim.ps1 stop
+```
+
+运行日志和精确 PID 位于 `data/runtime/`。启动器只停止自己创建的进程树，不会
+扫描或结束其他 Python 服务。详细说明见
+[`docs/Beta一键启动与CI.md`](../docs/Beta一键启动与CI.md)。
+
 ### 1. 配置 LLM Key
 确保项目根目录有 `.env`（参考 `.env.example`）：
 ```
-LLM_API_KEY=your-key
-LLM_BASE_URL=https://api.gpt.ge/v1
-LLM_MODEL=qwen3.6-plus
+# 通用兼容网关使用 LLM_API_KEY；DashScope 使用 DASHSCOPE_API_KEY
+LLM_API_KEY=
+DASHSCOPE_API_KEY=your-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL=qwen3.7-plus
 NO_PROXY=*
 # 可选，默认 data/world.sqlite3
 WORLD_DB_PATH=data/world.sqlite3
@@ -20,6 +37,9 @@ QDRANT_PATH=data/qdrant
 QDRANT_COLLECTION=character_memories
 MEMORY_EMBEDDING_MODEL=text-embedding-3-small
 MEMORY_EMBEDDING_DIMENSIONS=1536
+# 若 embedding 仍使用另一网关，请显式配置，避免跟随聊天端点切换
+MEMORY_EMBEDDING_API_KEY=your-embedding-key
+MEMORY_EMBEDDING_BASE_URL=https://your-embedding-gateway/v1
 MEMORY_REFLECTIONS_ENABLED=true
 MEMORY_REFLECTION_INTERVAL=5
 MEMORY_REFLECTION_MIN_EPISODES=3
@@ -132,6 +152,8 @@ Qdrant 架构、配置、重建与升级方式见 [`docs/Qdrant向量检索.md`]
 编译器 C 与创作者审核发布流见 [`docs/编译器C阶段与创作者发布流.md`](../docs/编译器C阶段与创作者发布流.md)。
 SQLite 编译任务、断点续跑和编译器 D 见 [`docs/编译任务与全书编译D.md`](../docs/编译任务与全书编译D.md)。
 独立 Worker、RBAC、E2E 和多小说基准见 [`docs/生产化基线_Worker_RBAC_E2E.md`](../docs/生产化基线_Worker_RBAC_E2E.md)。
+Beta 一键启停、健康检查和 CI 门禁见 [`docs/Beta一键启动与CI.md`](../docs/Beta一键启动与CI.md)。
+真实 quick/stress/full 编译演练见 [`docs/真实全书编译生产演练.md`](../docs/真实全书编译生产演练.md)。
 
 ## 架构
 

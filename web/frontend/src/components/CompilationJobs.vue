@@ -21,6 +21,7 @@ const form = ref({
   package_id: '',
   chapters: '',
   volume_size: 20,
+  max_llm_calls: 100,
   timeline_plan: '',
 })
 
@@ -106,6 +107,7 @@ async function createJob() {
     chapters: parseNumbers(form.value.chapters),
     timeline_plan: parseTimelinePlan(form.value.timeline_plan),
     volume_size: Number(form.value.volume_size) || 20,
+    max_llm_calls: Math.max(0, Number(form.value.max_llm_calls) || 0),
     auto_start: true,
   })
   loading.value = false
@@ -198,6 +200,7 @@ onBeforeUnmount(() => {
             <label>小说名<input v-model="form.novel_name" placeholder="可选，默认取文件名" /></label>
             <label>章节<input v-model="form.chapters" placeholder="1, 2, 3；留空=全书" /></label>
             <label>每卷章节数<input v-model.number="form.volume_size" type="number" min="1" /></label>
+            <label>LLM 调用上限<input v-model.number="form.max_llm_calls" type="number" min="1" /></label>
             <label class="wide">时间线规划<textarea v-model="form.timeline_plan" rows="2" placeholder="1:origin&#10;2,3,4:novel_world"></textarea></label>
           </div>
         </form>
@@ -224,6 +227,7 @@ onBeforeUnmount(() => {
             <small>
               {{ selected.completed_chapters }}/{{ selected.total_chapters || '?' }} 章
               <template v-if="selected.current_chapter"> · 正在处理第 {{ selected.current_chapter }} 章</template>
+              · LLM {{ selected.llm_calls_used }}/{{ selected.max_llm_calls || '不限' }} 次
             </small>
           </div>
 

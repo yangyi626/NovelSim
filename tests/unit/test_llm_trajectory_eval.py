@@ -83,6 +83,31 @@ def test_low_dimension_fails_release_gate():
     assert report.aggregate.goal_progression == 0.42
 
 
+def test_high_severity_issue_fails_release_gate_even_with_high_scores():
+    final_state = build_snapshot()
+    final_state.version = 8
+    evaluator = LLMTrajectoryEvaluator(chunk_size=12)
+    evaluator._call_llm = lambda _messages: _score(
+        issues=[
+            {
+                "category": "world_state_consistency",
+                "severity": "high",
+                "event_ids": ["event-3"],
+                "message": "终态残留与当前世界观冲突的目标。",
+            }
+        ],
+    )
+
+    report = evaluator.evaluate(
+        _events(8),
+        final_state=final_state,
+    )
+
+    assert report.overall_score > evaluator.threshold
+    assert report.blocking_issue_count == 1
+    assert not report.passed
+
+
 @pytest.mark.llm
 def test_real_llm_scores_twenty_event_trajectory():
     final_state = build_snapshot()

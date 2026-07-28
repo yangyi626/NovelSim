@@ -41,6 +41,7 @@ data/*.sqlite3
 data/*.sqlite3-shm
 data/*.sqlite3-wal
 data/qdrant/
+data/runtime/
 data/memory-retrieval-report*.json
 data/benchmarks/
 

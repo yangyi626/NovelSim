@@ -103,10 +103,32 @@ def test_memory_embedder_env_is_optional(monkeypatch):
 def test_memory_embedder_env_validates_required_key(monkeypatch):
     monkeypatch.setenv("MEMORY_EMBEDDING_MODEL", "embedding-model")
     monkeypatch.delenv("MEMORY_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("MEMORY_EMBEDDING_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
 
     with pytest.raises(EmbeddingError, match="缺少"):
         memory_embedder_from_env()
+
+
+def test_memory_embedder_accepts_dashscope_key(monkeypatch):
+    monkeypatch.setenv("MEMORY_EMBEDDING_MODEL", "embedding-model")
+    monkeypatch.setenv("MEMORY_EMBEDDING_DIMENSIONS", "1024")
+    monkeypatch.delenv("MEMORY_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("MEMORY_EMBEDDING_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "dashscope-key")
+    monkeypatch.setenv(
+        "LLM_BASE_URL",
+        "https://dashscope.example/v1",
+    )
+
+    embedder = memory_embedder_from_env()
+
+    assert embedder.api_key == "dashscope-key"
+    assert embedder.base_url == "https://dashscope.example/v1"
+    assert embedder.model == "embedding-model"
+    assert embedder.dimensions == 1024
 
 
 def test_openai_compatible_embedder_validates_dimensions(monkeypatch):

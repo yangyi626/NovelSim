@@ -5,6 +5,7 @@ import importlib
 from fastapi.testclient import TestClient
 
 from engine import WorldPackageStore
+from web import auth as auth_module
 from web.auth import AuthStore, AuthenticationError
 
 
@@ -44,6 +45,26 @@ def test_password_tokens_and_disabled_accounts(tmp_path):
         pass
     else:
         raise AssertionError("停用账户的旧令牌必须失效")
+
+
+def test_audit_order_is_stable_when_timestamps_collide(
+    tmp_path,
+    monkeypatch,
+):
+    store = AuthStore(tmp_path / "auth.sqlite3")
+    user = store.bootstrap_admin("admin", "strong-password")
+    monkeypatch.setattr(
+        auth_module,
+        "_timestamp",
+        lambda value=None: "2026-07-28T00:00:00+00:00",
+    )
+
+    store.audit(user, action="first", resource_type="test")
+    store.audit(user, action="second", resource_type="test")
+
+    assert [
+        event["action"] for event in store.list_audit(limit=2)
+    ] == ["second", "first"]
 
 
 def test_creator_reviewer_publisher_permissions_and_audit(

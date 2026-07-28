@@ -149,12 +149,14 @@ def memory_embedder_from_env() -> Optional[MemoryEmbedder]:
     api_key = (
         os.environ.get("MEMORY_EMBEDDING_API_KEY")
         or os.environ.get("LLM_API_KEY")
+        or os.environ.get("DASHSCOPE_API_KEY")
         or ""
     ).strip()
     if not api_key:
         raise EmbeddingError(
             "已配置 MEMORY_EMBEDDING_MODEL，但缺少 "
-            "MEMORY_EMBEDDING_API_KEY 或 LLM_API_KEY"
+            "MEMORY_EMBEDDING_API_KEY、LLM_API_KEY "
+            "或 DASHSCOPE_API_KEY"
         )
     return OpenAICompatibleEmbedder(
         api_key=api_key,

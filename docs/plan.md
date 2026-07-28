@@ -1,3 +1,10 @@
+> **文档定位**
+>
+> 本文是项目最终目标与原始产品级架构蓝图，不代表当前每项基础设施都已启用。
+> 截至 2026-07-27，实际 Beta 基线为 **FastAPI + Vue 3 + SQLite + Qdrant
+> Local Mode + 独立编译 Worker**，不要求 Docker、PostgreSQL、Redis 或
+> Temporal。当前完成度和下一步以 [`实现进度.md`](./实现进度.md) 为准。
+
 可以把完整系统拆成两条并行主线：
 
 [
