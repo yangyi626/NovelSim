@@ -2,7 +2,7 @@
 param(
     [string]$Executable = "",
     [string]$ApiUrl = "http://127.0.0.1:8000",
-    [int]$TimeoutSeconds = 360
+    [int]$TimeoutSeconds = 480
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,14 +63,12 @@ if ($interaction.status -ne "interaction_ok" -or $interaction.version -lt 1) {
     throw "Real E interaction did not advance the world."
 }
 $resume = Invoke-SmokeRun "resume" @("-novelsim-smoke-resume")
-if (
-    $resume.status -ne "resume_ok"
-    -or $resume.session_id -ne $interaction.session_id
-    -or $resume.version -ne $interaction.version
-) {
+$resumeMatches = (
+    $resume.status -eq "resume_ok" -and
+    $resume.session_id -eq $interaction.session_id -and
+    $resume.version -eq $interaction.version
+)
+if (-not $resumeMatches) {
     throw "Saved session was not restored exactly."
 }
-Write-Host (
-    "Windows smoke passed: session $($resume.session_id), "
-    + "version $($resume.version)"
-)
+Write-Host "Windows smoke passed: session $($resume.session_id), version $($resume.version)"

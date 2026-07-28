@@ -32,12 +32,14 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 |---|---|
 | `ApiContractV1` | 固定 Unity 消费的 API v1 路径和版本 |
 | `NovelSimApiClient` | 请求、错误包装和契约主版本检查 |
-| `WorldSessionManager` | 会话、回合和服务端权威状态镜像 |
+| `WorldSessionManager` | 会话、回合、PlayerPrefs 存档指针和服务端权威状态镜像 |
 | `ThirdPersonMotor` | WASD 移动与第三人称相机 |
-| `PlayerInteractor` | 发现附近 NPC 并把交互转成服务端行动 |
+| `PlayerInteractor` | 发现附近 NPC，并让 E 键与自动验收共用同一提交路径 |
 | `NovelSimHud` | 服务地址、行动输入、状态和剧情回传 |
 | `HuarongLaneVisualDirector` | 程序化生成雨夜古巷、人物、灯光和天气 |
 | `VerticalSliceBootstrap` | 装配可玩的服务器权威验证场景 |
+| `StandaloneInteractionSmokeRunner` | Windows 包的真实 HTTP 交互/恢复验收入口 |
+| `NovelSimWindowsBuild` | 固定场景和 Windows x64 的正式构建管线 |
 
 ## 当前完成
 
@@ -49,26 +51,37 @@ Unity 只保存显示缓存。世界事实仍由 `WorldState + WorldEvent` 表�
 - 已实现右键环视、滚轮变焦，以及适配剧情游戏的半透明 HUD；
 - 已提供首次导入自动创建场景和 Build Settings 的 Editor 工具；
 - `NovelSim > Play Vertical Slice` 会自动进入 Play Mode 并聚焦 Game 视图；
-- 已提供 3 个 Unity EditMode 测试、1 个 PlayMode 冒烟测试和 2 个 Python
+- 启动时优先恢复 `NovelSim.LastSessionId`；存档不存在时才创建新世界线；
+- 已提供 Windows x64 一键构建与“两次进程启动、同一存档版本”的恢复验收；
+- 已提供 3 个 Unity EditMode 测试、3 个 PlayMode 测试和 2 个 Python
   静态契约门禁。
 
-## 验证边界
+## 构建与验证
 
-当前工作机已经使用 Unity `6000.3.15f1` 完成首次导入、C# 编译、EditMode
-`3/3`、无图形 PlayMode `1/1` 和 DX12 可视化 Play Mode。剩余首要验收是：
+当前工作机已经使用 Unity `6000.3.15f1` 完成 C# 编译、EditMode `3/3`、
+无图形 PlayMode `3/3`、DX12 可视化 Play Mode 和 Windows x64 构建。
 
 ```powershell
 Set-Location unity\NovelSim3D
 .\run-tests.ps1
+.\build-windows.ps1
 ```
 
-1. 玩家靠近守卫按 E 后，SQLite 世界版本增加，HUD 展示服务端剧情；
-2. 后端停止时只显示错误，不产生本地伪状态；
-3. 在程序化占位人物上替换正式模型、动画和面部表现。
+真实 Windows 验收必须先启动 FastAPI，然后运行：
+
+```powershell
+.\run-windows-smoke.ps1
+```
+
+脚本第一次启动独立包时清空本地指针、创建世界线并通过与玩家 E 键完全相同的
+`PlayerInteractor.TryInteract()` 路径提交真实 `/api/turn`；第二次启动只恢复
+存档。只有两次运行的 `session_id` 与世界版本完全一致才通过。
+
+后端停止、网络超时或 API 契约不兼容时，客户端只显示错误并保留最后一次服务端
+镜像，不生成本地伪状态。构建产物位于
+`unity/NovelSim3D/Builds/Windows/NovelSim3D.exe`，该目录不纳入 Git。
 
 ## 后续
 
-完成真实回合验收后，再推进正式角色模型/动画、NavMesh、Addressables、
-场景资源映射和 Timeline 演出。当前程序化场景保留为低成本回归基准；第二本
-小说的目标生命周期修复可以与正式美术资产生产并行，但不会改变客户端
-“服务端权威”的边界。
+可玩闭环完成后，下一阶段进入正式角色模型/动画、NavMesh、Addressables、
+场景资源映射和 Timeline 演出。当前程序化场景继续作为低成本回归基准。

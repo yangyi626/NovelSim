@@ -27,13 +27,22 @@ planted → reinforced → resolved
 
 ### 目标演化
 
-`goal_evolutions` 使用 `character_id + goal_key` 生成稳定目标 ID，状态为：
+`goal_evolutions` 使用角色、`goal_key` 和作用域生成稳定目标 ID，状态为：
 
 ```text
-active / achieved / abandoned / superseded
+active / dormant / achieved / abandoned / superseded / expired
 ```
 
-同一目标跨章节幂等更新，并在 `AgentGoal.evolution` 中保留章节级证据历史。
+作用域为：
+
+```text
+chapter / arc / timeline / world / book
+```
+
+同一目标跨章节幂等更新，并在 `AgentGoal.evolution` 中保留章节、世界、
+时间线、证据和终止原因。穿越、转世或显式时间线切换会终止旧作用域目标；
+短弧目标连续8章没有推进证据时转为`dormant`，再次出现同一`goal_key`时可恢复
+为`active`。`supersedes_goal_keys`可显式终止被新目标替代的旧目标。
 
 ### 编译入口
 

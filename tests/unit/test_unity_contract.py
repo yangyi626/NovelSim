@@ -71,3 +71,10 @@ def test_unity_project_is_pinned_and_consumes_authoritative_state():
     assert "State = response.state;" in manager
     assert "X-NovelSim-Contract" in api_client
     assert "ApiContractV1.SubmitTurn" in api_client
+    assert "private int timeoutSeconds = 300;" in api_client
+    assert (
+        api_client.index(
+            "request.result != UnityWebRequest.Result.Success"
+        )
+        < api_client.index("ValidateContractHeader(")
+    )

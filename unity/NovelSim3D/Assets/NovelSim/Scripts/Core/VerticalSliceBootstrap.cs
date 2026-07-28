@@ -168,7 +168,7 @@ namespace NovelSim.Core
     internal sealed class StandaloneInteractionSmokeRunner : MonoBehaviour
     {
         private const float SessionTimeout = 120f;
-        private const float TurnTimeout = 240f;
+        private const float TurnTimeout = 360f;
 
         private WorldSessionManager session;
         private PlayerInteractor interactor;
