@@ -14,15 +14,17 @@ TXT 长篇小说
   → 创作者审核与发布
   → 玩家自然语言回合
   → 规则校验 / NPC Agent / 长期记忆 / 事件持久化
+  → Unity 3D 服务器权威竖切片
 ```
 
 - 权威数据：SQLite；
 - 向量检索：Qdrant Local Mode，可降级到 SQLite FTS5；
 - 后端：FastAPI + Pydantic；
 - 前端：Vue 3 + Vite；
+- 3D 客户端：Unity 6.3 LTS，URP 依赖已锁定，竖切片已开始；
 - 编译任务：SQLite 租约队列 + 独立 Worker；
 - 治理：账户、RBAC、修订历史、审核审计和发布权限；
-- 质量：207 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
+- 质量：209 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
 - API：核心契约冻结为 `1.0.0`。
 
 截至 2026-07-28，首轮两本小说 quick 真实 LLM 编译演练已经完成，共验证40章、
@@ -48,6 +50,13 @@ TXT 长篇小说
 保存在 `data/runtime/`。详细说明见
 [`docs/Beta一键启动与CI.md`](docs/Beta一键启动与CI.md)。
 
+### Unity 3D 竖切片
+
+安装 Unity `6000.3.15f1` 后，在 Unity Hub 中打开
+`unity/NovelSim3D`。首次导入会生成 `VerticalSlice` 场景；保持 `start.cmd`
+运行，进入 Play Mode 后即可用 WASD 接近守卫并按 E，把交互送入真实世界引擎。
+详见 [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md)。
+
 ## 验证
 
 ```powershell
@@ -59,6 +68,9 @@ TXT 长篇小说
 
 # 两本真实小说源文件指纹
 .venv\Scripts\python.exe -m compiler.benchmark scan
+
+# Unity 工程与 API v1 静态契约
+.venv\Scripts\python.exe -m pytest -q tests/unit/test_unity_contract.py
 
 # Vue 构建与正式浏览器 E2E
 Set-Location web\frontend
@@ -79,13 +91,14 @@ Pull Request 和 `main` 推送会由 `.github/workflows/ci.yml` 自动执行无�
 | [`docs/真实全书编译生产演练.md`](docs/真实全书编译生产演练.md) | quick/stress/full 真实编译演练 |
 | [`docs/生产化基线_Worker_RBAC_E2E.md`](docs/生产化基线_Worker_RBAC_E2E.md) | Worker、账户权限、审计、E2E 和多小说基准 |
 | [`docs/核心API契约v1.md`](docs/核心API契约v1.md) | 已冻结的核心 API v1 契约 |
+| [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md) | Unity 工程、第三人称交互、API 闭环与验收边界 |
 | [`docs/编译任务与全书编译D.md`](docs/编译任务与全书编译D.md) | SQLite 编译任务、断点续跑和全书编译 |
 | [`docs/反思与语义记忆.md`](docs/反思与语义记忆.md) | 反思记忆、证据链和语义一致性 |
 | [`docs/Qdrant向量检索.md`](docs/Qdrant向量检索.md) | Qdrant Local/Server 架构与运维 |
 
 ## 当前边界
 
-- 当前目标是先完成稳定的 Web Beta 与真实全书生产演练，Unity 3D 和多模态尚未开始。
+- Unity 3D 已进入无美术资产竖切片阶段；角色模型、动画、战斗和多模态尚未开始。
 - SQLite 是当前正式开发基线；PostgreSQL 后端保留，但不要求 Docker 或数据库服务。
 - Qdrant Local Mode 适合本机单进程；多 Worker 或多机部署需要 Qdrant Server/Cloud。
 - 玩家存档仍为本地世界线，团队多租户和云同步尚未实现。

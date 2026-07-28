@@ -52,3 +52,18 @@ web/static/
 web/frontend/playwright-report/
 web/frontend/test-results/
 web/frontend/data/
+
+# Unity 3D 客户端生成目录（Assets / Packages / ProjectSettings 纳入版本控制）
+unity/NovelSim3D/[Ll]ibrary/
+unity/NovelSim3D/[Tt]emp/
+unity/NovelSim3D/[Oo]bj/
+unity/NovelSim3D/[Bb]uild/
+unity/NovelSim3D/[Bb]uilds/
+unity/NovelSim3D/[Ll]ogs/
+unity/NovelSim3D/[Uu]ser[Ss]ettings/
+unity/NovelSim3D/[Mm]emoryCaptures/
+unity/NovelSim3D/[Rr]ecordings/
+unity/NovelSim3D/.vs/
+unity/NovelSim3D/*.csproj
+unity/NovelSim3D/*.sln
+unity/NovelSim3D/*.suo
