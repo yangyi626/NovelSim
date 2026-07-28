@@ -20,6 +20,11 @@ jobs:
     env:
       MEMORY_VECTOR_BACKEND: fts5
       COMPILER_QUALITY_GATE_ENABLED: "false"
+      # 确定性测试会 mock OpenAI 调用，但构造器仍需完整配置。
+      # 使用不可访问的占位端点，既避免依赖仓库 Secret，也能暴露意外真实请求。
+      LLM_API_KEY: ci-placeholder-not-a-secret
+      LLM_BASE_URL: https://example.invalid/v1
+      LLM_MODEL: ci-mocked
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,6 +52,9 @@ jobs:
       MEMORY_VECTOR_BACKEND: fts5
       COMPILER_QUALITY_GATE_ENABLED: "false"
       NOVELSIM_PYTHON: python
+      LLM_API_KEY: ci-placeholder-not-a-secret
+      LLM_BASE_URL: https://example.invalid/v1
+      LLM_MODEL: ci-mocked
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
