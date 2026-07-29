@@ -21,10 +21,10 @@ TXT 长篇小说
 - 向量检索：Qdrant Local Mode，可降级到 SQLite FTS5；
 - 后端：FastAPI + Pydantic；
 - 前端：Vue 3 + Vite；
-- 3D 客户端：Unity 6.3 LTS + URP，雨夜华容巷、真实 E 交互、存档恢复和 Windows x64 构建已验证；
+- 3D 客户端：Unity 6.3 LTS + URP，关节化低多边形角色、程序动画、运行时 NavMesh、真实 E 交互、存档恢复和 Windows x64 构建已验证；
 - 编译任务：SQLite 租约队列 + 独立 Worker；
 - 治理：账户、RBAC、修订历史、审核审计和发布权限；
-- 质量：212 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
+- 质量：213 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
 - API：核心契约冻结为 `1.0.0`。
 
 截至 2026-07-28，首轮两本小说 quick 真实 LLM 编译演练已经完成，共验证40章、
@@ -57,9 +57,10 @@ TXT 长篇小说
 安装 Unity `6000.3.15f1` 后，在 Unity Hub 中打开
 `unity/NovelSim3D`。首次导入会生成 `VerticalSlice` 场景；保持 `start.cmd`
 运行，进入 Play Mode 后即可用 WASD 接近守卫并按 E，把交互送入真实世界引擎。
-场景包含程序化湿石路、古宅、牌楼、雨雾、灯笼、风格化人物和剧情 HUD；
-按住鼠标右键环视，滚轮调整镜头，F1 打开世界调试面板。
-锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `3/3`
+场景包含程序化湿石路、古宅、牌楼、雨雾、动态灯笼、关节化风格人物和剧情 HUD；
+守卫会在运行时 NavMesh 上巡逻并在玩家接近时注视玩家。按住 Shift 疾跑，
+鼠标右键环视，滚轮调整镜头，F1 打开世界调试面板。
+锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `4/4`
 已经通过。启动后会自动恢复上次服务端世界线；没有有效存档时才创建新世界线。
 
 生成并验收 Windows 包：
@@ -67,6 +68,7 @@ TXT 长篇小说
 ```powershell
 Set-Location unity\NovelSim3D
 .\build-windows.ps1
+.\capture-windows-preview.ps1
 .\run-windows-smoke.ps1
 ```
 
@@ -119,8 +121,9 @@ Pull Request 和 `main` 推送会由 `.github/workflows/ci.yml` 自动执行无�
 
 ## 当前边界
 
-- Unity 3D 已完成程序化风格化可玩竖切片、真实服务端回合、存档恢复和 Windows
-  x64 交付闭环；正式角色模型、动画、战斗和多模态尚未开始。
+- Unity 3D 已完成关节化程序角色、基础走路/待机/交互动画、运行时 NavMesh、
+  动态雨夜场景、真实服务端回合、存档恢复和 Windows x64 交付闭环；外部正式
+  FBX、Mecanim 动画片段、战斗和多模态尚未接入。
 - SQLite 是当前正式开发基线；PostgreSQL 后端保留，但不要求 Docker 或数据库服务。
 - Qdrant Local Mode 适合本机单进程；多 Worker 或多机部署需要 Qdrant Server/Cloud。
 - 玩家存档仍为本地世界线，团队多租户和云同步尚未实现。
