@@ -608,7 +608,7 @@ namespace NovelSim.Visuals
                 head,
                 "High Ponytail Pivot",
                 new Vector3(0f, 0.42f, -0.2f));
-            ponytail.AddComponent<AmbientSway>().Configure(
+            ponytail.gameObject.AddComponent<AmbientSway>().Configure(
                 Vector3.right,
                 4f,
                 0.72f,
