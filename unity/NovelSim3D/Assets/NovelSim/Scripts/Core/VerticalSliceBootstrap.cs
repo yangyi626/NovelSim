@@ -59,6 +59,8 @@ namespace NovelSim.Core
             var npc = CreateNpc(interactor.transform);
             gameObject.AddComponent<StandaloneInteractionSmokeRunner>()
                 .Configure(session, interactor, npc);
+            gameObject.AddComponent<StandaloneVisualCaptureRunner>()
+                .Configure(interactor.transform, npc.transform);
             StartCoroutine(StartSessionNextFrame(session));
         }
 
@@ -350,6 +352,76 @@ namespace NovelSim.Core
             public string session_id;
             public int version;
             public bool resumed;
+        }
+    }
+
+    /// <summary>
+    /// Produces a deterministic standalone preview for visual regression and
+    /// human review. It is inactive unless -novelsim-capture is supplied.
+    /// </summary>
+    internal sealed class StandaloneVisualCaptureRunner : MonoBehaviour
+    {
+        private Transform player;
+        private Transform npc;
+        private string capturePath;
+
+        public void Configure(Transform playerTransform, Transform npcTransform)
+        {
+            capturePath = ArgumentValue(
+                Environment.GetCommandLineArgs(),
+                "-novelsim-capture");
+            if (string.IsNullOrWhiteSpace(capturePath))
+            {
+                return;
+            }
+            player = playerTransform;
+            npc = npcTransform;
+            StartCoroutine(Capture());
+        }
+
+        private IEnumerator Capture()
+        {
+            player.position = new Vector3(-0.45f, 0.08f, -3.6f);
+            player.rotation = Quaternion.Euler(0f, 7f, 0f);
+            if (npc != null)
+            {
+                npc.position = new Vector3(0.85f, 0.08f, 5.9f);
+            }
+            Physics.SyncTransforms();
+            yield return new WaitForSecondsRealtime(3.2f);
+
+            var fullPath = Path.GetFullPath(capturePath);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            ScreenCapture.CaptureScreenshot(fullPath, 1);
+            var started = Time.realtimeSinceStartup;
+            while (
+                (!File.Exists(fullPath)
+                    || new FileInfo(fullPath).Length == 0)
+                && Time.realtimeSinceStartup - started < 12f)
+            {
+                yield return null;
+            }
+            Debug.Log($"NOVELSIM_VISUAL_CAPTURE {fullPath}");
+            Application.Quit(File.Exists(fullPath) ? 0 : 7);
+        }
+
+        private static string ArgumentValue(string[] args, string name)
+        {
+            for (var index = 0; index + 1 < args.Length; index++)
+            {
+                if (string.Equals(
+                    args[index],
+                    name,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return args[index + 1];
+                }
+            }
+            return string.Empty;
         }
     }
 }

@@ -8,6 +8,7 @@ using NovelSim.Characters;
 using NovelSim.Core;
 using NovelSim.Interaction;
 using NovelSim.Network;
+using NovelSim.Visuals;
 using NovelSim.World;
 using Object = UnityEngine.Object;
 
@@ -58,6 +59,14 @@ namespace NovelSim.Tests
             Assert.IsNotNull(GameObject.Find("Huarong Lane Art"));
             Assert.IsNotNull(GameObject.Find("Ground Mist"));
             Assert.IsNotNull(GameObject.Find("Veiled Moon"));
+            Assert.GreaterOrEqual(
+                Object.FindObjectsByType<AmbientSway>(
+                    FindObjectsSortMode.None).Length,
+                7);
+            Assert.GreaterOrEqual(
+                Object.FindObjectsByType<LanternFlicker>(
+                    FindObjectsSortMode.None).Length,
+                6);
             Assert.IsTrue(RenderSettings.fog);
             Assert.AreEqual(52f, Camera.main.fieldOfView, 0.1f);
             Assert.IsNotNull(Object.FindFirstObjectByType<

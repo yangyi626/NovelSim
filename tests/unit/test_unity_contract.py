@@ -78,3 +78,30 @@ def test_unity_project_is_pinned_and_consumes_authoritative_state():
         )
         < api_client.index("ValidateContractHeader(")
     )
+
+
+def test_unity_phase_two_has_articulated_visuals_navigation_and_preview():
+    scripts = UNITY_ROOT / "Assets" / "NovelSim" / "Scripts"
+    character = (
+        scripts / "Visuals" / "StylizedCharacterFactory.cs"
+    ).read_text(encoding="utf-8")
+    animator = (
+        scripts / "Characters" / "StylizedCharacterAnimator.cs"
+    ).read_text(encoding="utf-8")
+    patrol = (
+        scripts / "Characters" / "NpcPatrolController.cs"
+    ).read_text(encoding="utf-8")
+    navigation = (
+        scripts / "World" / "RuntimeLaneNavMesh.cs"
+    ).read_text(encoding="utf-8")
+    preview = (
+        UNITY_ROOT / "capture-windows-preview.ps1"
+    ).read_text(encoding="utf-8")
+
+    assert "Left Arm Pivot" in character
+    assert "Left Leg Pivot" in character
+    assert "Face" in character
+    assert "SetLocomotion" in animator
+    assert "NavMeshAgent" in patrol
+    assert "NavMeshBuilder.BuildNavMeshData" in navigation
+    assert "-novelsim-capture" in preview

@@ -366,6 +366,11 @@ namespace NovelSim.Visuals
                 var lantern = new GameObject($"Lantern {index + 1}");
                 lantern.transform.SetParent(parent, false);
                 lantern.transform.localPosition = positions[index];
+                lantern.AddComponent<AmbientSway>().Configure(
+                    new Vector3(0.3f, 0f, 1f),
+                    index >= 4 ? 1.5f : 2.8f,
+                    0.75f + index * 0.07f,
+                    index * 1.13f);
                 Primitive(
                     PrimitiveType.Cylinder,
                     "Glow",
@@ -406,6 +411,9 @@ namespace NovelSim.Visuals
                 light.range = index >= 4 ? 9f : 7.5f;
                 light.shadows = LightShadows.Soft;
                 light.shadowStrength = 0.55f;
+                lantern.AddComponent<LanternFlicker>().Configure(
+                    light.intensity,
+                    index * 0.73f);
             }
         }
 
@@ -483,7 +491,7 @@ namespace NovelSim.Visuals
                 }
             }
 
-            Primitive(
+            var bannerObject = Primitive(
                 PrimitiveType.Cube,
                 "Hanging Story Banner",
                 parent,
@@ -491,6 +499,11 @@ namespace NovelSim.Visuals
                 new Vector3(0.08f, 2.25f, 0.95f),
                 Quaternion.Euler(0f, 0f, -3f),
                 banner);
+            bannerObject.AddComponent<AmbientSway>().Configure(
+                Vector3.forward,
+                3.5f,
+                0.62f,
+                1.7f);
         }
 
         private static void CreateRain(Transform parent)
