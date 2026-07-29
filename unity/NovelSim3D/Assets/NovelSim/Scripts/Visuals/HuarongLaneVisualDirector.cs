@@ -48,16 +48,16 @@ namespace NovelSim.Visuals
             RenderSettings.skybox = null;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.012f;
-            RenderSettings.fogColor = new Color(0.025f, 0.055f, 0.085f);
+            RenderSettings.fogDensity = 0.009f;
+            RenderSettings.fogColor = new Color(0.035f, 0.075f, 0.11f);
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor =
-                new Color(0.12f, 0.18f, 0.25f);
+                new Color(0.18f, 0.26f, 0.35f);
             RenderSettings.ambientEquatorColor =
-                new Color(0.055f, 0.082f, 0.11f);
+                new Color(0.085f, 0.13f, 0.175f);
             RenderSettings.ambientGroundColor =
-                new Color(0.022f, 0.03f, 0.042f);
-            RenderSettings.reflectionIntensity = 0.35f;
+                new Color(0.035f, 0.052f, 0.072f);
+            RenderSettings.reflectionIntensity = 0.52f;
         }
 
         private static void CreateRoad(Transform parent)
@@ -69,12 +69,12 @@ namespace NovelSim.Visuals
                 new Color(0.002f, 0.006f, 0.01f));
             var stoneA = Material(
                 "Wet Stone A",
-                new Color(0.11f, 0.16f, 0.2f),
+                new Color(0.15f, 0.21f, 0.26f),
                 0.9f,
                 new Color(0.006f, 0.012f, 0.018f));
             var stoneB = Material(
                 "Wet Stone B",
-                new Color(0.14f, 0.18f, 0.21f),
+                new Color(0.18f, 0.23f, 0.27f),
                 0.86f);
             var puddle = Material(
                 "Rain Puddle",
@@ -134,11 +134,11 @@ namespace NovelSim.Visuals
         {
             var plaster = Material(
                 "Rain Darkened Plaster",
-                new Color(0.12f, 0.13f, 0.135f),
+                new Color(0.16f, 0.17f, 0.18f),
                 0.28f);
             var plasterAlt = Material(
                 "Old Plaster",
-                new Color(0.16f, 0.15f, 0.14f),
+                new Color(0.2f, 0.19f, 0.17f),
                 0.22f);
             var timber = Material(
                 "Dark Timber",

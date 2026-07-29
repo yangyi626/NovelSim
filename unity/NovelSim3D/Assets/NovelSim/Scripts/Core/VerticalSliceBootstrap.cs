@@ -104,8 +104,8 @@ namespace NovelSim.Core
             var lightObject = new GameObject("Rain Moon");
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.color = new Color(0.43f, 0.58f, 0.78f);
-            light.intensity = 0.86f;
+            light.color = new Color(0.52f, 0.68f, 0.9f);
+            light.intensity = 1.16f;
             light.shadows = LightShadows.Soft;
             light.shadowStrength = 0.72f;
             lightObject.transform.SetParent(transform);
@@ -117,8 +117,8 @@ namespace NovelSim.Core
             var fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Point;
             fill.color = new Color(1f, 0.35f, 0.12f);
-            fill.intensity = 2.8f;
-            fill.range = 8.5f;
+            fill.intensity = 5.2f;
+            fill.range = 11.5f;
             fill.shadows = LightShadows.None;
 
             var rimObject = new GameObject("Rain Blue Rim");
@@ -128,7 +128,7 @@ namespace NovelSim.Core
             var rim = rimObject.AddComponent<Light>();
             rim.type = LightType.Spot;
             rim.color = new Color(0.2f, 0.5f, 0.82f);
-            rim.intensity = 3.2f;
+            rim.intensity = 5f;
             rim.range = 17f;
             rim.spotAngle = 58f;
             rim.innerSpotAngle = 32f;

@@ -20,11 +20,11 @@ namespace NovelSim.Visuals
             {
                 cloth = Material(
                     "Hero Deep Teal",
-                    new Color(0.025f, 0.13f, 0.17f),
+                    new Color(0.035f, 0.21f, 0.27f),
                     0.38f),
                 clothAccent = Material(
                     "Hero Jade Edge",
-                    new Color(0.055f, 0.42f, 0.43f),
+                    new Color(0.07f, 0.5f, 0.52f),
                     0.48f,
                     new Color(0.006f, 0.045f, 0.045f)),
                 accent = Material(
@@ -63,11 +63,11 @@ namespace NovelSim.Visuals
             {
                 cloth = Material(
                     "Guard Wine Cloth",
-                    new Color(0.24f, 0.045f, 0.038f),
+                    new Color(0.34f, 0.06f, 0.05f),
                     0.3f),
                 clothAccent = Material(
                     "Guard Dark Armor",
-                    new Color(0.085f, 0.12f, 0.14f),
+                    new Color(0.13f, 0.18f, 0.21f),
                     0.68f,
                     new Color(0.004f, 0.008f, 0.01f),
                     0.42f),
