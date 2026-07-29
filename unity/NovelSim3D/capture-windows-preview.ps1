@@ -49,7 +49,6 @@ if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $resolvedOutput)) {
     throw "Visual preview failed with exit code $($process.ExitCode)."
 }
 $preview = Get-Item -LiteralPath $resolvedOutput
-Write-Host (
-    "Visual preview captured: "
-    + "$($preview.FullName) ($($preview.Length) bytes)"
-)
+$message = "Visual preview captured: $($preview.FullName) " +
+    "($($preview.Length) bytes)"
+Write-Host $message

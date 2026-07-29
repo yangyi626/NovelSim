@@ -396,15 +396,37 @@ namespace NovelSim.Core
             {
                 Directory.CreateDirectory(directory);
             }
-            ScreenCapture.CaptureScreenshot(fullPath, 1);
-            var started = Time.realtimeSinceStartup;
-            while (
-                (!File.Exists(fullPath)
-                    || new FileInfo(fullPath).Length == 0)
-                && Time.realtimeSinceStartup - started < 12f)
+            var sceneCamera = Camera.main;
+            if (sceneCamera == null)
             {
-                yield return null;
+                Debug.LogError("NOVELSIM_VISUAL_CAPTURE camera missing");
+                Application.Quit(7);
+                yield break;
             }
+            var renderTexture = new RenderTexture(
+                1600,
+                900,
+                24,
+                RenderTextureFormat.ARGB32);
+            var texture = new Texture2D(
+                1600,
+                900,
+                TextureFormat.RGB24,
+                false);
+            var previousTarget = sceneCamera.targetTexture;
+            var previousActive = RenderTexture.active;
+            sceneCamera.targetTexture = renderTexture;
+            sceneCamera.Render();
+            RenderTexture.active = renderTexture;
+            texture.ReadPixels(new Rect(0f, 0f, 1600f, 900f), 0, 0);
+            texture.Apply();
+            File.WriteAllBytes(fullPath, texture.EncodeToPNG());
+            sceneCamera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            Destroy(texture);
+            renderTexture.Release();
+            Destroy(renderTexture);
+            yield return null;
             Debug.Log($"NOVELSIM_VISUAL_CAPTURE {fullPath}");
             Application.Quit(File.Exists(fullPath) ? 0 : 7);
         }
