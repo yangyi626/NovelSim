@@ -101,6 +101,10 @@ def test_unity_phase_two_has_articulated_visuals_navigation_and_preview():
     assert "Left Arm Pivot" in character
     assert "Left Leg Pivot" in character
     assert "Face" in character
+    assert "Hero Front Skirt Left" in character
+    assert "High Ponytail Pivot" in character
+    assert "Armor Rivet" in character
+    assert "Guard Helmet Flap Left" in character
     assert "SetLocomotion" in animator
     assert "NavMeshAgent" in patrol
     assert "NavMeshBuilder.BuildNavMeshData" in navigation

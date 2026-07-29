@@ -49,6 +49,10 @@ namespace NovelSim.Tests
             Assert.GreaterOrEqual(
                 npc.GetComponentsInChildren<Renderer>().Length,
                 30);
+            Assert.IsNotNull(GameObject.Find("Hero Front Skirt Left"));
+            Assert.IsNotNull(GameObject.Find("High Ponytail Pivot"));
+            Assert.IsNotNull(GameObject.Find("Armor Rivet 0 0"));
+            Assert.IsNotNull(GameObject.Find("Guard Helmet Flap Left"));
             Assert.IsNotNull(npc.GetComponent<NavMeshAgent>());
             Assert.IsNotNull(npc.GetComponent<NpcPatrolController>());
             var laneNavigation = Object.FindFirstObjectByType<

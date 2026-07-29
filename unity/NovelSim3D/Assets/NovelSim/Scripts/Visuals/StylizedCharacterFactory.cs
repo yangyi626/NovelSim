@@ -130,29 +130,27 @@ namespace NovelSim.Visuals
                 new Vector3(-0.19f, 0.86f, 0f));
             var rightLeg = Pivot(visual.transform, "Right Leg Pivot",
                 new Vector3(0.19f, 0.86f, 0f));
-            BuildLeg(leftLeg, "Left", palette);
-            BuildLeg(rightLeg, "Right", palette);
+            BuildLeg(leftLeg, "Left", palette, guard);
+            BuildLeg(rightLeg, "Right", palette, guard);
 
             CreateTaperedBox(
-                "Layered Lower Robe",
+                guard ? "Guard Under Tunic" : "Hero Inner Skirt",
                 visual.transform,
                 new Vector3(0f, 0.7f, 0f),
-                0.52f,
-                0.68f,
-                0.42f,
-                0.54f,
-                0.78f,
-                palette.cloth);
-            CreateTaperedBox(
-                "Robe Front Panel",
-                visual.transform,
-                new Vector3(0f, 0.67f, 0.395f),
-                0.23f,
-                0.31f,
-                0.035f,
-                0.035f,
-                0.72f,
-                palette.clothAccent);
+                guard ? 0.49f : 0.42f,
+                guard ? 0.57f : 0.5f,
+                guard ? 0.38f : 0.34f,
+                guard ? 0.45f : 0.4f,
+                guard ? 0.72f : 0.68f,
+                guard ? palette.cloth : palette.boot);
+            if (guard)
+            {
+                BuildGuardSkirtArmor(visual.transform, palette);
+            }
+            else
+            {
+                BuildHeroOverskirt(visual.transform, palette);
+            }
 
             var spine = Pivot(visual.transform, "Spine Pivot",
                 new Vector3(0f, 1.03f, 0f));
@@ -238,7 +236,8 @@ namespace NovelSim.Visuals
         private static void BuildLeg(
             Transform pivot,
             string side,
-            CharacterPalette palette)
+            CharacterPalette palette,
+            bool guard)
         {
             CreateTaperedBox(
                 $"{side} Trouser",
@@ -249,7 +248,7 @@ namespace NovelSim.Visuals
                 0.16f,
                 0.18f,
                 0.58f,
-                palette.cloth);
+                palette.boot);
             CreateTaperedBox(
                 $"{side} Boot",
                 pivot,
@@ -260,6 +259,147 @@ namespace NovelSim.Visuals
                 0.28f,
                 0.28f,
                 palette.boot);
+            Primitive(
+                PrimitiveType.Cube,
+                $"{side} Boot Cuff",
+                pivot,
+                new Vector3(0f, -0.52f, 0.015f),
+                new Vector3(0.4f, 0.085f, 0.39f),
+                Quaternion.identity,
+                guard ? palette.accent : palette.metal);
+            CreateTaperedBox(
+                $"{side} Boot Toe",
+                pivot,
+                new Vector3(0f, -0.77f, 0.15f),
+                0.15f,
+                0.19f,
+                0.24f,
+                0.3f,
+                0.12f,
+                palette.boot);
+        }
+
+        private static void BuildHeroOverskirt(
+            Transform visual,
+            CharacterPalette palette)
+        {
+            for (var side = -1; side <= 1; side += 2)
+            {
+                CreateTaperedBox(
+                    side < 0
+                        ? "Hero Front Skirt Left"
+                        : "Hero Front Skirt Right",
+                    visual,
+                    new Vector3(side * 0.23f, 0.7f, 0.4f),
+                    0.19f,
+                    0.27f,
+                    0.035f,
+                    0.045f,
+                    0.82f,
+                    palette.cloth);
+                CreateTaperedBox(
+                    side < 0
+                        ? "Hero Back Skirt Left"
+                        : "Hero Back Skirt Right",
+                    visual,
+                    new Vector3(side * 0.23f, 0.72f, -0.4f),
+                    0.19f,
+                    0.28f,
+                    0.035f,
+                    0.045f,
+                    0.78f,
+                    palette.cloth);
+                CreateTaperedBox(
+                    side < 0
+                        ? "Hero Side Skirt Left"
+                        : "Hero Side Skirt Right",
+                    visual,
+                    new Vector3(side * 0.52f, 0.74f, 0f),
+                    0.12f,
+                    0.18f,
+                    0.28f,
+                    0.36f,
+                    0.74f,
+                    palette.clothAccent);
+                Primitive(
+                    PrimitiveType.Cube,
+                    side < 0
+                        ? "Hero Front Hem Left"
+                        : "Hero Front Hem Right",
+                    visual,
+                    new Vector3(side * 0.23f, 0.3f, 0.45f),
+                    new Vector3(0.48f, 0.055f, 0.035f),
+                    Quaternion.identity,
+                    palette.clothAccent);
+            }
+            CreateTaperedBox(
+                "Crimson Sash Tail",
+                visual,
+                new Vector3(0.05f, 0.66f, 0.465f),
+                0.07f,
+                0.11f,
+                0.025f,
+                0.03f,
+                0.68f,
+                palette.accent);
+        }
+
+        private static void BuildGuardSkirtArmor(
+            Transform visual,
+            CharacterPalette palette)
+        {
+            for (var face = -1; face <= 1; face += 2)
+            {
+                for (var column = -2; column <= 2; column++)
+                {
+                    CreateTaperedBox(
+                        $"Guard Skirt Plate {face} {column}",
+                        visual,
+                        new Vector3(
+                            column * 0.19f,
+                            0.68f,
+                            face * 0.43f),
+                        0.075f,
+                        0.095f,
+                        0.035f,
+                        0.045f,
+                        0.62f,
+                        palette.clothAccent);
+                    if (face > 0)
+                    {
+                        Primitive(
+                            PrimitiveType.Sphere,
+                            $"Guard Skirt Rivet {column}",
+                            visual,
+                            new Vector3(
+                                column * 0.19f,
+                                0.82f,
+                                0.472f),
+                            new Vector3(0.045f, 0.045f, 0.025f),
+                            Quaternion.identity,
+                            palette.accent);
+                    }
+                }
+            }
+            for (var side = -1; side <= 1; side += 2)
+            {
+                for (var row = -1; row <= 1; row += 2)
+                {
+                    CreateTaperedBox(
+                        $"Guard Side Plate {side} {row}",
+                        visual,
+                        new Vector3(
+                            side * 0.54f,
+                            0.68f,
+                            row * 0.21f),
+                        0.09f,
+                        0.11f,
+                        0.15f,
+                        0.2f,
+                        0.58f,
+                        palette.clothAccent);
+                }
+            }
         }
 
         private static void BuildArm(
@@ -274,20 +414,48 @@ namespace NovelSim.Visuals
                 0f,
                 direction * (guard ? 7f : 11f));
             CreateTaperedBox(
-                $"{side} Sleeve",
+                $"{side} Outer Sleeve",
                 pivot,
-                new Vector3(0f, -0.27f, 0f),
-                guard ? 0.2f : 0.17f,
-                guard ? 0.24f : 0.23f,
+                new Vector3(0f, -0.17f, 0f),
+                guard ? 0.22f : 0.19f,
+                guard ? 0.27f : 0.26f,
+                0.19f,
+                0.23f,
+                0.34f,
+                palette.cloth);
+            CreateTaperedBox(
+                $"{side} Inner Sleeve",
+                pivot,
+                new Vector3(0f, -0.42f, 0f),
+                0.14f,
                 0.18f,
-                0.22f,
-                0.54f,
-                guard ? palette.clothAccent : palette.cloth);
+                0.14f,
+                0.17f,
+                0.3f,
+                guard ? palette.cloth : palette.boot);
+            CreateTaperedBox(
+                $"{side} Bracer",
+                pivot,
+                new Vector3(0f, -0.54f, 0.005f),
+                0.145f,
+                0.18f,
+                0.145f,
+                0.18f,
+                0.24f,
+                guard ? palette.clothAccent : palette.metal);
+            Primitive(
+                PrimitiveType.Cube,
+                $"{side} Bracer Band",
+                pivot,
+                new Vector3(0f, -0.48f, 0.16f),
+                new Vector3(0.27f, 0.055f, 0.035f),
+                Quaternion.identity,
+                palette.accent);
             Primitive(
                 PrimitiveType.Sphere,
                 $"{side} Hand",
                 pivot,
-                new Vector3(0f, -0.59f, 0.02f),
+                new Vector3(0f, -0.7f, 0.02f),
                 new Vector3(0.19f, 0.21f, 0.18f),
                 Quaternion.identity,
                 palette.skin);
@@ -364,6 +532,14 @@ namespace NovelSim.Visuals
                     new Vector3(0.51f, 0.055f, 0.51f),
                     Quaternion.identity,
                     palette.hair);
+                Primitive(
+                    PrimitiveType.Cylinder,
+                    "Guard Bronze Helmet Band",
+                    head,
+                    new Vector3(0f, 0.4f, 0f),
+                    new Vector3(0.53f, 0.035f, 0.53f),
+                    Quaternion.identity,
+                    palette.accent);
                 CreateTaperedBox(
                     "Guard Hat Crown",
                     head,
@@ -374,6 +550,29 @@ namespace NovelSim.Visuals
                     0.34f,
                     0.26f,
                     palette.hair);
+                Primitive(
+                    PrimitiveType.Sphere,
+                    "Guard Helmet Knot",
+                    head,
+                    new Vector3(0f, 0.7f, -0.015f),
+                    new Vector3(0.22f, 0.18f, 0.22f),
+                    Quaternion.identity,
+                    palette.hair);
+                for (var side = -1; side <= 1; side += 2)
+                {
+                    CreateTaperedBox(
+                        side < 0
+                            ? "Guard Helmet Flap Left"
+                            : "Guard Helmet Flap Right",
+                        head,
+                        new Vector3(side * 0.29f, 0.16f, -0.11f),
+                        0.075f,
+                        0.12f,
+                        0.055f,
+                        0.075f,
+                        0.42f,
+                        palette.hair);
+                }
                 Primitive(
                     PrimitiveType.Cube,
                     "Short Beard",
@@ -405,15 +604,44 @@ namespace NovelSim.Visuals
                 new Vector3(0.035f, 0.34f, 0.035f),
                 Quaternion.Euler(0f, 0f, 90f),
                 palette.clothAccent);
-            CreateTaperedBox(
-                "Long Hair Tail",
+            var ponytail = Pivot(
                 head,
-                new Vector3(0f, -0.25f, -0.3f),
-                0.17f,
-                0.25f,
+                "High Ponytail Pivot",
+                new Vector3(0f, 0.42f, -0.2f));
+            ponytail.AddComponent<AmbientSway>().Configure(
+                Vector3.right,
+                4f,
+                0.72f,
+                2.2f);
+            CreateTaperedBox(
+                "Ponytail Upper",
+                ponytail,
+                new Vector3(0f, -0.19f, -0.03f),
+                0.15f,
+                0.2f,
                 0.06f,
-                0.12f,
-                0.82f,
+                0.1f,
+                0.42f,
+                palette.hair);
+            CreateTaperedBox(
+                "Ponytail Middle",
+                ponytail,
+                new Vector3(0f, -0.53f, -0.09f),
+                0.11f,
+                0.16f,
+                0.045f,
+                0.075f,
+                0.34f,
+                palette.hair);
+            CreateTaperedBox(
+                "Ponytail Tip",
+                ponytail,
+                new Vector3(0f, -0.8f, -0.14f),
+                0.035f,
+                0.115f,
+                0.025f,
+                0.05f,
+                0.26f,
                 palette.hair);
             for (var side = -1; side <= 1; side += 2)
             {
@@ -464,23 +692,41 @@ namespace NovelSim.Visuals
             Transform spine,
             CharacterPalette palette)
         {
-            for (var row = 0; row < 3; row++)
+            for (var face = -1; face <= 1; face += 2)
             {
-                for (var column = -2; column <= 2; column++)
+                for (var row = 0; row < 3; row++)
                 {
-                    Primitive(
-                        PrimitiveType.Cube,
-                        $"Armor Scale {row} {column}",
-                        spine,
-                        new Vector3(
-                            column * 0.19f,
-                            0.59f - row * 0.18f,
-                            0.405f),
-                        new Vector3(0.16f, 0.14f, 0.045f),
-                        Quaternion.identity,
-                        row % 2 == 0
-                            ? palette.clothAccent
-                            : palette.accent);
+                    for (var column = -2; column <= 2; column++)
+                    {
+                        Primitive(
+                            PrimitiveType.Cube,
+                            $"Armor Plate {face} {row} {column}",
+                            spine,
+                            new Vector3(
+                                column * 0.19f,
+                                0.59f - row * 0.18f,
+                                face * 0.405f),
+                            new Vector3(0.16f, 0.14f, 0.045f),
+                            Quaternion.identity,
+                            palette.clothAccent);
+                        if (face > 0)
+                        {
+                            Primitive(
+                                PrimitiveType.Sphere,
+                                $"Armor Rivet {row} {column}",
+                                spine,
+                                new Vector3(
+                                    column * 0.19f,
+                                    0.59f - row * 0.18f,
+                                    0.447f),
+                                new Vector3(
+                                    0.035f,
+                                    0.035f,
+                                    0.022f),
+                                Quaternion.identity,
+                                palette.accent);
+                        }
+                    }
                 }
             }
             Primitive(
@@ -498,6 +744,14 @@ namespace NovelSim.Visuals
                 new Vector3(0.54f, 0.61f, 0f),
                 new Vector3(0.32f, 0.19f, 0.42f),
                 Quaternion.Euler(0f, 0f, 8f),
+                palette.accent);
+            Primitive(
+                PrimitiveType.Cube,
+                "Guard Bronze Belt Buckle",
+                spine,
+                new Vector3(0f, 0.035f, 0.42f),
+                new Vector3(0.32f, 0.2f, 0.075f),
+                Quaternion.identity,
                 palette.accent);
         }
 

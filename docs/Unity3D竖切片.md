@@ -97,3 +97,5 @@ Set-Location unity\NovelSim3D
 下一阶段可以把当前关节化程序角色替换为具有明确授权的正式 FBX 与 Mecanim
 动画片段，再接入 Addressables、世界包场景资源映射和 Timeline 对话演出。
 当前程序化角色、运行时 NavMesh 和雨夜场景继续作为低成本自动回归基准。
+角色公开调研、原创三视图和建模拆分见
+[`Unity角色建模参考.md`](./Unity角色建模参考.md)。
