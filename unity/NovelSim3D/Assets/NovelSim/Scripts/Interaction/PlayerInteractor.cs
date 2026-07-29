@@ -49,6 +49,9 @@ namespace NovelSim.Interaction
             }
             var submitted = current;
             session.SubmitAction(submitted.ServerAction);
+            submitted.NotifyInteractionSubmitted();
+            hud?.SetInteractionFeedback(
+                $"正在聆听{submitted.DisplayName}的回应……");
             InteractionSubmitted?.Invoke(submitted);
             return true;
         }
@@ -58,12 +61,20 @@ namespace NovelSim.Interaction
             var closest = FindClosestTarget();
             if (closest != current)
             {
+                current?.SetFocused(false);
                 current = closest;
+                current?.SetFocused(true);
                 hud?.SetInteractionHint(
                     current == null
                         ? string.Empty
                         : $"按 E 与 {current.DisplayName} 交互");
             }
+        }
+
+        private void OnDisable()
+        {
+            current?.SetFocused(false);
+            current = null;
         }
 
         private InteractionTarget FindClosestTarget()

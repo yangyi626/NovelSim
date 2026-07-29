@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.TestTools;
+using NovelSim.Characters;
 using NovelSim.Core;
 using NovelSim.Interaction;
 using NovelSim.Network;
@@ -32,13 +34,30 @@ namespace NovelSim.Tests
             Assert.IsNotNull(npc);
             Assert.IsNotNull(player.GetComponent<CharacterController>());
             Assert.IsNotNull(npc.GetComponent<InteractionTarget>());
+            var playerPresentation =
+                player.GetComponent<StylizedCharacterAnimator>();
+            var npcPresentation =
+                npc.GetComponent<StylizedCharacterAnimator>();
+            Assert.IsNotNull(playerPresentation);
+            Assert.IsNotNull(npcPresentation);
+            Assert.IsTrue(playerPresentation.IsArticulated);
+            Assert.IsTrue(npcPresentation.IsArticulated);
             Assert.GreaterOrEqual(
                 player.GetComponentsInChildren<Renderer>().Length,
-                8);
+                24);
             Assert.GreaterOrEqual(
                 npc.GetComponentsInChildren<Renderer>().Length,
-                8);
+                30);
+            Assert.IsNotNull(npc.GetComponent<NavMeshAgent>());
+            Assert.IsNotNull(npc.GetComponent<NpcPatrolController>());
+            var laneNavigation = Object.FindFirstObjectByType<
+                RuntimeLaneNavMesh>();
+            Assert.IsNotNull(laneNavigation);
+            Assert.IsTrue(laneNavigation.IsReady);
+            Assert.Greater(laneNavigation.SourceCount, 0);
             Assert.IsNotNull(GameObject.Find("Huarong Lane Art"));
+            Assert.IsNotNull(GameObject.Find("Ground Mist"));
+            Assert.IsNotNull(GameObject.Find("Veiled Moon"));
             Assert.IsTrue(RenderSettings.fog);
             Assert.AreEqual(52f, Camera.main.fieldOfView, 0.1f);
             Assert.IsNotNull(Object.FindFirstObjectByType<
@@ -68,6 +87,27 @@ namespace NovelSim.Tests
             Assert.AreEqual(7, manager.State.version);
             Object.Destroy(host);
             WorldSessionManager.ClearSavedSession();
+        }
+
+        [UnityTest]
+        public IEnumerator NearbyInteractionTargetReceivesVisualFocus()
+        {
+            var player = GameObject.Find("Player");
+            var npc = GameObject.Find("Lane Guard NPC");
+            Assert.IsNotNull(player);
+            Assert.IsNotNull(npc);
+            var interactor = player.GetComponent<PlayerInteractor>();
+            var target = npc.GetComponent<InteractionTarget>();
+            Assert.IsNotNull(interactor);
+            Assert.IsNotNull(target);
+
+            player.transform.position =
+                npc.transform.position + npc.transform.forward * 1.2f;
+            Physics.SyncTransforms();
+            yield return null;
+
+            Assert.AreSame(target, interactor.CurrentTarget);
+            Assert.IsTrue(target.IsFocused);
         }
 
         [UnityTest]

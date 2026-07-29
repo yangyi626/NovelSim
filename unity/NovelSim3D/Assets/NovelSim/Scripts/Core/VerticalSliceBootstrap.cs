@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using UnityEngine;
+using UnityEngine.AI;
 using NovelSim.Characters;
 using NovelSim.Interaction;
 using NovelSim.Network;
@@ -50,9 +51,12 @@ namespace NovelSim.Core
 
             var cameraTransform = EnsureCamera();
             CreateLighting();
-            HuarongLaneVisualDirector.BuildEnvironment(transform);
-            var npc = CreateNpc();
+            var environment =
+                HuarongLaneVisualDirector.BuildEnvironment(transform);
+            var navigation = systems.AddComponent<RuntimeLaneNavMesh>();
+            navigation.Build(environment);
             var interactor = CreatePlayer(cameraTransform, session, hud);
+            var npc = CreateNpc(interactor.transform);
             gameObject.AddComponent<StandaloneInteractionSmokeRunner>()
                 .Configure(session, interactor, npc);
             StartCoroutine(StartSessionNextFrame(session));
@@ -104,9 +108,32 @@ namespace NovelSim.Core
             light.shadowStrength = 0.72f;
             lightObject.transform.SetParent(transform);
             lightObject.transform.rotation = Quaternion.Euler(52f, -28f, 0f);
+
+            var fillObject = new GameObject("Lantern Character Fill");
+            fillObject.transform.SetParent(transform);
+            fillObject.transform.position = new Vector3(-2.4f, 3.7f, 2.5f);
+            var fill = fillObject.AddComponent<Light>();
+            fill.type = LightType.Point;
+            fill.color = new Color(1f, 0.35f, 0.12f);
+            fill.intensity = 2.8f;
+            fill.range = 8.5f;
+            fill.shadows = LightShadows.None;
+
+            var rimObject = new GameObject("Rain Blue Rim");
+            rimObject.transform.SetParent(transform);
+            rimObject.transform.position = new Vector3(2f, 5.5f, 11f);
+            rimObject.transform.rotation = Quaternion.Euler(42f, 194f, 0f);
+            var rim = rimObject.AddComponent<Light>();
+            rim.type = LightType.Spot;
+            rim.color = new Color(0.2f, 0.5f, 0.82f);
+            rim.intensity = 3.2f;
+            rim.range = 17f;
+            rim.spotAngle = 58f;
+            rim.innerSpotAngle = 32f;
+            rim.shadows = LightShadows.Soft;
         }
 
-        private InteractionTarget CreateNpc()
+        private InteractionTarget CreateNpc(Transform player)
         {
             var npc = new GameObject("Lane Guard NPC");
             npc.name = "Lane Guard NPC";
@@ -114,14 +141,22 @@ namespace NovelSim.Core
             npc.transform.position = new Vector3(0.85f, 0.08f, 6f);
             npc.transform.rotation = Quaternion.Euler(0f, 198f, 0f);
             var collider = npc.AddComponent<CapsuleCollider>();
-            collider.center = new Vector3(0f, 1.15f, 0f);
-            collider.height = 2.3f;
+            collider.center = new Vector3(0f, 1.36f, 0f);
+            collider.height = 2.72f;
             collider.radius = 0.52f;
             var target = npc.AddComponent<InteractionTarget>();
             target.Configure(
                 "华容巷守卫",
                 "走近守卫，询问华容巷里刚才发生了什么");
             HuarongLaneVisualDirector.BuildGuardVisual(npc.transform);
+            var agent = npc.AddComponent<NavMeshAgent>();
+            agent.baseOffset = 0.06f;
+            npc.AddComponent<NpcPatrolController>().Configure(
+                player,
+                new Vector3(0.85f, 0.08f, 6f),
+                new Vector3(-1.35f, 0.08f, 9.4f),
+                new Vector3(1.8f, 0.08f, 12.2f),
+                new Vector3(-0.6f, 0.08f, 8f));
             return target;
         }
 
@@ -134,9 +169,9 @@ namespace NovelSim.Core
             player.transform.SetParent(transform);
             player.transform.position = new Vector3(0f, 0.08f, -5.5f);
             var controller = player.AddComponent<CharacterController>();
-            controller.height = 2.35f;
+            controller.height = 2.72f;
             controller.radius = 0.5f;
-            controller.center = new Vector3(0f, 1.16f, 0f);
+            controller.center = new Vector3(0f, 1.36f, 0f);
             controller.skinWidth = 0.06f;
             player.AddComponent<ThirdPersonMotor>().Configure(cameraTransform);
             var interactor = player.AddComponent<PlayerInteractor>();

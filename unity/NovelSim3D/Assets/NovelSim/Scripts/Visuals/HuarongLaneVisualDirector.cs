@@ -13,7 +13,7 @@ namespace NovelSim.Visuals
     {
         private static readonly Dictionary<string, Material> Materials = new();
 
-        public static void BuildEnvironment(Transform parent)
+        public static Transform BuildEnvironment(Transform parent)
         {
             ConfigureAtmosphere();
 
@@ -26,204 +26,21 @@ namespace NovelSim.Visuals
             CreateLanterns(root.transform);
             CreateStreetProps(root.transform);
             CreateRain(root.transform);
+            CreateGroundMist(root.transform);
+            CreateMoonBackdrop(root.transform);
+            return root.transform;
         }
 
-        public static void BuildPlayerVisual(Transform root)
+        public static NovelSim.Characters.StylizedCharacterAnimator
+            BuildPlayerVisual(Transform root)
         {
-            var visual = new GameObject("Ye Qingge Visual");
-            visual.transform.SetParent(root, false);
-
-            var robe = Material(
-                "Player Robe",
-                new Color(0.035f, 0.12f, 0.17f),
-                0.42f);
-            var robeEdge = Material(
-                "Player Robe Edge",
-                new Color(0.08f, 0.38f, 0.44f),
-                0.5f,
-                new Color(0.01f, 0.04f, 0.05f));
-            var sash = Material(
-                "Crimson Sash",
-                new Color(0.48f, 0.035f, 0.045f),
-                0.32f);
-            var skin = Material(
-                "Skin",
-                new Color(0.78f, 0.58f, 0.47f),
-                0.45f);
-            var hair = Material(
-                "Ink Hair",
-                new Color(0.008f, 0.012f, 0.018f),
-                0.55f);
-
-            Primitive(
-                PrimitiveType.Capsule,
-                "Layered Robe",
-                visual.transform,
-                new Vector3(0f, 1.1f, 0f),
-                new Vector3(0.52f, 0.72f, 0.38f),
-                Quaternion.identity,
-                robe);
-            Primitive(
-                PrimitiveType.Cylinder,
-                "Lower Robe",
-                visual.transform,
-                new Vector3(0f, 0.55f, 0f),
-                new Vector3(0.58f, 0.55f, 0.48f),
-                Quaternion.identity,
-                robe);
-            Primitive(
-                PrimitiveType.Cube,
-                "Waist Sash",
-                visual.transform,
-                new Vector3(0f, 1.08f, 0f),
-                new Vector3(1.02f, 0.12f, 0.72f),
-                Quaternion.identity,
-                sash);
-            Primitive(
-                PrimitiveType.Sphere,
-                "Head",
-                visual.transform,
-                new Vector3(0f, 2.02f, 0f),
-                new Vector3(0.68f, 0.78f, 0.68f),
-                Quaternion.identity,
-                skin);
-            Primitive(
-                PrimitiveType.Sphere,
-                "Hair",
-                visual.transform,
-                new Vector3(0f, 2.22f, 0.04f),
-                new Vector3(0.76f, 0.54f, 0.74f),
-                Quaternion.identity,
-                hair);
-            Primitive(
-                PrimitiveType.Sphere,
-                "Hair Knot",
-                visual.transform,
-                new Vector3(0f, 2.57f, 0.08f),
-                new Vector3(0.34f, 0.38f, 0.34f),
-                Quaternion.identity,
-                hair);
-            CreateArm(
-                visual.transform,
-                "Left Sleeve",
-                new Vector3(-0.47f, 1.25f, 0f),
-                7f,
-                robeEdge);
-            CreateArm(
-                visual.transform,
-                "Right Sleeve",
-                new Vector3(0.47f, 1.25f, 0f),
-                -7f,
-                robeEdge);
+            return StylizedCharacterFactory.BuildPlayer(root);
         }
 
-        public static void BuildGuardVisual(Transform root)
+        public static NovelSim.Characters.StylizedCharacterAnimator
+            BuildGuardVisual(Transform root)
         {
-            var visual = new GameObject("Guard Visual");
-            visual.transform.SetParent(root, false);
-
-            var cloth = Material(
-                "Guard Cloth",
-                new Color(0.19f, 0.055f, 0.045f),
-                0.3f);
-            var armor = Material(
-                "Guard Armor",
-                new Color(0.13f, 0.16f, 0.18f),
-                0.68f,
-                new Color(0.008f, 0.012f, 0.014f),
-                0.45f);
-            var bronze = Material(
-                "Old Bronze",
-                new Color(0.42f, 0.26f, 0.09f),
-                0.65f,
-                Color.black,
-                0.62f);
-            var skin = Material(
-                "Guard Skin",
-                new Color(0.64f, 0.43f, 0.34f),
-                0.38f);
-            var dark = Material(
-                "Guard Dark",
-                new Color(0.015f, 0.018f, 0.022f),
-                0.5f);
-
-            Primitive(
-                PrimitiveType.Capsule,
-                "Guard Body",
-                visual.transform,
-                new Vector3(0f, 1.08f, 0f),
-                new Vector3(0.56f, 0.7f, 0.4f),
-                Quaternion.identity,
-                cloth);
-            Primitive(
-                PrimitiveType.Cube,
-                "Lamellar Armor",
-                visual.transform,
-                new Vector3(0f, 1.43f, 0.02f),
-                new Vector3(1.02f, 0.72f, 0.76f),
-                Quaternion.identity,
-                armor);
-            Primitive(
-                PrimitiveType.Cube,
-                "Armor Belt",
-                visual.transform,
-                new Vector3(0f, 1.04f, 0f),
-                new Vector3(1.08f, 0.13f, 0.78f),
-                Quaternion.identity,
-                bronze);
-            Primitive(
-                PrimitiveType.Sphere,
-                "Guard Head",
-                visual.transform,
-                new Vector3(0f, 2.08f, 0f),
-                new Vector3(0.7f, 0.76f, 0.7f),
-                Quaternion.identity,
-                skin);
-            Primitive(
-                PrimitiveType.Cylinder,
-                "Guard Hat",
-                visual.transform,
-                new Vector3(0f, 2.46f, 0f),
-                new Vector3(0.56f, 0.08f, 0.56f),
-                Quaternion.identity,
-                dark);
-            Primitive(
-                PrimitiveType.Sphere,
-                "Guard Hat Crown",
-                visual.transform,
-                new Vector3(0f, 2.58f, 0f),
-                new Vector3(0.36f, 0.26f, 0.36f),
-                Quaternion.identity,
-                dark);
-            CreateArm(
-                visual.transform,
-                "Guard Left Arm",
-                new Vector3(-0.58f, 1.44f, 0f),
-                8f,
-                armor);
-            CreateArm(
-                visual.transform,
-                "Guard Right Arm",
-                new Vector3(0.58f, 1.44f, 0f),
-                -8f,
-                armor);
-
-            Primitive(
-                PrimitiveType.Cylinder,
-                "Spear Shaft",
-                visual.transform,
-                new Vector3(0.9f, 1.35f, 0f),
-                new Vector3(0.045f, 1.5f, 0.045f),
-                Quaternion.identity,
-                dark);
-            Primitive(
-                PrimitiveType.Cylinder,
-                "Spear Head",
-                visual.transform,
-                new Vector3(0.9f, 2.95f, 0f),
-                new Vector3(0.11f, 0.22f, 0.11f),
-                Quaternion.identity,
-                bronze);
+            return StylizedCharacterFactory.BuildGuard(root);
         }
 
         private static void ConfigureAtmosphere()
@@ -711,6 +528,103 @@ namespace NovelSim.Visuals
             particles.Play();
         }
 
+        private static void CreateGroundMist(Transform parent)
+        {
+            var mistObject = new GameObject("Ground Mist");
+            mistObject.transform.SetParent(parent, false);
+            mistObject.transform.localPosition = new Vector3(0f, 0.32f, 5f);
+            var particles = mistObject.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            var main = particles.main;
+            main.loop = true;
+            main.duration = 9f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(7f, 12f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.08f, 0.22f);
+            main.startSize = new ParticleSystem.MinMaxCurve(2.2f, 4.8f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.15f, 0.28f, 0.36f, 0.035f),
+                new Color(0.28f, 0.38f, 0.44f, 0.07f));
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 70;
+
+            var emission = particles.emission;
+            emission.rateOverTime = 4.5f;
+
+            var shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(9f, 0.3f, 31f);
+
+            var velocity = particles.velocityOverLifetime;
+            velocity.enabled = true;
+            velocity.x = new ParticleSystem.MinMaxCurve(-0.08f, 0.12f);
+            velocity.z = new ParticleSystem.MinMaxCurve(0.03f, 0.12f);
+
+            var color = particles.colorOverLifetime;
+            color.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(
+                        new Color(0.16f, 0.24f, 0.3f),
+                        0f),
+                    new GradientColorKey(
+                        new Color(0.32f, 0.38f, 0.42f),
+                        0.5f),
+                    new GradientColorKey(
+                        new Color(0.14f, 0.2f, 0.25f),
+                        1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f),
+                    new GradientAlphaKey(0.7f, 0.32f),
+                    new GradientAlphaKey(0f, 1f),
+                });
+            color.color = gradient;
+
+            var renderer = mistObject.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortingFudge = -8f;
+            renderer.sharedMaterial = MistMaterial();
+            particles.Play();
+        }
+
+        private static void CreateMoonBackdrop(Transform parent)
+        {
+            var moon = Material(
+                "Rain Veiled Moon",
+                new Color(0.56f, 0.67f, 0.72f),
+                0.78f,
+                new Color(0.22f, 0.34f, 0.42f));
+            Primitive(
+                PrimitiveType.Sphere,
+                "Veiled Moon",
+                parent,
+                new Vector3(-11f, 15f, 32f),
+                new Vector3(4.2f, 4.2f, 1.2f),
+                Quaternion.identity,
+                moon);
+
+            var silhouette = Material(
+                "Distant Roof Silhouette",
+                new Color(0.012f, 0.025f, 0.036f),
+                0.2f);
+            for (var index = 0; index < 5; index++)
+            {
+                var x = -11f + index * 5.5f;
+                Primitive(
+                    PrimitiveType.Cube,
+                    $"Distant Roof {index + 1}",
+                    parent,
+                    new Vector3(x, 3.2f + index % 2, 29f + index),
+                    new Vector3(5.8f, 0.32f, 2.4f),
+                    Quaternion.Euler(0f, 0f, index % 2 == 0 ? 8f : -8f),
+                    silhouette);
+            }
+        }
+
         private static void CreatePuddle(
             Transform parent,
             Vector3 position,
@@ -837,6 +751,29 @@ namespace NovelSim.Visuals
             SetMaterialColor(
                 material,
                 new Color(0.42f, 0.67f, 0.9f, 0.32f));
+            Materials[name] = material;
+            return material;
+        }
+
+        private static Material MistMaterial()
+        {
+            const string name = "Ground Mist Material";
+            if (Materials.TryGetValue(name, out var existing))
+            {
+                return existing;
+            }
+            var shader = Shader.Find(
+                "Universal Render Pipeline/Particles/Unlit")
+                ?? Shader.Find("Particles/Standard Unlit")
+                ?? Shader.Find("Sprites/Default");
+            var material = new Material(shader)
+            {
+                name = name,
+                hideFlags = HideFlags.DontSave,
+            };
+            SetMaterialColor(
+                material,
+                new Color(0.42f, 0.56f, 0.62f, 0.18f));
             Materials[name] = material;
             return material;
         }

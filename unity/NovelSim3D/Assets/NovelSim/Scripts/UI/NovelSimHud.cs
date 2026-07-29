@@ -17,6 +17,8 @@ namespace NovelSim.UI
             "暴雨洗过华容巷的青石，檐下灯火在积水里摇晃。"
             + "守卫按住刀柄，正审视着每一个靠近的人。";
         private string interactionHint = string.Empty;
+        private string interactionFeedback = string.Empty;
+        private float interactionFeedbackUntil;
         private bool developerPanel;
         private Texture2D panelTexture;
         private Texture2D softPanelTexture;
@@ -50,6 +52,12 @@ namespace NovelSim.UI
         public void SetInteractionHint(string value)
         {
             interactionHint = value ?? string.Empty;
+        }
+
+        public void SetInteractionFeedback(string value)
+        {
+            interactionFeedback = value ?? string.Empty;
+            interactionFeedbackUntil = Time.unscaledTime + 2.4f;
         }
 
         private void OnDestroy()
@@ -183,11 +191,11 @@ namespace NovelSim.UI
             GUI.DrawTexture(panel, softPanelTexture);
             GUI.Label(
                 new Rect(panel.x + 14f, panel.y + 7f, width - 28f, 21f),
-                "WASD  移动     按住右键  环视",
+                "WASD  移动     Shift  疾跑",
                 bodyStyle);
             GUI.Label(
                 new Rect(panel.x + 14f, panel.y + 31f, width - 28f, 19f),
-                "滚轮  镜头远近     F1  世界调试",
+                "右键  环视     滚轮  远近     F1  调试",
                 mutedStyle);
         }
 
@@ -202,23 +210,35 @@ namespace NovelSim.UI
                 (Screen.width - width) * 0.5f,
                 Screen.height * 0.61f,
                 width,
-                54f);
+                70f);
             GUI.DrawTexture(panel, softPanelTexture);
             GUI.DrawTexture(
-                new Rect(panel.x + 10f, panel.y + 10f, 34f, 34f),
+                new Rect(panel.x + 10f, panel.y + 18f, 34f, 34f),
                 accentTexture);
             GUI.Label(
-                new Rect(panel.x + 10f, panel.y + 11f, 34f, 30f),
+                new Rect(panel.x + 10f, panel.y + 20f, 34f, 30f),
                 "E",
                 hintStyle);
             GUI.Label(
                 new Rect(
                     panel.x + 58f,
-                    panel.y + 13f,
+                    panel.y + 10f,
                     panel.width - 72f,
-                    30f),
+                    28f),
                 interactionHint.Replace("按 E ", string.Empty),
                 bodyStyle);
+            if (!string.IsNullOrWhiteSpace(interactionFeedback)
+                && Time.unscaledTime < interactionFeedbackUntil)
+            {
+                GUI.Label(
+                    new Rect(
+                        panel.x + 58f,
+                        panel.y + 40f,
+                        panel.width - 72f,
+                        18f),
+                    interactionFeedback,
+                    mutedStyle);
+            }
         }
 
         private void DrawDeveloperPanel()
@@ -441,6 +461,8 @@ namespace NovelSim.UI
 
         private void OnTurnCompleted(TurnResponse response)
         {
+            interactionFeedback = "世界已经回应";
+            interactionFeedbackUntil = Time.unscaledTime + 2.4f;
             var builder = new StringBuilder();
             if (!string.IsNullOrWhiteSpace(response.narrative?.narration))
             {
