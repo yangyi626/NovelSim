@@ -92,6 +92,8 @@ def evaluate_trajectory(
             | set(state.items)
             | set(state.locations)
             | set(state.plot)
+            | set(state.facts)
+            | set(state.alliances)
         )
         for target_id in event.target_ids:
             if target_id not in known_targets:

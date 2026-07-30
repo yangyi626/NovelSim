@@ -47,6 +47,40 @@ def check_narrative(
 ) -> NarrativeCheckResult:
     """审查叙事输出。error 级违规视为不通过。"""
     violations: List[NarrativeViolation] = []
+    strict_grounding = any(
+        constraint.strict_narrative_grounding
+        for constraint in state.world_constraints
+    )
+    strict_knowledge = any(
+        constraint.strict_knowledge_boundaries
+        for constraint in state.world_constraints
+    )
+
+    if strict_grounding and event.event_id not in narrative.grounded_event_ids:
+        violations.append(
+            NarrativeViolation(
+                "error",
+                "event_grounding",
+                f"叙事未声明已提交事件依据: {event.event_id}",
+            )
+        )
+
+    known_entity_ids = (
+        set(state.characters)
+        | set(state.items)
+        | set(state.locations)
+    )
+    for entity_id in narrative.referenced_entity_ids:
+        if entity_id not in known_entity_ids:
+            violations.append(
+                NarrativeViolation(
+                    "error",
+                    "referenced_entity_exists",
+                    f"叙事引用了不存在的实体: {entity_id}",
+                )
+            )
+
+    _check_unavailable_world_concepts(narrative, state, violations)
 
     for line in narrative.dialogues:
         # 说话者必须存在
@@ -65,7 +99,14 @@ def check_narrative(
             ))
         # 认知隔离: 说话者提到的"事实关键词"若超出其认知，记 warning
         # (启发式: 检查对白里是否出现说话者 belief=unknown 的 fact_id 关键词)
-        _check_knowledge_leak(line.speaker_id, line.line, state, event, violations)
+        _check_knowledge_leak(
+            line.speaker_id,
+            line.line,
+            state,
+            event,
+            violations,
+            strict=strict_knowledge,
+        )
 
     # 引用不存在的 to_id
     for line in narrative.dialogues:
@@ -87,6 +128,8 @@ def _check_knowledge_leak(
     state: WorldState,
     event: WorldEvent,
     out: List[NarrativeViolation],
+    *,
+    strict: bool = False,
 ) -> None:
     """启发式认知泄漏检测。
 
@@ -103,11 +146,53 @@ def _check_knowledge_leak(
         for kw in keywords:
             if kw and len(kw) >= 2 and kw in text:
                 out.append(NarrativeViolation(
-                    "warning", "knowledge_leak",
+                    "error" if strict else "warning",
+                    "knowledge_leak",
                     f"{speaker_id} 对白可能泄露未知事实 '{b.fact_id}' "
                     f"(关键词 '{kw}')",
                 ))
                 break
+
+
+def _check_unavailable_world_concepts(
+    narrative: NarrativeOutput,
+    state: WorldState,
+    out: List[NarrativeViolation],
+) -> None:
+    """拒绝叙事凭空引入当前世界明确不可用的概念。"""
+
+    text = "\n".join(
+        [
+            narrative.narration,
+            *narrative.system_hints,
+            *[line.line for line in narrative.dialogues],
+        ]
+    ).casefold()
+    forbidden = {
+        concept_id
+        for constraint in state.world_constraints
+        for concept_id in constraint.forbidden_concept_ids
+    }
+    for concept_id, concept in state.world_concepts.items():
+        if concept.available and concept_id not in forbidden:
+            continue
+        terms = [concept.display_name, *concept.aliases]
+        matched = next(
+            (
+                term
+                for term in terms
+                if term and str(term).casefold() in text
+            ),
+            None,
+        )
+        if matched:
+            out.append(
+                NarrativeViolation(
+                    "error",
+                    "world_concept_unavailable",
+                    f"叙事引入了当前世界不可用概念 {concept_id}: {matched}",
+                )
+            )
 
 
 def _extract_keywords(fact_id: str) -> List[str]:

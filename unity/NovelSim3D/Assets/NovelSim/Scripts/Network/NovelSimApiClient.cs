@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Globalization;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -22,6 +23,22 @@ namespace NovelSim.Network
             string sessionId,
             string text,
             Action<TurnResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator RunSecretLetterScene(
+            string route,
+            Action<SecretLetterRunResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator FetchPresentationSnapshot(
+            string sessionId,
+            Action<PresentationSnapshotResponse> onSuccess,
+            Action<string> onFailure);
+
+        IEnumerator FetchPresentationEvents(
+            string sessionId,
+            long afterSequence,
+            Action<PresentationEventsResponse> onSuccess,
             Action<string> onFailure);
     }
 
@@ -96,6 +113,64 @@ namespace NovelSim.Network
                 UnityWebRequest.kHttpVerbPOST,
                 ApiContractV1.SubmitTurn,
                 JsonUtility.ToJson(payload),
+                onSuccess,
+                onFailure);
+        }
+
+        public IEnumerator RunSecretLetterScene(
+            string route,
+            Action<SecretLetterRunResponse> onSuccess,
+            Action<string> onFailure)
+        {
+            var payload = new SecretLetterRunRequest
+            {
+                mode = "free",
+                route = string.IsNullOrWhiteSpace(route)
+                    ? "none"
+                    : route.Trim(),
+                save_name = string.Empty,
+            };
+            yield return SendJson(
+                UnityWebRequest.kHttpVerbPOST,
+                ApiContractV1.SecretLetterRun,
+                JsonUtility.ToJson(payload),
+                onSuccess,
+                onFailure);
+        }
+
+        public IEnumerator FetchPresentationSnapshot(
+            string sessionId,
+            Action<PresentationSnapshotResponse> onSuccess,
+            Action<string> onFailure)
+        {
+            var path = ApiContractV1.PresentationSnapshot
+                + "?session="
+                + UnityWebRequest.EscapeURL(sessionId ?? string.Empty);
+            yield return SendJson<PresentationSnapshotResponse>(
+                UnityWebRequest.kHttpVerbGET,
+                path,
+                null,
+                onSuccess,
+                onFailure);
+        }
+
+        public IEnumerator FetchPresentationEvents(
+            string sessionId,
+            long afterSequence,
+            Action<PresentationEventsResponse> onSuccess,
+            Action<string> onFailure)
+        {
+            var path = ApiContractV1.PresentationEvents
+                + "?session="
+                + UnityWebRequest.EscapeURL(sessionId ?? string.Empty)
+                + "&after_sequence="
+                + Math.Max(0L, afterSequence).ToString(
+                    CultureInfo.InvariantCulture)
+                + "&limit=100";
+            yield return SendJson<PresentationEventsResponse>(
+                UnityWebRequest.kHttpVerbGET,
+                path,
+                null,
                 onSuccess,
                 onFailure);
         }

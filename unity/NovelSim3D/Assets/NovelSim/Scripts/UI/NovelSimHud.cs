@@ -10,6 +10,9 @@ namespace NovelSim.UI
         private WorldSessionManager session;
         private NovelSimApiClient api;
         private string apiUrl;
+        private string worldTitle = "华容巷 · 暴雨夜";
+        private string currentObjective =
+            "穿过雨幕，向守卫打听华容巷刚才发生的事。";
         private string actionText = "观察四周并询问守卫";
         private string status = "正在初始化……";
         private string error = string.Empty;
@@ -19,6 +22,11 @@ namespace NovelSim.UI
         private string interactionHint = string.Empty;
         private string interactionFeedback = string.Empty;
         private float interactionFeedbackUntil;
+        private string allianceStatus = string.Empty;
+        private bool showcaseOverlay;
+        private string showcaseEyebrow = string.Empty;
+        private string showcaseTitle = string.Empty;
+        private string showcaseDetail = string.Empty;
         private bool developerPanel;
         private Texture2D panelTexture;
         private Texture2D softPanelTexture;
@@ -47,6 +55,7 @@ namespace NovelSim.UI
             session.ErrorRaised += OnErrorRaised;
             session.SessionChanged += OnSessionChanged;
             session.TurnCompleted += OnTurnCompleted;
+            session.SceneRunCompleted += OnSceneRunCompleted;
         }
 
         public void SetInteractionHint(string value)
@@ -60,6 +69,37 @@ namespace NovelSim.UI
             interactionFeedbackUntil = Time.unscaledTime + 2.4f;
         }
 
+        public void ShowPresentationMessage(string value)
+        {
+            SetInteractionFeedback(value);
+        }
+
+        public void SetAllianceStatus(string value)
+        {
+            allianceStatus = value ?? string.Empty;
+        }
+
+        public void SetShowcaseOverlay(
+            string eyebrow,
+            string title,
+            string detail)
+        {
+            showcaseOverlay = true;
+            showcaseEyebrow = eyebrow ?? string.Empty;
+            showcaseTitle = title ?? string.Empty;
+            showcaseDetail = detail ?? string.Empty;
+        }
+
+        public void ClearShowcaseOverlay()
+        {
+            showcaseOverlay = false;
+        }
+
+        public void SetDeveloperPanelVisible(bool value)
+        {
+            developerPanel = value;
+        }
+
         private void OnDestroy()
         {
             if (session != null)
@@ -68,6 +108,7 @@ namespace NovelSim.UI
                 session.ErrorRaised -= OnErrorRaised;
                 session.SessionChanged -= OnSessionChanged;
                 session.TurnCompleted -= OnTurnCompleted;
+                session.SceneRunCompleted -= OnSceneRunCompleted;
             }
             DestroyTexture(panelTexture);
             DestroyTexture(softPanelTexture);
@@ -88,10 +129,40 @@ namespace NovelSim.UI
             DrawNarrative();
             DrawControls();
             DrawInteractionHint();
+            if (showcaseOverlay)
+            {
+                DrawShowcaseOverlay();
+            }
             if (developerPanel)
             {
                 DrawDeveloperPanel();
             }
+        }
+
+        private void DrawShowcaseOverlay()
+        {
+            var width = Mathf.Min(760f, Screen.width - 48f);
+            var panel = new Rect(
+                (Screen.width - width) * 0.5f,
+                94f,
+                width,
+                112f);
+            GUI.DrawTexture(panel, panelTexture);
+            GUI.DrawTexture(
+                new Rect(panel.x, panel.y, 5f, panel.height),
+                accentTexture);
+            GUI.Label(
+                new Rect(panel.x + 22f, panel.y + 12f, width - 44f, 20f),
+                showcaseEyebrow,
+                eyebrowStyle);
+            GUI.Label(
+                new Rect(panel.x + 21f, panel.y + 31f, width - 42f, 34f),
+                showcaseTitle,
+                titleStyle);
+            GUI.Label(
+                new Rect(panel.x + 22f, panel.y + 69f, width - 44f, 34f),
+                showcaseDetail,
+                bodyStyle);
         }
 
         private void DrawHeader()
@@ -108,7 +179,7 @@ namespace NovelSim.UI
                 eyebrowStyle);
             GUI.Label(
                 new Rect(41f, 33f, 460f, 36f),
-                "华容巷 · 暴雨夜",
+                worldTitle,
                 titleStyle);
 
             var statusText = session != null && session.Busy
@@ -149,7 +220,9 @@ namespace NovelSim.UI
                 eyebrowStyle);
             GUI.Label(
                 new Rect(panel.x + 18f, panel.y + 35f, 286f, 36f),
-                "穿过雨幕，向守卫打听华容巷刚才发生的事。",
+                string.IsNullOrWhiteSpace(allianceStatus)
+                    ? currentObjective
+                    : allianceStatus,
                 bodyStyle);
         }
 
@@ -248,7 +321,7 @@ namespace NovelSim.UI
                 Screen.width - width - 24f,
                 112f,
                 width,
-                262f);
+                358f);
             GUI.DrawTexture(panel, panelTexture);
             GUILayout.BeginArea(new Rect(
                 panel.x + 18f,
@@ -295,6 +368,32 @@ namespace NovelSim.UI
                 GUILayout.Height(34f)))
             {
                 session.SubmitAction(actionText);
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8f);
+            GUILayout.Label("原创密信三路线（真实 ToolCall）", mutedStyle);
+            GUI.enabled = session != null && !session.Busy;
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(
+                "销毁密信",
+                buttonStyle,
+                GUILayout.Height(34f)))
+            {
+                session.RunSecretLetterRoute("destroy_letter");
+            }
+            if (GUILayout.Button(
+                "携信离开",
+                buttonStyle,
+                GUILayout.Height(34f)))
+            {
+                session.RunSecretLetterRoute("intercept_letter");
+            }
+            if (GUILayout.Button(
+                "公开真相",
+                buttonStyle,
+                GUILayout.Height(34f)))
+            {
+                session.RunSecretLetterRoute("expose_truth");
             }
             GUILayout.EndHorizontal();
             GUI.enabled = true;
@@ -452,11 +551,36 @@ namespace NovelSim.UI
 
         private void OnSessionChanged(SessionResponse response)
         {
+            var scenario = response.world_meta?.scenario ?? "未知场景";
+            worldTitle = scenario.Contains("密信")
+                ? "密信疑云 · 午夜前"
+                : "华容巷 · 暴雨夜";
+            currentObjective = scenario.Contains("密信")
+                ? "选择销毁、截获或公开密信；每条路线都会提交独立世界线。"
+                : "穿过雨幕，向守卫打听华容巷刚才发生的事。";
             narrative = response.resumed
                 ? $"已恢复存档：{response.save?.name}"
                 : "暴雨洗过华容巷的青石，檐下灯火在积水里摇晃。"
-                    + $"你已进入{response.world_meta?.scenario}，"
+                    + $"你已进入{scenario}，"
                     + "守卫按住刀柄，正审视着每一个靠近的人。";
+        }
+
+        private void OnSceneRunCompleted(SecretLetterRunResponse response)
+        {
+            var endingText = response.ending switch
+            {
+                "letter_destroyed" => "你销毁了唯一密信，传播链被中断。",
+                "player_intercepted" => "你携信离开门房，守卫失去证据。",
+                "truth_exposed" => "真相完成传播，管家与盟友建立防卫联盟。",
+                "defenders_allied" => "NPC 自主传播证据并建立防卫联盟。",
+                _ => $"路线结束：{response.ending}",
+            };
+            narrative =
+                $"{endingText}\n权威世界 v{response.state?.version ?? 0}，"
+                + $"长期记忆投影 {response.memory_record_count} 条。";
+            allianceStatus = response.objective_satisfied
+                ? "可信证据已改变联盟与剧情结局"
+                : "玩家干预改变了 NPC 的自主传播链";
         }
 
         private void OnTurnCompleted(TurnResponse response)

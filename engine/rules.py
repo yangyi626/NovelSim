@@ -10,9 +10,9 @@ action_type -> 一组内置校验函数。后续再外挂 YAML 规则。
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, List
+from typing import Callable, List, Optional, Set
 
-from world_schema import Action, ActionType, WorldState
+from world_schema import Action, ActionPolicy, ActionType, WorldState
 
 
 @dataclass
@@ -134,8 +134,213 @@ def _check_knowledge(
         )
 
 
+def _action_policy(state: WorldState, action: Action) -> Optional[ActionPolicy]:
+    return state.action_policies.get(action.action_type.value)
+
+
+def _check_action_policy(
+    state: WorldState,
+    action: Action,
+    out: List[RuleViolation],
+) -> None:
+    """检查 Action 形状；尤其禁止无目的地的 move 被当作成功移动。"""
+
+    policy = _action_policy(state, action)
+    if policy is not None:
+        for name in policy.required_parameters:
+            value = action.parameters.get(name)
+            if value is None or value == "" or value == []:
+                out.append(
+                    RuleViolation(
+                        "required_parameter",
+                        f"{action.action_type.value} requires parameter {name}",
+                    )
+                )
+        if policy.requires_target and not action.target_ids:
+            out.append(
+                RuleViolation(
+                    "target_required",
+                    f"{action.action_type.value} requires at least one target",
+                )
+            )
+
+    if action.action_type == ActionType.move:
+        destination_id = action.parameters.get("destination_id")
+        if not destination_id:
+            if policy is None:
+                out.append(
+                    RuleViolation(
+                        "destination_required",
+                        "move requires parameters.destination_id",
+                    )
+                )
+            return
+        if (
+            destination_id not in state.locations
+            and destination_id not in state.characters
+        ):
+            out.append(
+                RuleViolation(
+                    "destination_exists",
+                    f"unknown move destination: {destination_id}",
+                )
+            )
+
+
+def _concept_ids(action: Action) -> List[str]:
+    raw = action.parameters.get("concept_ids") or []
+    if isinstance(raw, str):
+        return [raw]
+    return [str(value) for value in raw]
+
+
+def _check_world_concepts(
+    state: WorldState,
+    action: Action,
+    out: List[RuleViolation],
+) -> None:
+    """检查 Action 显式引用的世界概念。"""
+
+    concept_ids = _concept_ids(action)
+    forbidden = {
+        concept_id
+        for constraint in state.world_constraints
+        for concept_id in constraint.forbidden_concept_ids
+    }
+    for concept_id in concept_ids:
+        concept = state.world_concepts.get(concept_id)
+        if concept is None:
+            out.append(
+                RuleViolation(
+                    "world_concept_exists",
+                    f"unknown world concept: {concept_id}",
+                )
+            )
+            continue
+        if not concept.available or concept_id in forbidden:
+            out.append(
+                RuleViolation(
+                    "world_concept_unavailable",
+                    f"world concept is unavailable: {concept_id}",
+                )
+            )
+
+    for constraint in state.world_constraints:
+        if not constraint.strict_allowlist or not concept_ids:
+            continue
+        allowed = set(constraint.allowed_concept_ids)
+        for concept_id in concept_ids:
+            concept = state.world_concepts.get(concept_id)
+            if concept and concept.category == constraint.category and concept_id not in allowed:
+                out.append(
+                    RuleViolation(
+                        "world_concept_not_allowed",
+                        f"{concept_id} is not allowed by {constraint.constraint_id}",
+                    )
+                )
+
+
+def _enabled_capabilities(state: WorldState, actor_id: str) -> Set[str]:
+    return {
+        capability.capability_id
+        for capability in state.character_capabilities.get(actor_id, [])
+        if capability.enabled
+    }
+
+
+def _check_capability_and_affordance(
+    state: WorldState,
+    action: Action,
+    out: List[RuleViolation],
+) -> None:
+    """检查角色能力，以及被操作实体是否公开当前动作。"""
+
+    required: Set[str] = set()
+    policy = _action_policy(state, action)
+    if policy is not None:
+        required.update(policy.required_capability_ids)
+
+    requested_capability = action.parameters.get("capability_id")
+    if requested_capability:
+        required.add(str(requested_capability))
+
+    for concept_id in _concept_ids(action):
+        concept = state.world_concepts.get(concept_id)
+        if concept is not None:
+            required.update(concept.required_capability_ids)
+
+    entity_id = None
+    if policy is not None and policy.affordance_parameter:
+        entity_id = action.parameters.get(policy.affordance_parameter)
+    if (
+        entity_id is None
+        and policy is not None
+        and policy.affordance_from_target
+        and action.target_ids
+    ):
+        entity_id = action.target_ids[0]
+    if entity_id is None:
+        entity_id = (
+            action.parameters.get("transport_entity_id")
+            or action.parameters.get("entity_id")
+        )
+    if entity_id:
+        if (
+            entity_id not in state.items
+            and entity_id not in state.characters
+            and entity_id not in state.locations
+        ):
+            out.append(
+                RuleViolation(
+                    "affordance_entity_exists",
+                    f"affordance entity does not exist: {entity_id}",
+                )
+            )
+        else:
+            matching = [
+                affordance
+                for affordance in state.entity_affordances.get(str(entity_id), [])
+                if affordance.enabled
+                and affordance.action_type == action.action_type.value
+            ]
+            if not matching:
+                out.append(
+                    RuleViolation(
+                        "affordance_missing",
+                        f"{entity_id} does not afford {action.action_type.value}",
+                    )
+                )
+            else:
+                for affordance in matching:
+                    if (
+                        affordance.concept_id
+                        and _concept_ids(action)
+                        and affordance.concept_id not in _concept_ids(action)
+                    ):
+                        out.append(
+                            RuleViolation(
+                                "affordance_concept_matches",
+                                f"{entity_id} does not implement requested concept",
+                            )
+                        )
+                    required.update(affordance.required_capability_ids)
+
+    available = _enabled_capabilities(state, action.actor.actor_id)
+    missing = sorted(required - available)
+    if missing:
+        out.append(
+            RuleViolation(
+                "capability_missing",
+                f"actor {action.actor.actor_id} lacks capabilities: {', '.join(missing)}",
+            )
+        )
+
+
 _CHECKS: List[Callable[[WorldState, Action, List[RuleViolation]], None]] = [
     _check_alive,
+    _check_action_policy,
+    _check_world_concepts,
+    _check_capability_and_affordance,
     _check_location,
     _check_item_owned,
     _check_knowledge,

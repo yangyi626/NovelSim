@@ -11,9 +11,12 @@ namespace NovelSim.Network
 
         public const string Metadata = "/api/meta/contract";
         public const string StartSession = "/api/start";
+        public const string SecretLetterRun = "/api/scenes/secret-letter/runs";
         public const string ResumeSession = "/api/session";
         public const string SubmitTurn = "/api/turn";
         public const string State = "/api/state";
         public const string Events = "/api/events";
+        public const string PresentationSnapshot = "/api/presentation-snapshot";
+        public const string PresentationEvents = "/api/presentation-events";
     }
 }

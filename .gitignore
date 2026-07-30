@@ -20,6 +20,8 @@ api_test_compat.py
 .pytest_cache/
 .coverage
 htmlcov/
+/tmp/
+portfolio/video/*.unity.log
 
 # editor
 .vscode/

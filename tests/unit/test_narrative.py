@@ -47,10 +47,12 @@ class TestConsistencyChecker:
         narr = NarrativeOutput(
             narration="夜轻歌冷冷开口",
             dialogues=[DialogueLine(speaker_id=NIGHT, line="脱下来", to_id=QINGQING)],
+            grounded_event_ids=["e1"],
+            referenced_entity_ids=[NIGHT, QINGQING],
         )
         assert check_narrative(narr, _ev(), snapshot).valid
 
-    def test_knowledge_leak_warning(self, snapshot):
+    def test_knowledge_leak_is_blocked_in_strict_world(self, snapshot):
         # 夜清清 belief 里 fact_qingqing_poisoned_tea=believed_true (她干的)
         # 但测一个她 unknown 的 fact: 临时塞一个，带中文关键词
         from world_schema import CharacterBelief
@@ -67,10 +69,11 @@ class TestConsistencyChecker:
                 speaker_id=QINGQING,
                 line="你居然是个穿越者！",
             )],
+            grounded_event_ids=["e1"],
+            referenced_entity_ids=[QINGQING],
         )
         r = check_narrative(narr, _ev(), s)
-        # warning 不阻断 valid
-        assert r.valid
+        assert not r.valid
         assert any(v.rule_id == "knowledge_leak" for v in r.violations)
 
 
@@ -113,6 +116,8 @@ class TestGeneratorParse:
             ],
             "system_hints": ["夜轻歌获得: 夜清清的外衫"],
             "viewpoint": "third_person",
+            "grounded_event_ids": ["e1"],
+            "referenced_entity_ids": [NIGHT, QINGQING, OUTER_ROBE],
         }, ensure_ascii=False)
         g = _make_gen([raw])
         ev = _event_with_robe_transfer()
@@ -129,9 +134,15 @@ class TestGeneratorParse:
         bad = json.dumps({
             "narration": "...",
             "dialogues": [{"speaker_id": LIN, "line": "我还说话"}],
+            "grounded_event_ids": ["e1"],
+            "referenced_entity_ids": [LIN],
         }, ensure_ascii=False)
-        good = json.dumps({"narration": "夜轻歌独自离去。", "dialogues": []},
-                          ensure_ascii=False)
+        good = json.dumps({
+            "narration": "夜轻歌独自离去。",
+            "dialogues": [],
+            "grounded_event_ids": ["e1"],
+            "referenced_entity_ids": [NIGHT],
+        }, ensure_ascii=False)
         g = _make_gen([bad, good])
         # 注意: 用 dead state，LIN 已死
         narr = g.generate(_event_with_robe_transfer(), dead)
@@ -139,8 +150,11 @@ class TestGeneratorParse:
         assert narr.narration == "夜轻歌独自离去。"
 
     def test_garbage_then_valid(self, snapshot):
-        good = json.dumps({"narration": "一切归于平静。", "dialogues": []},
-                          ensure_ascii=False)
+        good = json.dumps({
+            "narration": "一切归于平静。",
+            "dialogues": [],
+            "grounded_event_ids": ["e1"],
+        }, ensure_ascii=False)
         g = _make_gen(["not json", good])
         assert g.generate(_event_with_robe_transfer(), snapshot) is not None
 

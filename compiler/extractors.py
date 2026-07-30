@@ -24,6 +24,7 @@ import openai
 from pydantic import BaseModel, Field, ValidationError
 
 from engine.config import get_llm_config
+from engine.llm_telemetry import call_openai_compatible
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +331,9 @@ class EntityExtractor:
     def _call_llm(self, messages: list) -> str:
         if self.before_llm_call is not None:
             self.before_llm_call()
-        resp = openai.ChatCompletion.create(
+        resp = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="world_compiler_extraction",
             model=self.model, messages=messages, temperature=self.temperature,
         )
         return resp.choices[0].message.content.strip()

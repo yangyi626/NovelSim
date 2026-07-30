@@ -57,10 +57,66 @@ namespace NovelSim.Core
             navigation.Build(environment);
             var interactor = CreatePlayer(cameraTransform, session, hud);
             var npc = CreateNpc(interactor.transform);
+            var entityRegistry =
+                systems.AddComponent<WorldEntityRegistry>();
+            entityRegistry.RegisterEntity(
+                "char_yeqingge",
+                interactor.transform,
+                "loc_huarong_lane");
+            entityRegistry.RegisterEntity(
+                "char_player",
+                interactor.transform,
+                "loc_gatehouse");
+            entityRegistry.RegisterEntity(
+                "char_yeqingqing",
+                npc.transform,
+                "loc_huarong_lane");
+            entityRegistry.RegisterEntity(
+                "char_guard",
+                npc.transform,
+                "loc_gatehouse");
+            entityRegistry.RegisterLocation(
+                "loc_huarong_lane",
+                CreateLocationAnchor(
+                    "Huarong Lane Anchor",
+                    new Vector3(0f, 0.08f, 5f)));
+            entityRegistry.RegisterLocation(
+                "loc_yefu",
+                CreateLocationAnchor(
+                    "Ye Residence Anchor",
+                    new Vector3(0f, 0.08f, 13.5f)));
+            entityRegistry.RegisterLocation(
+                "loc_gatehouse",
+                CreateLocationAnchor(
+                    "Secret Letter Gatehouse Anchor",
+                    new Vector3(0f, 0.08f, 5f)));
+            entityRegistry.RegisterLocation(
+                "loc_courtyard",
+                CreateLocationAnchor(
+                    "Secret Letter Courtyard Anchor",
+                    new Vector3(0f, 0.08f, 13.5f)));
+            var presentationDispatcher =
+                systems.AddComponent<ToolEventDispatcher>();
+            presentationDispatcher.Configure(
+                session,
+                api,
+                entityRegistry,
+                hud);
             gameObject.AddComponent<StandaloneInteractionSmokeRunner>()
-                .Configure(session, interactor, npc);
+                .Configure(
+                    session,
+                    interactor,
+                    npc,
+                    presentationDispatcher);
             gameObject.AddComponent<StandaloneVisualCaptureRunner>()
                 .Configure(interactor.transform, npc.transform);
+            gameObject.AddComponent<StandaloneShowcaseRunner>()
+                .Configure(
+                    session,
+                    interactor,
+                    npc,
+                    presentationDispatcher,
+                    hud);
             StartCoroutine(StartSessionNextFrame(session));
         }
 
@@ -135,10 +191,19 @@ namespace NovelSim.Core
             rim.shadows = LightShadows.Soft;
         }
 
+        private Transform CreateLocationAnchor(
+            string anchorName,
+            Vector3 position)
+        {
+            var anchor = new GameObject(anchorName);
+            anchor.transform.SetParent(transform);
+            anchor.transform.position = position;
+            return anchor.transform;
+        }
+
         private InteractionTarget CreateNpc(Transform player)
         {
-            var npc = new GameObject("Lane Guard NPC");
-            npc.name = "Lane Guard NPC";
+            var npc = new GameObject("Ye Qingqing NPC");
             npc.transform.SetParent(transform);
             npc.transform.position = new Vector3(0.85f, 0.08f, 6f);
             npc.transform.rotation = Quaternion.Euler(0f, 198f, 0f);
@@ -148,9 +213,9 @@ namespace NovelSim.Core
             collider.radius = 0.52f;
             var target = npc.AddComponent<InteractionTarget>();
             target.Configure(
-                "华容巷守卫",
-                "走近守卫，询问华容巷里刚才发生了什么");
-            HuarongLaneVisualDirector.BuildGuardVisual(npc.transform);
+                "夜清清",
+                "我冷冷地命令夜清清把她的外衫脱下来给我");
+            HuarongLaneVisualDirector.BuildQingqingVisual(npc.transform);
             var agent = npc.AddComponent<NavMeshAgent>();
             agent.baseOffset = 0.06f;
             npc.AddComponent<NpcPatrolController>().Configure(
@@ -206,30 +271,39 @@ namespace NovelSim.Core
     {
         private const float SessionTimeout = 120f;
         private const float TurnTimeout = 360f;
+        private const float PresentationTimeout = 60f;
 
         private WorldSessionManager session;
         private PlayerInteractor interactor;
         private InteractionTarget target;
+        private ToolEventDispatcher presentationDispatcher;
         private bool enabledRunner;
         private bool resumeOnly;
+        private string secretLetterRoute;
         private string reportPath;
 
         public void Configure(
             WorldSessionManager manager,
             PlayerInteractor playerInteractor,
-            InteractionTarget interactionTarget)
+            InteractionTarget interactionTarget,
+            ToolEventDispatcher dispatcher)
         {
             session = manager;
             interactor = playerInteractor;
             target = interactionTarget;
+            presentationDispatcher = dispatcher;
             var args = Environment.GetCommandLineArgs();
             enabledRunner = HasArgument(args, "-novelsim-smoke-interact")
-                || HasArgument(args, "-novelsim-smoke-resume");
+                || HasArgument(args, "-novelsim-smoke-resume")
+                || HasArgument(args, "-novelsim-smoke-secret-letter");
             if (!enabledRunner)
             {
                 return;
             }
             resumeOnly = HasArgument(args, "-novelsim-smoke-resume");
+            secretLetterRoute = ArgumentValue(
+                args,
+                "-novelsim-smoke-secret-letter");
             reportPath = ArgumentValue(
                 args,
                 "-novelsim-smoke-report");
@@ -260,10 +334,39 @@ namespace NovelSim.Core
 
             if (resumeOnly)
             {
+                started = Time.realtimeSinceStartup;
+                var expectedSequence =
+                    (session.State?.version ?? 0) * 1000L + 1L;
+                while (
+                    presentationDispatcher != null
+                    && (
+                        presentationDispatcher.IsSyncing
+                        || presentationDispatcher.LastAcknowledgedSequence
+                            < expectedSequence))
+                {
+                    if (
+                        Time.realtimeSinceStartup - started
+                        > PresentationTimeout)
+                    {
+                        Finish(
+                            "failed",
+                            "等待表现快照恢复超时",
+                            7);
+                        yield break;
+                    }
+                    yield return null;
+                }
                 Finish("resume_ok", "存档恢复成功", 0);
                 yield break;
             }
 
+            if (!string.IsNullOrWhiteSpace(secretLetterRoute))
+            {
+                yield return RunSecretLetterRoute();
+                yield break;
+            }
+
+            var initialVersion = session.State?.version ?? 0;
             interactor.transform.position = target.transform.position
                 + target.transform.forward * 1.2f;
             Physics.SyncTransforms();
@@ -289,7 +392,132 @@ namespace NovelSim.Core
                 }
                 yield return null;
             }
+
+            if ((session.State?.version ?? 0) <= initialVersion)
+            {
+                var failure = string.IsNullOrWhiteSpace(
+                    session.LastTurn.rejection_message)
+                    ? $"回合状态为 {session.LastTurn.status}"
+                    : session.LastTurn.rejection_message;
+                Finish("failed", failure, 8);
+                yield break;
+            }
+
+            started = Time.realtimeSinceStartup;
+            var minimumSequence =
+                (session.State?.version ?? 0) * 1000L + 1L;
+            while (
+                presentationDispatcher != null
+                && (
+                    presentationDispatcher.IsSyncing
+                    || presentationDispatcher.DispatchedCommandCount < 1
+                    || presentationDispatcher.LastAcknowledgedSequence
+                        < minimumSequence))
+            {
+                if (
+                    Time.realtimeSinceStartup - started
+                    > PresentationTimeout)
+                {
+                    Finish(
+                        "failed",
+                        "世界已推进，但表现事件未被客户端消费",
+                        9);
+                    yield break;
+                }
+                yield return null;
+            }
             Finish("interaction_ok", "真实 E 交互完成", 0);
+        }
+
+        private IEnumerator RunSecretLetterRoute()
+        {
+            var expectedEnding = ExpectedSecretLetterEnding(
+                secretLetterRoute);
+            if (string.IsNullOrWhiteSpace(expectedEnding))
+            {
+                Finish(
+                    "failed",
+                    $"未知密信路线：{secretLetterRoute}",
+                    10);
+                yield break;
+            }
+
+            session.RunSecretLetterRoute(secretLetterRoute);
+            var started = Time.realtimeSinceStartup;
+            while (session.LastSceneRun == null)
+            {
+                if (!string.IsNullOrWhiteSpace(session.LastError))
+                {
+                    Finish("failed", session.LastError, 11);
+                    yield break;
+                }
+                if (Time.realtimeSinceStartup - started > TurnTimeout)
+                {
+                    Finish("failed", "等待密信路线完成超时", 12);
+                    yield break;
+                }
+                yield return null;
+            }
+
+            var result = session.LastSceneRun;
+            if (
+                result.status != "completed"
+                || result.world_package_id != "secret_letter_v1"
+                || result.route != secretLetterRoute
+                || result.ending != expectedEnding
+                || result.session_id != session.SessionId
+                || result.state == null
+                || result.state.timeline_id != session.State?.timeline_id
+                || result.state.version <= 0
+                || result.memory_record_count < result.state.version)
+            {
+                Finish(
+                    "failed",
+                    "密信路线响应与权威状态不一致",
+                    13);
+                yield break;
+            }
+
+            started = Time.realtimeSinceStartup;
+            while (
+                presentationDispatcher != null
+                && (
+                    presentationDispatcher.IsSyncing
+                    || presentationDispatcher.LastAcknowledgedSequence
+                        < result.presentation_cursor))
+            {
+                if (
+                    Time.realtimeSinceStartup - started
+                    > PresentationTimeout)
+                {
+                    Finish(
+                        "failed",
+                        "等待密信路线表现快照恢复超时",
+                        14);
+                    yield break;
+                }
+                yield return null;
+            }
+
+            Finish(
+                "secret_letter_ok",
+                $"密信路线完成：{result.route} → {result.ending}",
+                0);
+        }
+
+        private static string ExpectedSecretLetterEnding(string route)
+        {
+            switch (route)
+            {
+                case "destroy_letter":
+                    return "letter_destroyed";
+                case "intercept_letter":
+                    return "player_intercepted";
+                case "expose_truth":
+                    return "truth_exposed";
+                default:
+                    return string.Empty;
+            }
         }
 
         private void Finish(string status, string message, int exitCode)
@@ -301,6 +529,18 @@ namespace NovelSim.Core
                 session_id = session?.SessionId ?? string.Empty,
                 version = session?.State?.version ?? 0,
                 resumed = resumeOnly,
+                route = session?.LastSceneRun?.route ?? secretLetterRoute,
+                ending = session?.LastSceneRun?.ending ?? string.Empty,
+                world_package_id =
+                    session?.LastSceneRun?.world_package_id ?? string.Empty,
+                objective_satisfied =
+                    session?.LastSceneRun?.objective_satisfied ?? false,
+                memory_record_count =
+                    session?.LastSceneRun?.memory_record_count ?? 0,
+                presentation_sequence =
+                    presentationDispatcher?.LastAcknowledgedSequence ?? 0L,
+                presentation_commands =
+                    presentationDispatcher?.DispatchedCommandCount ?? 0,
             };
             var json = JsonUtility.ToJson(report, true);
             if (!string.IsNullOrWhiteSpace(reportPath))
@@ -352,6 +592,13 @@ namespace NovelSim.Core
             public string session_id;
             public int version;
             public bool resumed;
+            public string route;
+            public string ending;
+            public string world_package_id;
+            public bool objective_satisfied;
+            public int memory_record_count;
+            public long presentation_sequence;
+            public int presentation_commands;
         }
     }
 

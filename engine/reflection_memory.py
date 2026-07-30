@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, validator
 from world_schema import Belief, CharacterBelief, WorldState
 
 from .config import get_llm_config
+from .llm_telemetry import call_openai_compatible
 from .persistence import MemoryRecord, PersistenceError
 from .storage import WorldStore
 
@@ -217,7 +218,9 @@ class ReflectionGenerator:
         return []
 
     def _call_llm(self, messages: list) -> str:
-        response = openai.ChatCompletion.create(
+        response = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="reflection_generator",
             api_key=self.api_key,
             api_base=self.base_url,
             model=self.model,
@@ -321,7 +324,9 @@ class ReflectionSemanticJudge:
         return score
 
     def _call_llm(self, messages: list) -> str:
-        response = openai.ChatCompletion.create(
+        response = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="reflection_judge",
             api_key=self.api_key,
             api_base=self.base_url,
             model=self.model,

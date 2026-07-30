@@ -1,0 +1,9 @@
+# 阅读 evaluation/reports/pairwise-strong-human-packet-v1.md 后，
+# 把每个 __FILL_left_right_or_tie__ 替换为 left、right 或 tie。
+# 这是模板，不是人工结果；含占位符时校准命令会明确拒绝。
+{"schema_version":1,"sample_id":"pair_pair_robe_01","winner":"__FILL_left_right_or_tie__"}
+{"schema_version":1,"sample_id":"pair_pair_robe_02","winner":"__FILL_left_right_or_tie__"}
+{"schema_version":1,"sample_id":"pair_pair_robe_03","winner":"__FILL_left_right_or_tie__"}
+{"schema_version":1,"sample_id":"pair_pair_walk_01","winner":"__FILL_left_right_or_tie__"}
+{"schema_version":1,"sample_id":"pair_pair_walk_02","winner":"__FILL_left_right_or_tie__"}
+{"schema_version":1,"sample_id":"pair_pair_walk_03","winner":"__FILL_left_right_or_tie__"}

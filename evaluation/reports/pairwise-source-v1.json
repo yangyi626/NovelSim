@@ -1,0 +1,500 @@
+{
+  "schema_version": 1,
+  "suite_id": "novelsim-real-turn-v1",
+  "run_id": "real_llm_a1278a32160970a4",
+  "generated_at": "2026-07-29T17:00:12.479229+00:00",
+  "model": "qwen3.7-plus",
+  "required_run_count": 20,
+  "run_count": 6,
+  "complete": false,
+  "passed": false,
+  "state_commit_rate": 1.0,
+  "objective_success_rate": 1.0,
+  "replay_consistency_rate": 1.0,
+  "causal_valid_rate": 1.0,
+  "narrative_coverage_rate": 1.0,
+  "narrative_grounding_rate": 1.0,
+  "failure_distribution": {},
+  "total_latency": {
+    "sample_count": 6,
+    "mean_ms": 12400.328,
+    "p50_ms": 11944.619,
+    "p95_ms": 15585.515,
+    "max_ms": 15790.871
+  },
+  "llm_usage": {
+    "call_count": 18,
+    "failed_call_count": 0,
+    "prompt_tokens": 16368,
+    "completion_tokens": 3492,
+    "total_tokens": 19860,
+    "cached_tokens": 0,
+    "latency_ms": 74367.649
+  },
+  "estimated_cost": null,
+  "cost_currency": null,
+  "records": [
+    {
+      "case_id": "pair_robe_01",
+      "user_text": "夜轻歌伸手取过夜清清的外衫，披到自己肩上。",
+      "objective": "obtain_outer_robe",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "swap_object",
+      "operation_types": [
+        "transfer_item",
+        "update_relation",
+        "update_relation"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的晨风微凉，卷起几片枯叶。夜轻歌并未给身前的少女任何反应的时间，素手一探，径直从夜清清肩头扯下了那件月白色的外衫。衣料摩擦发出细微的声响，在寂静的巷道中显得格外刺耳。夜清清身形一僵，原本护在身前的双手落了空，只余下单薄的中衣暴露在微凉的空气中。夜轻歌动作行云流水，将那还带着对方体温的外衫披在自己身上，系好衣带，仿佛这原本就是属于她的东西。周围若有若无的目光让空气凝固了一瞬，夜清清死死咬着下唇，眼中闪过一丝屈辱与不可置信，却因顾忌周遭环境而未敢立刻发作，只是那看向嫡姐的眼神已彻底冷了下来。",
+      "dialogue_texts": [
+        "char_yeqingqing: 三姐姐……此举未免太过分了些。"
+      ],
+      "latency_ms": 15790.871,
+      "llm_calls": [
+        {
+          "call_id": "56d4f9e8efa54f3dafa80df976a396be",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1006,
+          "completion_tokens": 97,
+          "total_tokens": 1103,
+          "cached_tokens": 0,
+          "latency_ms": 2544.15,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "6fe8efbe33e343cc93850663fcd053a1",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 970,
+          "completion_tokens": 297,
+          "total_tokens": 1267,
+          "cached_tokens": 0,
+          "latency_ms": 5909.249,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "8b01c96dfa10469d8b90b716146e906e",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 822,
+          "completion_tokens": 376,
+          "total_tokens": 1198,
+          "cached_tokens": 0,
+          "latency_ms": 7333.623,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2798,
+        "completion_tokens": 770,
+        "total_tokens": 3568,
+        "cached_tokens": 0,
+        "latency_ms": 15787.022
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "pair_robe_02",
+      "user_text": "我当着众人的面取走夜清清身上的外衫。",
+      "objective": "obtain_outer_robe",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "swap_object",
+      "operation_types": [
+        "transfer_item",
+        "update_relation",
+        "update_relation"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的晨风微凉，却吹不散此刻凝滞的空气。夜轻歌并未多言，只是在那众目睽睽之下，伸手径直探向夜清清。指尖触及衣襟的瞬间，她动作干脆而决绝，一把扯下了夜清清身上的外衫。丝绸摩擦的细微声响在寂静中显得格外刺耳，那件象征着体面的外衣易主，落入夜轻歌手中。夜清清只觉肩头一凉，随即便是铺天盖地的羞耻与寒意，原本精致的妆容下，脸色瞬间变得煞白。",
+      "dialogue_texts": [
+        "char_yeqingqing: 你……！光天化日，你竟敢如此辱我！"
+      ],
+      "latency_ms": 14969.449,
+      "llm_calls": [
+        {
+          "call_id": "60009e261c1b4deb85c994133f16f985",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1004,
+          "completion_tokens": 94,
+          "total_tokens": 1098,
+          "cached_tokens": 0,
+          "latency_ms": 2409.208,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "b3e762b67ffa476c8168e3753d997b97",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 967,
+          "completion_tokens": 285,
+          "total_tokens": 1252,
+          "cached_tokens": 0,
+          "latency_ms": 5568.247,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "f1b900e358f345eca655c1987bd69da5",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 804,
+          "completion_tokens": 341,
+          "total_tokens": 1145,
+          "cached_tokens": 0,
+          "latency_ms": 6983.678,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2775,
+        "completion_tokens": 720,
+        "total_tokens": 3495,
+        "cached_tokens": 0,
+        "latency_ms": 14961.133
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "pair_robe_03",
+      "user_text": "我从夜清清手中拿走那件外衫。",
+      "objective": "obtain_outer_robe",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "swap_object",
+      "operation_types": [
+        "transfer_item",
+        "update_relation",
+        "update_relation"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的晨风微凉，卷起几片枯叶。夜轻歌目光一凛，并未多言，径直伸手探向夜清清。在那众目睽睽之下，她动作干脆而强硬，一把夺过了夜清清手中紧攥的外衫。布料摩擦发出细微的声响，夜清清指尖一空，原本属于她的衣物已落入夜轻歌掌中。这一举动毫无预兆，更带着几分不容置疑的霸道，令周围的空气瞬间凝固。",
+      "dialogue_texts": [
+        "char_yeqingqing: 你……！放肆！"
+      ],
+      "latency_ms": 13951.801,
+      "llm_calls": [
+        {
+          "call_id": "e2c37af4dd0d4fcab8506cd5330da9ff",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1002,
+          "completion_tokens": 94,
+          "total_tokens": 1096,
+          "cached_tokens": 0,
+          "latency_ms": 2141.686,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "ff0c5be406e446e9a4d52933a214e093",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 967,
+          "completion_tokens": 286,
+          "total_tokens": 1253,
+          "cached_tokens": 0,
+          "latency_ms": 5716.056,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "a1e99530d8ce4272ab316e5249be234a",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 801,
+          "completion_tokens": 308,
+          "total_tokens": 1109,
+          "cached_tokens": 0,
+          "latency_ms": 6084.968,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2770,
+        "completion_tokens": 688,
+        "total_tokens": 3458,
+        "cached_tokens": 0,
+        "latency_ms": 13942.71
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "pair_walk_01",
+      "user_text": "我步行回夜府。",
+      "objective": "reach_ye_residence",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "move",
+      "operation_types": [
+        "move_character"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的喧嚣渐行渐远，青石板路在脚下延伸，直至被朱红高墙取代。夜轻歌步履不停，穿过层层回廊，终于回到了夜府那熟悉而压抑的庭院之中。午前的阳光透过雕花窗棂洒下斑驳光影，却照不暖这深宅大院里的寒意。",
+      "dialogue_texts": [],
+      "latency_ms": 9925.779,
+      "llm_calls": [
+        {
+          "call_id": "fd4e6281a27b48dab843c1af8625794a",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 998,
+          "completion_tokens": 126,
+          "total_tokens": 1124,
+          "cached_tokens": 0,
+          "latency_ms": 2914.296,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "c2e0e661cf2c4fe5af4bb107e87b02b9",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 983,
+          "completion_tokens": 134,
+          "total_tokens": 1117,
+          "cached_tokens": 0,
+          "latency_ms": 2940.321,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "c819edbd716c44e38b6872e8bcb72599",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 705,
+          "completion_tokens": 190,
+          "total_tokens": 895,
+          "cached_tokens": 0,
+          "latency_ms": 4066.944,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2686,
+        "completion_tokens": 450,
+        "total_tokens": 3136,
+        "cached_tokens": 0,
+        "latency_ms": 9921.561
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "pair_walk_02",
+      "user_text": "夜轻歌沿着街道走回夜府。",
+      "objective": "reach_ye_residence",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "move",
+      "operation_types": [
+        "move_character"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "晨间的薄雾尚未散尽，华容巷的青石板路还带着夜露的湿意。夜轻歌敛去眉间的倦色，提起裙摆，沿着熟悉的街巷稳步前行。穿过几道回廊与影壁，那座朱红大门赫然出现在眼前——夜府到了。她跨过门槛，将市井的喧嚣隔绝在外，周身的气息也随之沉静下来。",
+      "dialogue_texts": [],
+      "latency_ms": 9937.436,
+      "llm_calls": [
+        {
+          "call_id": "91d6067b19f24f4d9ca4408d4915234d",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1002,
+          "completion_tokens": 125,
+          "total_tokens": 1127,
+          "cached_tokens": 0,
+          "latency_ms": 2643.064,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "6bc87ee5a655494280c40b20dd31b1b0",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 982,
+          "completion_tokens": 107,
+          "total_tokens": 1089,
+          "cached_tokens": 0,
+          "latency_ms": 2624.047,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "3c7cacd5aa09493bb51eda545f389a84",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 681,
+          "completion_tokens": 199,
+          "total_tokens": 880,
+          "cached_tokens": 0,
+          "latency_ms": 4667.472,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2665,
+        "completion_tokens": 431,
+        "total_tokens": 3096,
+        "cached_tokens": 0,
+        "latency_ms": 9934.583
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "pair_walk_03",
+      "user_text": "我离开华容巷，徒步前往夜府。",
+      "objective": "reach_ye_residence",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "move",
+      "operation_types": [
+        "move_character"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的喧嚣渐行渐远，青石板路在脚下延伸，直至被朱红高墙取代。夜轻歌敛去眸中神色，步履不停，穿过重重街巷，终于抵达了那座威严耸立的府邸门前。两尊石兽静默伫立，仿佛在审视着这位归家的三小姐。她抬阶而上，身影没入夜府的阴影之中。",
+      "dialogue_texts": [],
+      "latency_ms": 9826.63,
+      "llm_calls": [
+        {
+          "call_id": "2a846b47b2a842688391fdb6d1ed9232",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1003,
+          "completion_tokens": 129,
+          "total_tokens": 1132,
+          "cached_tokens": 0,
+          "latency_ms": 3002.266,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "b1e1b0039062468e820495b12dc86ef7",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 986,
+          "completion_tokens": 96,
+          "total_tokens": 1082,
+          "cached_tokens": 0,
+          "latency_ms": 2454.858,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "b534c12a779f4c66b2b6942d4772b62e",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 685,
+          "completion_tokens": 208,
+          "total_tokens": 893,
+          "cached_tokens": 0,
+          "latency_ms": 4363.516,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2674,
+        "completion_tokens": 433,
+        "total_tokens": 3107,
+        "cached_tokens": 0,
+        "latency_ms": 9820.64
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    }
+  ]
+}

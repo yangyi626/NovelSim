@@ -9,7 +9,12 @@ from .event import commit_event, replay_events
 from .rules import RuleEngine, RuleCheckResult
 from .action_parser import ActionParser, ParseError
 from .transition import TransitionProposer
-from .patch_validator import validate_patch, PatchCheckResult
+from .patch_validator import (
+    PatchCheckResult,
+    validate_action_patch,
+    validate_patch,
+    validate_tool_patch,
+)
 from .narrative import NarrativeGenerator
 from .narrative_consistency import check_narrative, NarrativeCheckResult
 from .character_agent import CharacterAgent, candidate_to_action
@@ -28,6 +33,50 @@ from .persistence import (
     SQLiteWorldStore,
     TurnRecord,
     VersionConflict,
+)
+from .agent_tools import (
+    CORE_TOOL_PERMISSIONS,
+    DestroyItemArguments,
+    GiveItemArguments,
+    MoveToArguments,
+    ObserveArguments,
+    PickUpArguments,
+    PresentationEvent,
+    ProposeAllianceArguments,
+    ShareInformationArguments,
+    TalkToArguments,
+    ToolCall,
+    ToolCandidate,
+    ToolContext,
+    ToolDefinition,
+    ToolExecutionError,
+    ToolFailure,
+    ToolFailureCode,
+    ToolRegistry,
+    ToolResult,
+    create_core_tool_registry,
+)
+from .agent_trace import (
+    AgentTrace,
+    AgentTraceRecorder,
+    AgentTraceSpan,
+    TraceSpanStatus,
+    TraceStage,
+)
+from .llm_telemetry import (
+    LLMCallUsage,
+    LLMUsageCollector,
+    LLMUsageSummary,
+    call_openai_compatible,
+    capture_llm_usage,
+    chat_generation_options,
+)
+from .agent_runtime import (
+    AgentExecution,
+    AgentExecutionOutcome,
+    AgentExecutionState,
+    AgentExecutionStateMachine,
+    AgentExecutionStatus,
 )
 from .embeddings import (
     CachedMemoryEmbedder,
@@ -93,6 +142,24 @@ from .world_packages import (
     WorldPackageValidationError,
     validate_world_package_payload,
 )
+from .scene_controller import (
+    SceneConfig,
+    SceneController,
+    SceneEnding,
+    SceneMode,
+    SceneRun,
+    SceneStatus,
+    SceneStep,
+    SceneSummary,
+    ScriptBeat,
+)
+from .presentation_stream import (
+    COMMANDS_PER_WORLD_VERSION,
+    PresentationCommand,
+    build_turn_presentation_events,
+    cursor_after_world_version,
+    project_presentation_commands,
+)
 
 __all__ = [
     "apply_patch",
@@ -105,6 +172,8 @@ __all__ = [
     "ParseError",
     "TransitionProposer",
     "validate_patch",
+    "validate_action_patch",
+    "validate_tool_patch",
     "PatchCheckResult",
     "NarrativeGenerator",
     "check_narrative",
@@ -124,6 +193,42 @@ __all__ = [
     "SQLiteWorldStore",
     "TurnRecord",
     "VersionConflict",
+    "CORE_TOOL_PERMISSIONS",
+    "DestroyItemArguments",
+    "GiveItemArguments",
+    "MoveToArguments",
+    "ObserveArguments",
+    "PickUpArguments",
+    "PresentationEvent",
+    "ProposeAllianceArguments",
+    "ShareInformationArguments",
+    "TalkToArguments",
+    "ToolCall",
+    "ToolCandidate",
+    "ToolContext",
+    "ToolDefinition",
+    "ToolExecutionError",
+    "ToolFailure",
+    "ToolFailureCode",
+    "ToolRegistry",
+    "ToolResult",
+    "create_core_tool_registry",
+    "AgentTrace",
+    "AgentTraceRecorder",
+    "AgentTraceSpan",
+    "TraceSpanStatus",
+    "TraceStage",
+    "LLMCallUsage",
+    "LLMUsageCollector",
+    "LLMUsageSummary",
+    "call_openai_compatible",
+    "capture_llm_usage",
+    "chat_generation_options",
+    "AgentExecution",
+    "AgentExecutionOutcome",
+    "AgentExecutionState",
+    "AgentExecutionStateMachine",
+    "AgentExecutionStatus",
     "EmbeddingError",
     "CachedMemoryEmbedder",
     "MemoryEmbedder",
@@ -172,4 +277,18 @@ __all__ = [
     "WorldPackageStore",
     "WorldPackageValidationError",
     "validate_world_package_payload",
+    "SceneConfig",
+    "SceneController",
+    "SceneEnding",
+    "SceneMode",
+    "SceneRun",
+    "SceneStatus",
+    "SceneStep",
+    "SceneSummary",
+    "ScriptBeat",
+    "COMMANDS_PER_WORLD_VERSION",
+    "PresentationCommand",
+    "build_turn_presentation_events",
+    "cursor_after_world_version",
+    "project_presentation_commands",
 ]

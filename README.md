@@ -1,6 +1,41 @@
-# NovelSim / AI 快穿系统
+# NovelSim：服务器权威的多 Agent 叙事游戏
 
-把长篇小说编译成可运行的结构化世界，并让玩家通过自然语言改变世界线的 AI 叙事系统。
+NovelSim 把自然语言变成**候选游戏行动**，再由确定性规则、受控工具和事件存储决定
+什么真正发生；Unity 只表现已经提交的世界事实。它解决的不是“让 LLM 多写几句
+对白”，而是让 3–5 个有限认知 NPC 能在真实游戏运行时自主行动，同时不把幻觉、
+越权意图或时代错误写进世界。
+
+## 招聘方 30 秒速览
+
+| 必答问题 | 当前实现与证据 |
+|---|---|
+| 解决什么 Game AI 问题？ | 自然语言行动、NPC 自主决策、多角色信息传播与玩家干预，最终落到可回放的游戏状态，而不只是生成文本。 |
+| 为什么不能只用 LLM？ | 提示词没有事务、权限和因果保证。6 个违规探针中，仅提示词的 G0 放过 `6` 个，完整确定性闭环 G3 放过 `0` 个。 |
+| 如何保证事实与认知一致？ | SQLite `WorldState + WorldEvent` 是唯一权威源；角色 belief 必须带来源事件和父证据，所有 `StatePatch` 经实体、规则、能力、时空、认知和因果校验后原子提交。 |
+| NPC 如何调用工具并在 Unity 执行？ | LLM 只提议 `ToolCall`；状态机负责校验、导航、执行、重试和恢复；Unity 按 `sequence + command_id` 消费已提交事件，驱动 NavMesh、对话、物品和联盟 HUD。 |
+| 多 Agent 出现了什么行为？ | 原创“密信疑云”中，守卫观察证据并逐跳传给管家和盟友，满足共同证据和关系阈值后才结盟；玩家可公开、销毁或截走密信，得到不同可回放结局。 |
+| 比基线提升了什么？ | 世界门禁违规放过 `6→0`；记忆 Hit@4 `0→0.84`、MRR `0→0.805`。主观写作对同模型 direct-prompt 强基线为诚实的 `3–3`；6 题真人盲标与 Judge 一致 `5/6`、Cohen's κ `0.667`，样本小，不宣称整体领先。 |
+| 如何在本地 5 分钟运行？ | `copy .env.example .env` 后双击 `start.cmd`；离线证据链演示运行 `.\.venv\Scripts\python.exe -m examples.secret_letter.demo --route none`。 |
+
+实测基线：
+
+- 9/9 固定场景通过；非法 Patch、未知实体接受、因果越权和认知泄漏均为 `0`；
+- 20/20 真实 `qwen3.7-plus` 固定回归完整运行，目标成功 `18/20`；
+- 14 个已提交事件的回放、因果证据、叙事覆盖和结构化事件依据均为 `100%`；
+- 45 次模型调用共 `49,255 Token`，总回合 P50/P95 为
+  `10.554s/16.469s`；
+- Windows x64 构建、真实 E 交互、事件命令消费和重启存档恢复已通过本地
+  smoke；三条密信路线也分别经 Unity → HTTP → SQLite 实包运行并在独立进程
+  中恢复相同终态。
+- [2 分 18 秒 Unity 单镜实机视频](portfolio/video/NovelSim-core-demo-v1.mp4)
+  已完成：同一 session 从 v0 提交到 v1，非法“开飞机”输入被拒且仍为 v1，
+  最后展示真实 LLM 评测结果。
+
+架构图、状态机和信息传播因果图见
+[`docs/作品集架构与因果图.md`](docs/作品集架构与因果图.md)；完整指标口径见
+[`docs/结构化场景评测.md`](docs/结构化场景评测.md)。Pairwise 已使用用户提供的
+6 题真人盲标离线校准，一致率 `83.33%`、Cohen's κ `0.667`，且
+`llm_calls_added=0`；主观标签不覆盖客观世界规则门禁。
 
 ## 当前状态
 
@@ -24,7 +59,9 @@ TXT 长篇小说
 - 3D 客户端：Unity 6.3 LTS + URP，关节化低多边形角色、程序动画、运行时 NavMesh、真实 E 交互、存档恢复和 Windows x64 构建已验证；
 - 编译任务：SQLite 租约队列 + 独立 Worker；
 - 治理：账户、RBAC、修订历史、审核审计和发布权限；
-- 质量：213 个本地确定性测试、版本化长轨迹回归、跨平台双小说指纹基准和 Playwright E2E；
+- 质量：333 个本地确定性测试、9 案例结构化场景评测、20 局真实 LLM
+  回归、6 组双基线 BOOKWORLD 风格盲测、G0–G3 世界门禁消融、版本化长轨迹
+  回归和 Playwright E2E；
 - API：核心契约冻结为 `1.0.0`。
 
 截至 2026-07-28，首轮两本小说 quick 真实 LLM 编译演练已经完成，共验证40章、
@@ -56,11 +93,11 @@ TXT 长篇小说
 
 安装 Unity `6000.3.15f1` 后，在 Unity Hub 中打开
 `unity/NovelSim3D`。首次导入会生成 `VerticalSlice` 场景；保持 `start.cmd`
-运行，进入 Play Mode 后即可用 WASD 接近守卫并按 E，把交互送入真实世界引擎。
+运行，进入 Play Mode 后即可用 WASD 接近夜清清并按 E，把交互送入真实世界引擎。
 场景包含程序化湿石路、古宅、牌楼、雨雾、动态灯笼、关节化风格人物和剧情 HUD；
-守卫会在运行时 NavMesh 上巡逻并在玩家接近时注视玩家。按住 Shift 疾跑，
+夜清清会在运行时 NavMesh 上巡行并在玩家接近时注视玩家。按住 Shift 疾跑，
 鼠标右键环视，滚轮调整镜头，F1 打开世界调试面板。
-锁定版本的 C# 编译、URP 绑定、EditMode `3/3` 和无图形 PlayMode `4/4`
+锁定版本的 C# 编译、URP 绑定、EditMode `6/6` 和无图形 PlayMode `7/7`
 已经通过。启动后会自动恢复上次服务端世界线；没有有效存档时才创建新世界线。
 
 生成并验收 Windows 包：
@@ -70,10 +107,16 @@ Set-Location unity\NovelSim3D
 .\build-windows.ps1
 .\capture-windows-preview.ps1
 .\run-windows-smoke.ps1
+.\record-showcase.ps1 -DurationSeconds 130
 ```
 
-后一个脚本会通过与 E 键相同的代码路径执行真实回合，再重启程序验证同一
-`session_id` 和世界版本被恢复。
+`run-windows-smoke.ps1` 会通过与 E 键相同的代码路径执行真实回合，并让三条
+密信路线分别经过 Unity → HTTP → SQLite；每次再启动独立进程验证相同
+`session_id`、世界版本和表现游标被恢复。
+`record-showcase.ps1` 使用固定 SHA-256 的 FFmpeg 二进制，只录 Unity 窗口区域，
+并同时校验真实 HTTP 回合、非法动作拒绝、存档恢复、结构化报告和 MP4 整段解码。
+已有 Windows 构建时，也可以回到仓库根目录双击 `start-unity-demo.cmd`，
+一次启动后端与 Unity 客户端。
 详见 [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md)。
 
 ## 验证
@@ -84,6 +127,14 @@ Set-Location unity\NovelSim3D
 
 # 版本化长轨迹回归
 .venv\Scripts\python.exe -m engine.trajectory_regression
+
+# 9 案例确定性评测
+.venv\Scripts\python.exe -m evaluation
+
+# 20 局真实模型评测（支持 --resume）
+.venv\Scripts\python.exe -m evaluation.real_runner `
+  --resume --output evaluation\reports\real-llm-v1.json `
+  --markdown evaluation\reports\real-llm-v1.md
 
 # 两本真实小说源文件指纹
 .venv\Scripts\python.exe -m compiler.benchmark scan
@@ -109,7 +160,14 @@ Pull Request 和 `main` 推送会由 `.github/workflows/ci.yml` 自动执行无�
 | 文档 | 内容 |
 |---|---|
 | [`docs/实现进度.md`](docs/实现进度.md) | 当前完成度、测试结果、技术栈和下一步 |
+| [`docs/结构化场景评测.md`](docs/结构化场景评测.md) | 9 案例客观指标、20 局真实回归、Pairwise、G0–G3 与无记忆消融 |
+| [`docs/作品集架构与因果图.md`](docs/作品集架构与因果图.md) | 项目架构、Agent 状态机、信息传播/联盟与非法飞机输入因果图 |
+| [`docs/求职版演示脚本.md`](docs/求职版演示脚本.md) | 2–3 分钟录屏分镜、验收清单和 10–15 分钟面试演示 |
+| [`docs/简历项目描述.md`](docs/简历项目描述.md) | 仅使用实测数字的简历版本与不可声称边界 |
+| [`docs/求职版交付审计.md`](docs/求职版交付审计.md) | 必须交付项、真人校准结果和最终实包验收证据 |
+| [`portfolio/README.md`](portfolio/README.md) | 原创公开密信世界包、SHA-256 与现场演示命令 |
 | [`docs/plan.md`](docs/plan.md) | 项目最终目标和原始总体蓝图 |
+| [`docs/GameAI_LLM_Agent求职版计划.md`](docs/GameAI_LLM_Agent求职版计划.md) | 当前求职版目标、里程碑、验收门槛和非目标 |
 | [`docs/Beta一键启动与CI.md`](docs/Beta一键启动与CI.md) | 一键启停、日志、健康检查和 CI |
 | [`docs/真实全书编译生产演练.md`](docs/真实全书编译生产演练.md) | quick/stress/full 真实编译演练 |
 | [`docs/生产化基线_Worker_RBAC_E2E.md`](docs/生产化基线_Worker_RBAC_E2E.md) | Worker、账户权限、审计、E2E 和多小说基准 |

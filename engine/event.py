@@ -52,6 +52,7 @@ def commit_event(
     expected_version: int | None = None,
     event_id: str | None = None,
     summary: str = "",
+    presentation_events: List[dict] | None = None,
 ) -> Tuple[WorldEvent, WorldState]:
     """提交一个事件。乐观锁: expected_version 不匹配则抛 CommitError。"""
 
@@ -75,6 +76,7 @@ def commit_event(
         previous_version=state.version,
         new_version=new_version,
         summary=summary,
+        presentation_events=list(presentation_events or []),
     )
     return event, new_state
 

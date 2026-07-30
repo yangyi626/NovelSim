@@ -10,6 +10,8 @@ import copy
 from typing import Any
 
 from world_schema import (
+    AllianceState,
+    BeliefEvidence,
     Character,
     CharacterBelief,
     CharacterRelation,
@@ -18,6 +20,7 @@ from world_schema import (
     Operation,
     OperationKind,
     PlotArc,
+    PropagationRecord,
     RelationDimensions,
     StatePatch,
     WorldState,
@@ -128,6 +131,22 @@ def _apply_one(state: WorldState, op: Operation) -> None:
                 state.characters[op.target_id].inventory.append(item_id)
         return
 
+    if k == OperationKind.destroy_item:
+        item_id = op.item_id or op.path
+        if item_id not in state.items:
+            raise PatchError(f"destroy unknown item: {item_id}")
+        item = state.items[item_id]
+        if item.owner_id and item.owner_id in state.characters:
+            inventory = state.characters[item.owner_id].inventory
+            if item_id in inventory:
+                inventory.remove(item_id)
+        item.owner_id = None
+        item.location_id = None
+        item.quantity = 0
+        item.accessible = False
+        item.attrs["destroyed"] = True
+        return
+
     if k == OperationKind.update_relation:
         src = op.source_id or ""
         tgt = op.target_id or ""
@@ -167,6 +186,51 @@ def _apply_one(state: WorldState, op: Operation) -> None:
             b.confidence = max(0.0, min(1.0, op.confidence))
         if op.source_type and op.source_type != "unknown":
             b.source_type = op.source_type
+        if op.source_character_id is not None:
+            b.source_character_id = op.source_character_id
+        if op.source_event_id is not None:
+            b.source_event_id = op.source_event_id
+        if op.evidence_event_ids is not None:
+            b.evidence_event_ids = list(dict.fromkeys(op.evidence_event_ids))
+        if op.valid_from is not None:
+            b.valid_from = op.valid_from
+        if op.valid_to is not None:
+            b.valid_to = op.valid_to
+        return
+
+    if k == OperationKind.record_evidence:
+        evidence = BeliefEvidence.parse_obj(op.value or {})
+        evidence_id = op.evidence_id or op.path or evidence.evidence_id
+        if evidence_id != evidence.evidence_id:
+            raise PatchError("record_evidence id mismatch")
+        if evidence_id in state.belief_evidence:
+            raise PatchError(f"duplicate evidence: {evidence_id}")
+        state.belief_evidence[evidence_id] = evidence
+        return
+
+    if k == OperationKind.record_propagation:
+        record = PropagationRecord.parse_obj(op.value or {})
+        propagation_id = (
+            op.propagation_id or op.path or record.propagation_id
+        )
+        if propagation_id != record.propagation_id:
+            raise PatchError("record_propagation id mismatch")
+        if any(
+            item.propagation_id == propagation_id
+            for item in state.propagation_history
+        ):
+            raise PatchError(f"duplicate propagation: {propagation_id}")
+        state.propagation_history.append(record)
+        return
+
+    if k == OperationKind.form_alliance:
+        alliance = AllianceState.parse_obj(op.value or {})
+        alliance_id = op.alliance_id or op.path or alliance.alliance_id
+        if alliance_id != alliance.alliance_id:
+            raise PatchError("form_alliance id mismatch")
+        if alliance_id in state.alliances:
+            raise PatchError(f"alliance already exists: {alliance_id}")
+        state.alliances[alliance_id] = alliance
         return
 
     if k == OperationKind.kill_character:

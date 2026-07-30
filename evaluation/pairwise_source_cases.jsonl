@@ -1,0 +1,6 @@
+{"schema_version":1,"case_id":"pair_robe_01","user_text":"夜轻歌伸手取过夜清清的外衫，披到自己肩上。","objective":"obtain_outer_robe"}
+{"schema_version":1,"case_id":"pair_robe_02","user_text":"我当着众人的面取走夜清清身上的外衫。","objective":"obtain_outer_robe"}
+{"schema_version":1,"case_id":"pair_robe_03","user_text":"我从夜清清手中拿走那件外衫。","objective":"obtain_outer_robe"}
+{"schema_version":1,"case_id":"pair_walk_01","user_text":"我步行回夜府。","objective":"reach_ye_residence"}
+{"schema_version":1,"case_id":"pair_walk_02","user_text":"夜轻歌沿着街道走回夜府。","objective":"reach_ye_residence"}
+{"schema_version":1,"case_id":"pair_walk_03","user_text":"我离开华容巷，徒步前往夜府。","objective":"reach_ye_residence"}

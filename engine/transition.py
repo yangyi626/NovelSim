@@ -21,10 +21,25 @@ from typing import List, Optional
 import openai
 from pydantic import ValidationError
 
-from world_schema import Action, Operation, OperationKind, StatePatch, WorldState
+from world_schema import (
+    Action,
+    CausalEvidence,
+    Operation,
+    OperationKind,
+    StatePatch,
+    WorldState,
+)
 
 from .config import get_llm_config
-from .patch_validator import validate_patch, PatchCheckResult
+from .llm_telemetry import (
+    call_openai_compatible,
+    chat_generation_options,
+)
+from .patch_validator import (
+    PatchCheckResult,
+    validate_action_patch,
+    validate_patch,
+)
 
 
 SYSTEM_PROMPT = """你是一个世界状态转移推演器。玩家执行了一个 Action，你需要推演这个行动对世界状态造成的变化，输出一个 StatePatch。
@@ -39,6 +54,7 @@ SYSTEM_PROMPT = """你是一个世界状态转移推演器。玩家执行了一�
 4. 数值变化要合理: 关系维度 delta 通常在 [-0.5, 0.5] 之间，单次剧烈变化不超过 0.8。
 5. 每条 operation 必须带 "reason" 字段，解释为什么这个变化会发生。
 6. 只输出"这个行动直接导致"的变化，不要推演连锁反应 (那是后续轮次的事)。
+7. 必须遵守上下文中的 ActionPolicy，只能使用它授权的 Patch 操作。
 
 # 合法操作 (op 字段的可选值)
 - "set_flag": path=开关名(如"plot.shaming_reversed"), value=布尔或值
@@ -108,13 +124,37 @@ class TransitionProposer:
             # patch 解析成功，再做语义校验
             check = validate_patch(state, patch)
             if check.valid:
-                return patch
-            # 校验失败，反馈给 LLM 重试
+                authorized = patch.copy(deep=True)
+                authorized.causal_evidence = CausalEvidence(
+                    action_id=action.action_id,
+                    actor_id=action.actor.actor_id,
+                    authority="candidate_validation",
+                )
+                check = validate_action_patch(
+                    state,
+                    action,
+                    authorized,
+                )
+                if check.valid:
+                    return patch
+                if attempt >= self.max_retries:
+                    # 最后一份候选仍越权时交给 TurnPipeline 的独立权威门禁，
+                    # 让调用方获得明确 PATCH_NOT_AUTHORIZED，而非模糊失败。
+                    self.last_error = (
+                        "action patch validation failed: "
+                        f"{check.why()}"
+                    )
+                    return patch
+
+            # 结构或动作授权失败，带具体违规反馈给 LLM 重试。
             if attempt < self.max_retries:
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
                     "role": "user",
-                    "content": f"你的 patch 有违规，请修正:\n{check.why()}",
+                    "content": (
+                        "你的 patch 有违规，请删除越权变化并修正，只保留当前"
+                        f"行动直接授权的操作:\n{check.why()}"
+                    ),
                 })
             else:
                 self.last_error = f"patch validation failed: {check.why()}"
@@ -162,6 +202,21 @@ class TransitionProposer:
                 for b in bs[:5]:  # 限制数量
                     lines.append(f"- {b.fact_id}: {b.belief.value} (置信度{b.confidence})")
 
+        if state.world_constraints:
+            lines.append("\n## 权威世界约束")
+            for constraint in state.world_constraints:
+                lines.append(
+                    f"- {constraint.constraint_id}: {constraint.statement}"
+                )
+
+        policy = state.action_policies.get(action.action_type.value)
+        if policy is not None:
+            lines.append("\n## 当前 ActionPolicy（不得越权）")
+            lines.append(
+                "- allowed_patch_operations: "
+                f"{policy.allowed_patch_operations}"
+            )
+
         # 场景内所有人 (判断行动是否被目击)
         scene_chars = [c for c in state.characters.values() if c.location_id == state.current_scene_id]
         lines.append(f"\n## 场景内在场角色 ({len(scene_chars)}人)")
@@ -180,8 +235,17 @@ class TransitionProposer:
         return "\n".join(lines)
 
     def _call_llm(self, messages: list) -> str:
-        resp = openai.ChatCompletion.create(
-            model=self.model, messages=messages, temperature=0.4,
+        resp = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="transition",
+            model=self.model,
+            messages=messages,
+            temperature=0.4,
+            **chat_generation_options(
+                self.model,
+                max_tokens=1536,
+                thinking=False,
+            ),
         )
         return resp.choices[0].message.content.strip()
 

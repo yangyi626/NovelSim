@@ -30,7 +30,7 @@ qdrant = [
 ]
 
 [tool.setuptools]
-packages = ["world_schema", "engine", "compiler", "web"]
+packages = ["world_schema", "engine", "compiler", "web", "evaluation"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

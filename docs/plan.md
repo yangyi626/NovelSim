@@ -4,6 +4,10 @@
 > 截至 2026-07-27，实际 Beta 基线为 **FastAPI + Vue 3 + SQLite + Qdrant
 > Local Mode + 独立编译 Worker**，不要求 Docker、PostgreSQL、Redis 或
 > Temporal。当前完成度和下一步以 [`实现进度.md`](./实现进度.md) 为准。
+>
+> 面向 Game AI / LLM Agent 算法实习的近期开发范围、验收门槛和非目标，
+> 以 [`GameAI_LLM_Agent求职版计划.md`](./GameAI_LLM_Agent求职版计划.md)
+> 为当前执行基线。
 
 可以把完整系统拆成两条并行主线：
 

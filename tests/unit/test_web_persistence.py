@@ -38,6 +38,14 @@ class _FakePipeline:
         )
 
 
+class _RejectingPipeline:
+    def run(self, *_args, **_kwargs):
+        return TurnResult(
+            status="rejected",
+            error="WORLD_CONCEPT_UNAVAILABLE",
+        )
+
+
 def test_web_turn_is_restorable_after_store_recreation(
     tmp_path, monkeypatch
 ):
@@ -62,6 +70,31 @@ def test_web_turn_is_restorable_after_store_recreation(
     assert restored is not None
     assert restored.version == 1
     assert restored.flags["test.web_turn"] == "向前一步"
+
+
+def test_rejected_turn_returns_current_authoritative_state(
+    tmp_path, monkeypatch
+):
+    store = SQLiteWorldStore(tmp_path / "web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", store)
+    monkeypatch.setattr(web_app, "PIPELINE", _FakePipeline())
+
+    started = web_app.api_start()
+    sid = started["session_id"]
+    committed = web_app.api_turn(
+        web_app.TurnRequest(session_id=sid, text="advance")
+    )
+    assert committed["state"]["version"] == 1
+
+    monkeypatch.setattr(web_app, "PIPELINE", _RejectingPipeline())
+    rejected = web_app.api_turn(
+        web_app.TurnRequest(session_id=sid, text="fly away")
+    )
+
+    assert rejected["status"] == "rejected"
+    assert rejected["state"]["version"] == 1
+    assert rejected["state"]["timeline_id"] == committed["state"]["timeline_id"]
+    assert store.get_state(sid).version == 1
 
 
 def test_events_endpoint_returns_persisted_history(tmp_path, monkeypatch):

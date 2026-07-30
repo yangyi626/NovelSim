@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-29T17:19:42.649664+00:00",
+  "model": "qwen3.7-plus",
+  "sample_count": 6,
+  "objective_pass_count": 6,
+  "llm_usage": {
+    "call_count": 6,
+    "failed_call_count": 0,
+    "prompt_tokens": 1272,
+    "completion_tokens": 761,
+    "total_tokens": 2033,
+    "cached_tokens": 0,
+    "latency_ms": 20172.031
+  },
+  "estimated_cost": null,
+  "cost_currency": null,
+  "records": [
+    {
+      "sample_id": "pair_pair_robe_01",
+      "text": "华容巷的晨风带着几分料峭，夜轻歌指尖微挑，顺势将夜清清肩头的外衫取过。那布料尚存余温，她毫不在意地披在自己肩上，动作行云流水，仿佛这本就是她的东西。夜清清面色骤变，眼中妒火与惊愕交织，却因顾忌周遭目光而未敢当场发作。这一举动虽未化解旧怨，却在两人紧绷的关系中撕开了一道诡异的缺口。衣衫易主，气场逆转，夜轻歌拢紧衣领，眸光清冷地迎上对方愤恨的视线，静待风波再起。",
+      "objective_passed": true,
+      "latency_ms": 3671.555,
+      "llm_calls": [
+        {
+          "call_id": "3876c084618044d0972595c793afc61e",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 219,
+          "completion_tokens": 131,
+          "total_tokens": 350,
+          "cached_tokens": 0,
+          "latency_ms": 3670.916,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 219,
+        "completion_tokens": 131,
+        "total_tokens": 350,
+        "cached_tokens": 0,
+        "latency_ms": 3670.916
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_02",
+      "text": "华容巷人声鼎沸，午前的阳光刺破晨雾。夜轻歌指尖灵力微吐，竟当着满街行人的面，强行剥离了夜清清身上的锦缎外衫。衣料滑落，夜清清惊怒交加，脸色煞白，原本伪装的端庄瞬间崩塌。周围议论声四起，指指点点。这一举动彻底撕破了姐妹间的虚假和平，夜清清眼中的嫉妒化为赤裸的恨意，而夜轻歌则冷漠地握着那件尚带余温的衣衫，两人关系降至冰点，再无回旋余地。",
+      "objective_passed": true,
+      "latency_ms": 2918.561,
+      "llm_calls": [
+        {
+          "call_id": "a6522326ea0747b49c89373e8bb05009",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 217,
+          "completion_tokens": 122,
+          "total_tokens": 339,
+          "cached_tokens": 0,
+          "latency_ms": 2918.419,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 217,
+        "completion_tokens": 122,
+        "total_tokens": 339,
+        "cached_tokens": 0,
+        "latency_ms": 2918.419
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_03",
+      "text": "指尖触到微凉锦缎的瞬间，夜轻歌猛地发力，将那件外衫从夜清清紧攥的手中硬生生夺过。布料摩擦发出细微声响，在死寂的华容巷中格外刺耳。夜清清踉跄半步，眼底嫉恨如毒火翻涌，却因力量悬殊未能阻拦。夜轻歌冷冷瞥她一眼，将衣衫紧紧裹在身上，隔绝了周遭窥探的目光。这一举动彻底撕破了表面和平，两人之间仅剩的利益纽带崩断，空气凝滞得令人窒息，唯有晨风卷起尘埃，见证着这份决裂。",
+      "objective_passed": true,
+      "latency_ms": 3531.738,
+      "llm_calls": [
+        {
+          "call_id": "a760fd1efae34575880b6b84a7340993",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 215,
+          "completion_tokens": 129,
+          "total_tokens": 344,
+          "cached_tokens": 0,
+          "latency_ms": 3531.604,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 215,
+        "completion_tokens": 129,
+        "total_tokens": 344,
+        "cached_tokens": 0,
+        "latency_ms": 3531.604
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_01",
+      "text": "华容巷的青石板路在午前阳光下泛着冷光，夜轻歌理了理衣襟，决然转身。身后，夜清清那双含毒的眼眸如蛇信般黏腻，死死钉在她的背脊上，嫉妒与不甘在空气中无声发酵。然而，夜轻歌未曾回头，只将那份阴冷的注视隔绝于步幅之外。她步履沉稳，穿过熙攘人流，向着夜府的方向独行。巷口的风卷起尘埃，将两人的距离拉远，唯有脚步声清脆回响，一步步踏碎过往的纠缠，走向那扇紧闭的朱门。",
+      "objective_passed": true,
+      "latency_ms": 3638.615,
+      "llm_calls": [
+        {
+          "call_id": "a4b66ce3c93b4d7dba1f336263c33d98",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 204,
+          "completion_tokens": 125,
+          "total_tokens": 329,
+          "cached_tokens": 0,
+          "latency_ms": 3638.477,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 204,
+        "completion_tokens": 125,
+        "total_tokens": 329,
+        "cached_tokens": 0,
+        "latency_ms": 3638.477
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_02",
+      "text": "华容巷的青石板路在午前阳光下泛着冷光，夜轻歌整理衣襟，步履坚定地朝夜府方向走去。身后的夜清清死死攥着帕角，眼底妒火翻涌，却因方才的失算而不敢贸然阻拦，只能隔着熙攘人群投去怨毒一瞥。周围商贩叫卖声此起彼伏，无人察觉这暗流涌动的姐妹阋墙。夜轻歌未曾回头，只将那份寒意抛在脑后，身影逐渐融入通往府邸的长街深处，只留清清独自站在原地，咬牙切齿。",
+      "objective_passed": true,
+      "latency_ms": 3130.329,
+      "llm_calls": [
+        {
+          "call_id": "424602c2a27e4e7cb3f6c1f571b2d36f",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 208,
+          "completion_tokens": 121,
+          "total_tokens": 329,
+          "cached_tokens": 0,
+          "latency_ms": 3130.168,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 208,
+        "completion_tokens": 121,
+        "total_tokens": 329,
+        "cached_tokens": 0,
+        "latency_ms": 3130.168
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_03",
+      "text": "晨雾未散，华容巷的青石板泛着冷冽湿气。夜轻歌拂袖转身，决然离去，只留给身后之人一个清冷背影。夜清清伫立原地，指尖死死攥紧锦帕，眸中嫉恨如毒草疯长，却不敢贸然追出，生怕再惹事端。巷口风过，卷起几片残叶，似在嘲弄这无声的对峙。夜轻歌步履不停，穿过喧嚣街市，径直朝夜府方向行去。阳光逐渐刺破云层，照亮她坚定的前路，也将那阴暗的算计远远抛在身后。",
+      "objective_passed": true,
+      "latency_ms": 3282.591,
+      "llm_calls": [
+        {
+          "call_id": "bc438acaa0cb428896d739f67ae9723e",
+          "operation": "direct_prompt_narrative_baseline",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 209,
+          "completion_tokens": 133,
+          "total_tokens": 342,
+          "cached_tokens": 0,
+          "latency_ms": 3282.447,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 209,
+        "completion_tokens": 133,
+        "total_tokens": 342,
+        "cached_tokens": 0,
+        "latency_ms": 3282.447
+      }
+    }
+  ]
+}

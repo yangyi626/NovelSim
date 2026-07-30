@@ -43,6 +43,12 @@ namespace NovelSim.Visuals
             return StylizedCharacterFactory.BuildGuard(root);
         }
 
+        public static NovelSim.Characters.StylizedCharacterAnimator
+            BuildQingqingVisual(Transform root)
+        {
+            return StylizedCharacterFactory.BuildQingqing(root);
+        }
+
         private static void ConfigureAtmosphere()
         {
             RenderSettings.skybox = null;
@@ -571,6 +577,7 @@ namespace NovelSim.Visuals
             var velocity = particles.velocityOverLifetime;
             velocity.enabled = true;
             velocity.x = new ParticleSystem.MinMaxCurve(-0.08f, 0.12f);
+            velocity.y = new ParticleSystem.MinMaxCurve(0f, 0f);
             velocity.z = new ParticleSystem.MinMaxCurve(0.03f, 0.12f);
 
             var color = particles.colorOverLifetime;

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from world_schema import WorldState
+from world_schema import ActionType, OperationKind, WorldState
 
 
 PACKAGE_FORMAT = "ai-transmigration-world-package"
@@ -347,6 +347,102 @@ def validate_world_package_payload(
     rule_ids = [rule.rule_id for rule in state.world_rules]
     if len(rule_ids) != len(set(rule_ids)):
         errors.append("世界规则 ID 不能重复")
+
+    _check_id_map(
+        errors,
+        "世界概念",
+        state.world_concepts,
+        "concept_id",
+    )
+    concept_ids = set(state.world_concepts)
+    for concept in state.world_concepts.values():
+        for pattern in concept.mention_patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                errors.append(
+                    f"世界概念 {concept.concept_id} 的 mention_pattern "
+                    f"无效: {exc}"
+                )
+    constraint_ids = [
+        constraint.constraint_id
+        for constraint in state.world_constraints
+    ]
+    if len(constraint_ids) != len(set(constraint_ids)):
+        errors.append("世界约束 ID 不能重复")
+    for constraint in state.world_constraints:
+        allowed = set(constraint.allowed_concept_ids)
+        forbidden = set(constraint.forbidden_concept_ids)
+        for concept_id in sorted((allowed | forbidden) - concept_ids):
+            errors.append(
+                f"世界约束 {constraint.constraint_id} 引用未知概念 "
+                f"{concept_id}"
+            )
+        for concept_id in sorted(allowed & forbidden):
+            errors.append(
+                f"世界约束 {constraint.constraint_id} 同时允许和禁止 "
+                f"{concept_id}"
+            )
+
+    for character_id, capabilities in state.character_capabilities.items():
+        if character_id not in state.characters:
+            errors.append(f"能力记录引用未知角色: {character_id}")
+        capability_ids = [
+            capability.capability_id for capability in capabilities
+        ]
+        if len(capability_ids) != len(set(capability_ids)):
+            errors.append(f"角色 {character_id} 的能力 ID 不能重复")
+
+    known_entities = (
+        set(state.characters)
+        | set(state.items)
+        | set(state.locations)
+    )
+    affordance_ids = []
+    valid_action_types = {action.value for action in ActionType}
+    for entity_id, affordances in state.entity_affordances.items():
+        if entity_id not in known_entities:
+            errors.append(f"Affordance 引用未知实体: {entity_id}")
+        for affordance in affordances:
+            affordance_ids.append(affordance.affordance_id)
+            if affordance.entity_id != entity_id:
+                errors.append(
+                    f"Affordance 键与 entity_id 不一致: "
+                    f"{affordance.affordance_id}"
+                )
+            if affordance.action_type not in valid_action_types:
+                errors.append(
+                    f"Affordance {affordance.affordance_id} 使用未知 Action "
+                    f"{affordance.action_type}"
+                )
+            if (
+                affordance.concept_id
+                and affordance.concept_id not in concept_ids
+            ):
+                errors.append(
+                    f"Affordance {affordance.affordance_id} 引用未知概念 "
+                    f"{affordance.concept_id}"
+                )
+    if len(affordance_ids) != len(set(affordance_ids)):
+        errors.append("Affordance ID 不能重复")
+
+    valid_operation_kinds = {kind.value for kind in OperationKind}
+    for action_type, policy in state.action_policies.items():
+        if action_type != policy.action_type:
+            errors.append(f"ActionPolicy 键与 action_type 不一致: {action_type}")
+        if action_type not in valid_action_types:
+            errors.append(f"ActionPolicy 使用未知 Action: {action_type}")
+        unknown_operations = (
+            set(policy.allowed_patch_operations) - valid_operation_kinds
+        )
+        for operation in sorted(unknown_operations):
+            errors.append(
+                f"ActionPolicy {action_type} 授权未知 Patch 操作 {operation}"
+            )
+        if len(policy.required_parameters) != len(
+            set(policy.required_parameters)
+        ):
+            errors.append(f"ActionPolicy {action_type} 必填参数不能重复")
 
     try:
         revision = max(1, int(payload.get("revision") or 1))

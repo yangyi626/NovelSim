@@ -18,6 +18,7 @@
     "/api/admin/users": ["GET", "POST"],
     "/api/admin/users/{user_id}": ["PATCH"],
     "/api/start": ["POST"],
+    "/api/scenes/secret-letter/runs": ["POST"],
     "/api/session": ["GET"],
     "/api/turn": ["POST"],
     "/api/saves": ["GET"],
@@ -36,13 +37,17 @@
     "/api/creator/packages/{package_id}/review": ["POST"],
     "/api/creator/audit": ["GET"],
     "/api/state": ["GET"],
-    "/api/events": ["GET"]
+    "/api/events": ["GET"],
+    "/api/presentation-snapshot": ["GET"],
+    "/api/presentation-events": ["GET"]
   },
   "invariants": [
     "WorldState 与 WorldEvent 是运行时权威事实",
+    "正常 /api/turn 响应始终携带当前权威 WorldState；拒绝回合不提交事件且版本不变",
     "LLM 只能提出 Action、StatePatch 与表现文本",
     "编译任务由 SQLite 队列与独立 Worker 执行",
     "Qdrant 是可重建派生索引",
-    "发布必须经过 approved -> published 权限转换"
+    "发布必须经过 approved -> published 权限转换",
+    "Unity 表现命令由已提交 WorldEvent 稳定投影，客户端按 sequence 幂等确认"
   ]
 }

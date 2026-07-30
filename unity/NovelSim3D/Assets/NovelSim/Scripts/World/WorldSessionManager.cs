@@ -21,12 +21,14 @@ namespace NovelSim.World
         public bool Busy { get; private set; }
         public string LastError { get; private set; }
         public TurnResponse LastTurn { get; private set; }
+        public SecretLetterRunResponse LastSceneRun { get; private set; }
         public bool HasSession => !string.IsNullOrWhiteSpace(SessionId);
 
         public event Action<string> StatusChanged;
         public event Action<string> ErrorRaised;
         public event Action<SessionResponse> SessionChanged;
         public event Action<TurnResponse> TurnCompleted;
+        public event Action<SecretLetterRunResponse> SceneRunCompleted;
 
         public void Configure(INovelSimApiClient apiClient)
         {
@@ -130,7 +132,9 @@ namespace NovelSim.World
                 text.Trim(),
                 response =>
                 {
-                    if (response.state != null)
+                    if (response.state != null
+                        && !string.IsNullOrWhiteSpace(
+                            response.state.timeline_id))
                     {
                         State = response.state;
                     }
@@ -138,6 +142,39 @@ namespace NovelSim.World
                     LastError = string.Empty;
                     SetBusy(false, $"世界线已推进至 v{State?.version ?? 0}");
                     TurnCompleted?.Invoke(response);
+                },
+                Fail));
+        }
+
+        public void RunSecretLetterRoute(string route)
+        {
+            if (!CanRequest())
+            {
+                return;
+            }
+            SetBusy(true, "密信疑云正在沿玩家选择推进……");
+            StartCoroutine(api.RunSecretLetterScene(
+                route,
+                response =>
+                {
+                    var sessionResponse = new SessionResponse
+                    {
+                        status = response.status,
+                        session_id = response.session_id,
+                        default_actor = response.default_actor,
+                        world_meta = response.world_meta,
+                        state = response.state,
+                        save = response.save,
+                        resumed = response.resumed,
+                    };
+                    AcceptSession(sessionResponse);
+                    LastSceneRun = response;
+                    SetBusy(
+                        false,
+                        $"路线 {response.route} 已完成："
+                        + $"{response.ending} · v{State?.version ?? 0}");
+                    SessionChanged?.Invoke(sessionResponse);
+                    SceneRunCompleted?.Invoke(response);
                 },
                 Fail));
         }
@@ -165,6 +202,7 @@ namespace NovelSim.World
             SessionId = response.session_id;
             State = response.state;
             LastTurn = null;
+            LastSceneRun = null;
             LastError = string.Empty;
             PlayerPrefs.SetString(LastSessionKey, SessionId);
             PlayerPrefs.Save();

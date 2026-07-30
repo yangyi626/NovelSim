@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 
 class AllowExtra(BaseModel):
@@ -51,7 +51,11 @@ class CharacterBelief(AllowExtra):
     belief: Belief = Belief.unknown
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     source_type: str = "unknown"  # observation / hearsay / inference / secret
+    source_character_id: Optional[str] = None
     source_event_id: Optional[str] = None
+    evidence_event_ids: List[str] = Field(default_factory=list)
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
     # 该事实的中文/可读关键词，用于认知泄漏检测。
     # 例: fact_id=fact_qingqing_poisoned_tea -> keywords=["下毒","毒茶"]
     # 留空则审查器从 fact_id 粗略提取 (对中文效果差)。
@@ -164,6 +168,127 @@ class WorldRule(AllowExtra):
     statement: str
 
 
+class WorldConcept(AllowExtra):
+    """世界中可被行动引用的概念。
+
+    ``available=False`` 表示这个概念被世界包明确声明为不存在或不可用。别名只
+    属于世界数据，不属于引擎硬编码，因此同一个概念可以在不同世界包中有不同
+    可用性。
+    """
+
+    concept_id: str
+    display_name: str
+    aliases: List[str] = Field(default_factory=list)
+    mention_patterns: List[str] = Field(default_factory=list)
+    category: str = "general"  # technology / magic / transport / social / general
+    available: bool = True
+    requires_entity: bool = False
+    required_capability_ids: List[str] = Field(default_factory=list)
+
+
+class WorldConstraint(AllowExtra):
+    """可执行的世界级约束，而不是只供 LLM 阅读的自然语言规则。"""
+
+    constraint_id: str
+    category: str = "general"
+    statement: str = ""
+    allowed_concept_ids: List[str] = Field(default_factory=list)
+    forbidden_concept_ids: List[str] = Field(default_factory=list)
+    strict_allowlist: bool = False
+    strict_narrative_grounding: bool = False
+    strict_knowledge_boundaries: bool = False
+
+
+class CharacterCapability(AllowExtra):
+    """角色当前具备的一项能力。"""
+
+    capability_id: str
+    enabled: bool = True
+    level: float = Field(1.0, ge=0.0)
+    source: str = "world_package"
+
+
+class EntityAffordance(AllowExtra):
+    """某个已注册实体允许执行的动作及其能力前置条件。"""
+
+    affordance_id: str
+    entity_id: str
+    action_type: str
+    concept_id: Optional[str] = None
+    enabled: bool = True
+    required_capability_ids: List[str] = Field(default_factory=list)
+
+
+class ActionPolicy(AllowExtra):
+    """Action 的确定性参数和 Patch 权限策略。"""
+
+    action_type: str
+    required_parameters: List[str] = Field(default_factory=list)
+    requires_target: bool = False
+    required_capability_ids: List[str] = Field(default_factory=list)
+    affordance_parameter: Optional[str] = None
+    affordance_from_target: bool = False
+    allowed_patch_operations: List[str] = Field(default_factory=list)
+
+
+class WorldFact(AllowExtra):
+    """权威世界事实；角色是否知道它由 CharacterBelief 单独表示。"""
+
+    fact_id: str
+    statement: str
+    truth: Belief = Belief.believed_true
+    location_id: Optional[str] = None
+    item_id: Optional[str] = None
+    observable: bool = False
+    base_confidence: float = Field(1.0, ge=0.0, le=1.0)
+    keywords: List[str] = Field(default_factory=list)
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+
+
+class BeliefEvidence(AllowExtra):
+    """一条可追溯的角色认知证据。"""
+
+    evidence_id: str
+    fact_id: str
+    holder_id: str
+    source_type: str
+    source_character_id: Optional[str] = None
+    source_event_id: Optional[str] = None
+    parent_evidence_ids: List[str] = Field(default_factory=list)
+    reliability: float = Field(1.0, ge=0.0, le=1.0)
+
+
+class PropagationRecord(AllowExtra):
+    """一次信息从 source 传播到 target 的确定性计算记录。"""
+
+    propagation_id: str
+    fact_id: str
+    source_character_id: str
+    target_character_id: str
+    source_confidence: float = Field(..., ge=0.0, le=1.0)
+    source_reliability: float = Field(..., ge=0.0, le=1.0)
+    trust_factor: float = Field(..., ge=0.0, le=1.0)
+    channel_decay: float = Field(..., ge=0.0, le=1.0)
+    corroboration_bonus: float = Field(0.0, ge=0.0, le=1.0)
+    conflict_penalty: float = Field(0.0, ge=0.0, le=1.0)
+    resulting_confidence: float = Field(..., ge=0.0, le=1.0)
+    resulting_belief: Belief
+    evidence_id: str
+
+
+class AllianceState(AllowExtra):
+    """由确定性规则形成的联盟。"""
+
+    alliance_id: str
+    member_ids: List[str]
+    goal_key: str
+    shared_fact_ids: List[str] = Field(default_factory=list)
+    evidence_event_ids: List[str] = Field(default_factory=list)
+    status: str = "active"
+    formed_event_id: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # 世界状态
 # ---------------------------------------------------------------------------
@@ -185,11 +310,24 @@ class WorldState(AllowExtra):
     locations: Dict[str, Location] = Field(default_factory=dict)
     relations: List[CharacterRelation] = Field(default_factory=list)
     beliefs: Dict[str, List[CharacterBelief]] = Field(default_factory=dict)
+    facts: Dict[str, WorldFact] = Field(default_factory=dict)
+    belief_evidence: Dict[str, BeliefEvidence] = Field(default_factory=dict)
+    propagation_history: List[PropagationRecord] = Field(default_factory=list)
+    alliances: Dict[str, AllianceState] = Field(default_factory=dict)
     # 角色 Agent 内在状态 (plan 第八步)。空 dict = 该世界未启用自主 NPC。
     character_psyches: Dict[str, "CharacterPsyche"] = Field(default_factory=dict)
     plot: Dict[str, PlotArc] = Field(default_factory=dict)
     rules: List[Rule] = Field(default_factory=list)
     world_rules: List[WorldRule] = Field(default_factory=list)
+    world_concepts: Dict[str, WorldConcept] = Field(default_factory=dict)
+    world_constraints: List[WorldConstraint] = Field(default_factory=list)
+    character_capabilities: Dict[str, List[CharacterCapability]] = Field(
+        default_factory=dict
+    )
+    entity_affordances: Dict[str, List[EntityAffordance]] = Field(
+        default_factory=dict
+    )
+    action_policies: Dict[str, ActionPolicy] = Field(default_factory=dict)
     flags: Dict[str, Any] = Field(default_factory=dict)  # plot.xxx 自由布尔/数值
 
 
@@ -209,6 +347,7 @@ class ActionType(str, Enum):
     attack = "attack"
     gift = "gift"  # 赠予
     observe = "observe"
+    destroy_item = "destroy_item"  # 销毁具有对应 Affordance 的物品
 
 
 class Actor(AllowExtra):
@@ -230,6 +369,53 @@ class Action(AllowExtra):
     visibility: str = "overt"  # overt / covert / hidden
 
 
+class IntentStatus(str, Enum):
+    accepted = "accepted"
+    rejected = "rejected"
+    parse_failed = "parse_failed"
+
+
+class IntentRejectionCode(str, Enum):
+    ambiguous_intent = "AMBIGUOUS_INTENT"
+    entity_not_found = "ENTITY_NOT_FOUND"
+    world_concept_unavailable = "WORLD_CONCEPT_UNAVAILABLE"
+    capability_missing = "CAPABILITY_MISSING"
+    affordance_missing = "AFFORDANCE_MISSING"
+    permission_denied = "PERMISSION_DENIED"
+    spatial_precondition_failed = "SPATIAL_PRECONDITION_FAILED"
+    knowledge_boundary_violation = "KNOWLEDGE_BOUNDARY_VIOLATION"
+    patch_not_authorized = "PATCH_NOT_AUTHORIZED"
+    narrative_not_grounded = "NARRATIVE_NOT_GROUNDED"
+    invalid_action = "INVALID_ACTION"
+
+
+class IntentParseResult(BaseModel):
+    """自然语言解析的显式结果；拒绝不是一个伪装成 observe 的 Action。"""
+
+    status: IntentStatus
+    action: Optional[Action] = None
+    reason_code: Optional[IntentRejectionCode] = None
+    message: str = ""
+    raw_input: str = ""
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        extra = "forbid"
+
+    @root_validator(skip_on_failure=True)
+    def _status_matches_payload(cls, values):
+        status = values.get("status")
+        action = values.get("action")
+        reason_code = values.get("reason_code")
+        if status == IntentStatus.accepted and action is None:
+            raise ValueError("accepted intent requires action")
+        if status != IntentStatus.accepted and action is not None:
+            raise ValueError("rejected/failed intent cannot contain action")
+        if status == IntentStatus.rejected and reason_code is None:
+            raise ValueError("rejected intent requires reason_code")
+        return values
+
+
 # ---------------------------------------------------------------------------
 # StatePatch: 本轮允许发生的状态变化
 # ---------------------------------------------------------------------------
@@ -246,6 +432,7 @@ class OperationKind(str, Enum):
     increment_value = "increment_value"  # 数值 += delta
     move_character = "move_character"
     transfer_item = "transfer_item"  # owner/location 之间转移
+    destroy_item = "destroy_item"  # 销毁可销毁物品并移出世界
     update_relation = "update_relation"  # 关系维度增量
     set_relation = "set_relation"  # 关系整体替换
     update_belief = "update_belief"
@@ -257,6 +444,9 @@ class OperationKind(str, Enum):
     complete_plot = "complete_plot"
     update_psyche = "update_psyche"  # 改 character_psyches[x]: 情绪/感知
     advance_plan = "advance_plan"  # 角色计划推进一步
+    record_evidence = "record_evidence"
+    record_propagation = "record_propagation"
+    form_alliance = "form_alliance"
 
 
 class Operation(BaseModel):
@@ -275,6 +465,14 @@ class Operation(BaseModel):
     belief: Optional[Belief] = None
     confidence: Optional[float] = None
     source_type: Optional[str] = None  # update_belief: observation/hearsay/inference/secret
+    source_character_id: Optional[str] = None
+    source_event_id: Optional[str] = None
+    evidence_event_ids: Optional[List[str]] = None
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    evidence_id: Optional[str] = None
+    propagation_id: Optional[str] = None
+    alliance_id: Optional[str] = None
     tags: Optional[List[str]] = None  # change_identity
     fact_id: Optional[str] = None
     reason: str = ""  # 该操作的理由 (便于审查/调试，LLM 产出时填写)
@@ -289,11 +487,25 @@ class Operation(BaseModel):
         extra = "forbid"  # Operation 必须严格受控
 
 
+class CausalEvidence(BaseModel):
+    """一次状态变化的授权来源。"""
+
+    action_id: Optional[str] = None
+    tool_call_id: Optional[str] = None
+    tool_name: Optional[str] = None
+    actor_id: Optional[str] = None
+    authority: str = "runtime"
+
+    class Config:
+        extra = "forbid"
+
+
 class StatePatch(BaseModel):
     """本轮允许的状态变化集合。规则引擎产出，一致性审查后提交。"""
 
     operations: List[Operation] = Field(default_factory=list)
     notes: str = ""
+    causal_evidence: Optional[CausalEvidence] = None
 
     class Config:
         extra = "forbid"
@@ -322,6 +534,7 @@ class WorldEvent(AllowExtra):
     previous_version: int = 0
     new_version: int = 1
     summary: str = ""
+    presentation_events: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +565,8 @@ class NarrativeOutput(BaseModel):
     dialogues: List[DialogueLine] = Field(default_factory=list)
     system_hints: List[str] = Field(default_factory=list)  # 系统提示: 如"夜清清对你起了疑心"
     viewpoint: str = "third_person"  # 视角: third_person / character_id
+    grounded_event_ids: List[str] = Field(default_factory=list)
+    referenced_entity_ids: List[str] = Field(default_factory=list)
 
     class Config:
         extra = "forbid"

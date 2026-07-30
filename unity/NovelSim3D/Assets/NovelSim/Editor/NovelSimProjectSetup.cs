@@ -66,7 +66,7 @@ namespace NovelSim.Editor
             }
 
             PlayerSettings.companyName = "NovelSim";
-            PlayerSettings.productName = "NovelSim 3D";
+            PlayerSettings.productName = "NovelSim Agent Showcase";
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.colorSpace = ColorSpace.Linear;

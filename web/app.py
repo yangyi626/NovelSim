@@ -50,7 +50,9 @@ from engine import (
     WorldPackageStore,
     WorldPackageValidationError,
     create_world_store,
+    cursor_after_world_version,
     filter_compatible_memories,
+    project_presentation_commands,
     record_event_memory,
     reflect_character_memories,
 )
@@ -73,6 +75,17 @@ from web.auth import (
 
 from examples.huarong_lane import build_snapshot, build_world_package
 from examples.huarong_lane.scenario import NIGHT
+from examples.secret_letter.package import (
+    PACKAGE_ID as SECRET_LETTER_PACKAGE_ID,
+    build_world_package_payload as build_secret_letter_package,
+)
+from examples.secret_letter.scenario import (
+    PLAYER_ROUTE_DESTROY,
+    PLAYER_ROUTE_EXPOSE,
+    PLAYER_ROUTE_INTERCEPT,
+    run_secret_letter_scene,
+)
+from engine.scene_controller import SceneMode
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +137,7 @@ API_CONTRACT_VERSION = "1.0.0"
 SESSIONS = create_world_store(sqlite_path=DATABASE_PATH)
 
 _builtin_manifest = build_world_package()
+_secret_letter_manifest = build_secret_letter_package()
 PACKAGES = WorldPackageStore(
     WORLD_PACKAGE_DIR,
     builtins={
@@ -136,7 +150,8 @@ PACKAGES = WorldPackageStore(
             "source_chapters": _builtin_manifest["source_chapters"],
             "snapshot": build_snapshot().dict(),
             "revision": 1,
-        }
+        },
+        SECRET_LETTER_PACKAGE_ID: _secret_letter_manifest,
     },
 )
 COMPILATION_JOBS = CompilationJobStore(COMPILER_DATABASE_PATH)
@@ -164,6 +179,12 @@ class TurnRequest(BaseModel):
     session_id: str
     text: str
     use_npc_agents: bool = True
+
+
+class SecretLetterRunRequest(BaseModel):
+    mode: str = SceneMode.free.value
+    route: str = "none"
+    save_name: str = ""
 
 
 class RenameSaveRequest(BaseModel):
@@ -285,6 +306,9 @@ def serialize_turn(result) -> dict:
         "status": result.status,
         "error": result.error or "",
         "rule_reason": "",
+        "rejection_code": "",
+        "rejection_message": "",
+        "rejection_details": {},
         "action": None,
         "narrative": None,
         "npc_reactions": list(result.npc_reactions or []),
@@ -320,6 +344,11 @@ def serialize_turn(result) -> dict:
     # 规则拒绝原因
     if result.rule_result and result.rule_result.why():
         payload["rule_reason"] = result.rule_result.why()
+    intent_result = getattr(result, "intent_result", None)
+    if intent_result is not None and intent_result.reason_code is not None:
+        payload["rejection_code"] = intent_result.reason_code.value
+        payload["rejection_message"] = intent_result.message
+        payload["rejection_details"] = dict(intent_result.details)
 
     return payload
 
@@ -472,6 +501,48 @@ def serialize_session(session_id: str, *, resumed: bool = True) -> dict:
         "save": serialize_save(metadata),
         "turns": serialize_history(history),
         "resumed": resumed,
+    }
+
+
+def serialize_presentation_snapshot(state: WorldState) -> dict:
+    """将字典型权威状态转换为 Unity JsonUtility 可解析的数组结构。"""
+
+    return {
+        "timeline_id": state.timeline_id,
+        "state_version": state.version,
+        "current_scene_id": state.current_scene_id or "",
+        "last_sequence": cursor_after_world_version(state.version),
+        "characters": [
+            {
+                "character_id": character.character_id,
+                "display_name": character.display_name,
+                "location_id": character.location_id or "",
+                "is_alive": character.is_alive,
+                "inventory": list(character.inventory),
+            }
+            for _, character in sorted(state.characters.items())
+        ],
+        "items": [
+            {
+                "item_id": item.item_id,
+                "display_name": item.display_name,
+                "owner_id": item.owner_id or "",
+                "location_id": item.location_id or "",
+                "quantity": item.quantity,
+                "accessible": item.accessible,
+                "destroyed": bool(item.attrs.get("destroyed")),
+            }
+            for _, item in sorted(state.items.items())
+        ],
+        "alliances": [
+            {
+                "alliance_id": alliance.alliance_id,
+                "member_ids": list(alliance.member_ids),
+                "goal_key": alliance.goal_key,
+                "status": alliance.status,
+            }
+            for _, alliance in sorted(state.alliances.items())
+        ],
     }
 
 
@@ -752,6 +823,124 @@ def api_start(req: Optional[StartRequest] = None):
         )
 
 
+@app.post("/api/scenes/secret-letter/runs")
+async def api_run_secret_letter_scene(req: SecretLetterRunRequest):
+    """在独立权威会话中运行一条可回放的原创玩家路线。
+
+    玩家干预与后续 NPC 自主步骤全部经过 ToolRegistry、
+    AgentExecutionStateMachine 和 SQLite 乐观锁提交。该入口不调用 LLM，
+    适合 Unity/浏览器演示、确定性 E2E 和断线恢复。
+    """
+
+    routes = {
+        "none": None,
+        PLAYER_ROUTE_DESTROY: PLAYER_ROUTE_DESTROY,
+        PLAYER_ROUTE_INTERCEPT: PLAYER_ROUTE_INTERCEPT,
+        PLAYER_ROUTE_EXPOSE: PLAYER_ROUTE_EXPOSE,
+    }
+    route = req.route.strip().lower()
+    if route not in routes:
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": (
+                    "route 仅支持 none、destroy_letter、"
+                    "intercept_letter、expose_truth"
+                ),
+            },
+            status_code=422,
+        )
+    try:
+        mode = SceneMode(req.mode.strip().lower())
+    except ValueError:
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": "mode 仅支持 free 或 script",
+            },
+            status_code=422,
+        )
+
+    package = PACKAGES.get(SECRET_LETTER_PACKAGE_ID)
+    state = package.snapshot.copy(deep=True)
+    session_id = SESSIONS.create_session(
+        state,
+        default_actor_id=package.default_actor_id,
+        world_package_id=package.package_id,
+        save_name=(
+            req.save_name.strip()
+            or f"密信疑云·{route}世界线"
+        ),
+    )
+    try:
+        run = await run_secret_letter_scene(
+            mode=mode,
+            player_route=routes[route],
+            initial_state=state,
+            store=SESSIONS,
+            session_id=session_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse(
+            {
+                "status": "error",
+                "session_id": session_id,
+                "error": (
+                    "密信场景运行失败；已保留可诊断会话: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            },
+            status_code=500,
+        )
+
+    memory_record_count = 0
+    memory_warning = ""
+    try:
+        for outcome in run.outcomes:
+            if outcome.event is None:
+                continue
+            memory_record_count += record_event_memory(
+                SESSIONS,
+                session_id,
+                outcome.new_state,
+                outcome.event,
+                player_input=f"tool:{outcome.result.tool_name}",
+            )
+    except PersistenceError as exc:
+        # 长期记忆是可重建投影；权威事件已经提交，不能伪装成回合失败。
+        memory_warning = f"长期记忆投影待重建: {exc}"
+
+    session_payload = serialize_session(session_id, resumed=False)
+    return {
+        "status": run.summary.status.value,
+        "session_id": session_id,
+        "default_actor": session_payload["default_actor"],
+        "world_meta": session_payload["world_meta"],
+        "save": session_payload["save"],
+        "resumed": False,
+        "world_package_id": package.package_id,
+        "route": route,
+        "mode": mode.value,
+        "ending": run.ending,
+        "objective_satisfied": run.summary.objective_satisfied,
+        "state": state_to_dict(run.state),
+        "summary": run.summary.dict(),
+        "tool_results": [
+            outcome.result.dict()
+            for outcome in run.outcomes
+        ],
+        "trace_ids": [
+            outcome.trace.trace_id
+            for outcome in run.outcomes
+        ],
+        "memory_record_count": memory_record_count,
+        "memory_warning": memory_warning,
+        "presentation_cursor": cursor_after_world_version(
+            run.state.version
+        ),
+    }
+
+
 @app.get("/api/session")
 def api_session(session: str = ""):
     """恢复已有会话，返回与 /api/start 同构的启动数据。"""
@@ -838,6 +1027,12 @@ def api_turn(req: TurnRequest):
         }
 
     response_payload = serialize_turn(result)
+    # A normal turn response always carries the authoritative world snapshot.
+    # Rejected/failed turns intentionally have no ``new_state`` because they
+    # commit no event, but clients must keep the current persisted version
+    # rather than interpreting JSON ``null`` as an empty state object.
+    if response_payload.get("state") is None:
+        response_payload["state"] = state_to_dict(state)
     history_payload = dict(response_payload)
     history_payload.pop("state", None)
 
@@ -1443,4 +1638,99 @@ def api_events(session: str = ""):
         "session_id": session,
         "state_version": metadata.state_version,
         "events": [event.dict() for event in events],
+    }
+
+
+@app.get("/api/presentation-snapshot")
+def api_presentation_snapshot(session: str = ""):
+    """Unity 重连时的权威表现快照。"""
+
+    if not session:
+        return JSONResponse(
+            {"status": "error", "error": "请提供 ?session=<id>"},
+            status_code=400,
+        )
+    try:
+        state = SESSIONS.get_state(session)
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取会话失败: {exc}"},
+            status_code=500,
+        )
+    if state is None:
+        return JSONResponse(
+            {"status": "error", "error": "会话不存在"},
+            status_code=404,
+        )
+    return {
+        "status": "ok",
+        "session_id": session,
+        "snapshot": serialize_presentation_snapshot(state),
+    }
+
+
+@app.get("/api/presentation-events")
+def api_presentation_events(
+    session: str = "",
+    after_sequence: int = 0,
+    limit: int = 100,
+):
+    """返回 after_sequence 之后的幂等表现命令。"""
+
+    if not session:
+        return JSONResponse(
+            {"status": "error", "error": "请提供 ?session=<id>"},
+            status_code=400,
+        )
+    if after_sequence < 0:
+        return JSONResponse(
+            {"status": "error", "error": "after_sequence 不能为负数"},
+            status_code=400,
+        )
+    if not 1 <= limit <= 500:
+        return JSONResponse(
+            {"status": "error", "error": "limit 必须在 1 到 500 之间"},
+            status_code=400,
+        )
+    try:
+        metadata = SESSIONS.get_metadata(session)
+        if metadata is None:
+            return JSONResponse(
+                {"status": "error", "error": "会话不存在"},
+                status_code=404,
+            )
+        latest_sequence = cursor_after_world_version(
+            metadata.state_version
+        )
+        if after_sequence > latest_sequence:
+            return JSONResponse(
+                {
+                    "status": "reset_required",
+                    "error": "客户端游标超过服务端世界版本，请重新拉取快照",
+                    "session_id": session,
+                    "latest_sequence": latest_sequence,
+                },
+                status_code=409,
+            )
+        commands, has_more = project_presentation_commands(
+            SESSIONS.list_events(session),
+            after_sequence=after_sequence,
+            limit=limit,
+        )
+    except (PersistenceError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取表现事件失败: {exc}"},
+            status_code=500,
+        )
+    return {
+        "status": "ok",
+        "session_id": session,
+        "state_version": metadata.state_version,
+        "after_sequence": after_sequence,
+        "next_sequence": (
+            commands[-1].sequence if commands else after_sequence
+        ),
+        "latest_sequence": latest_sequence,
+        "has_more": has_more,
+        "commands": [command.dict() for command in commands],
     }

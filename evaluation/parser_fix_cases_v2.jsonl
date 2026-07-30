@@ -1,0 +1,2 @@
+{"schema_version":1,"case_id":"fix_robe_07","user_text":"夜轻歌一把取过庶妹的外衫，收为己用。","objective":"obtain_outer_robe"}
+{"schema_version":1,"case_id":"fix_command_01","user_text":"我命令夜清清立刻把外衫交给我。","objective":"command_without_forced_transfer"}

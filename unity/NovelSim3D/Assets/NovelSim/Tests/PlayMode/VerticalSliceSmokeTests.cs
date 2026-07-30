@@ -30,7 +30,7 @@ namespace NovelSim.Tests
             yield return null;
 
             var player = GameObject.Find("Player");
-            var npc = GameObject.Find("Lane Guard NPC");
+            var npc = GameObject.Find("Ye Qingqing NPC");
             Assert.IsNotNull(player);
             Assert.IsNotNull(npc);
             Assert.IsNotNull(player.GetComponent<CharacterController>());
@@ -48,11 +48,10 @@ namespace NovelSim.Tests
                 24);
             Assert.GreaterOrEqual(
                 npc.GetComponentsInChildren<Renderer>().Length,
-                30);
+                24);
             Assert.IsNotNull(GameObject.Find("Hero Front Skirt Left"));
             Assert.IsNotNull(GameObject.Find("High Ponytail Pivot"));
-            Assert.IsNotNull(GameObject.Find("Armor Rivet 0 0"));
-            Assert.IsNotNull(GameObject.Find("Guard Helmet Flap Left"));
+            Assert.IsNotNull(GameObject.Find("Ye Qingqing Visual"));
             Assert.IsNotNull(npc.GetComponent<NavMeshAgent>());
             Assert.IsNotNull(npc.GetComponent<NpcPatrolController>());
             var laneNavigation = Object.FindFirstObjectByType<
@@ -75,6 +74,63 @@ namespace NovelSim.Tests
             Assert.AreEqual(52f, Camera.main.fieldOfView, 0.1f);
             Assert.IsNotNull(Object.FindFirstObjectByType<
                 WorldSessionManager>());
+        }
+
+        [UnityTest]
+        public IEnumerator PresentationNavigateCommandUsesNavMeshAndArrives()
+        {
+            var player = GameObject.Find("Player");
+            var npc = GameObject.Find("Ye Qingqing NPC");
+            Assert.IsNotNull(player);
+            Assert.IsNotNull(npc);
+            player.transform.position = new Vector3(0f, 0.08f, -4f);
+            var destination = new GameObject(
+                "Presentation Navigation Destination");
+            destination.transform.position =
+                new Vector3(-1.35f, 0.08f, 9.4f);
+            var host = new GameObject("Presentation Navigation Test");
+            var registry = host.AddComponent<WorldEntityRegistry>();
+            registry.RegisterEntity(
+                "char_yeqingqing",
+                npc.transform,
+                "loc_huarong_lane");
+            registry.RegisterLocation(
+                "loc_navigation_test",
+                destination.transform);
+            var dispatcher = host.AddComponent<ToolEventDispatcher>();
+            dispatcher.Configure(null, null, registry, null);
+
+            Assert.IsTrue(dispatcher.Consume(
+                new PresentationCommandDto
+                {
+                    sequence = 1001,
+                    command_id = "event_000001:001:navigate",
+                    command_type = "navigate",
+                    actor_id = "char_yeqingqing",
+                    location_id = "loc_navigation_test",
+                }));
+            var patrol = npc.GetComponent<NpcPatrolController>();
+            Assert.IsNotNull(patrol);
+            Assert.IsTrue(patrol.HasCommandDestination);
+
+            var started = Time.realtimeSinceStartup;
+            while (
+                patrol.HasCommandDestination
+                && Time.realtimeSinceStartup - started < 12f)
+            {
+                yield return null;
+            }
+
+            Assert.IsFalse(
+                patrol.HasCommandDestination,
+                "NavMesh command did not reach its destination.");
+            Assert.Less(
+                Vector3.Distance(
+                    npc.transform.position,
+                    destination.transform.position),
+                0.55f);
+            Object.Destroy(destination);
+            Object.Destroy(host);
         }
 
         [UnityTest]
@@ -106,13 +162,16 @@ namespace NovelSim.Tests
         public IEnumerator NearbyInteractionTargetReceivesVisualFocus()
         {
             var player = GameObject.Find("Player");
-            var npc = GameObject.Find("Lane Guard NPC");
+            var npc = GameObject.Find("Ye Qingqing NPC");
             Assert.IsNotNull(player);
             Assert.IsNotNull(npc);
             var interactor = player.GetComponent<PlayerInteractor>();
             var target = npc.GetComponent<InteractionTarget>();
             Assert.IsNotNull(interactor);
             Assert.IsNotNull(target);
+            Assert.AreEqual("夜清清", target.DisplayName);
+            StringAssert.Contains("夜清清", target.ServerAction);
+            StringAssert.DoesNotContain("守卫", target.ServerAction);
 
             player.transform.position =
                 npc.transform.position + npc.transform.forward * 1.2f;
@@ -159,6 +218,66 @@ namespace NovelSim.Tests
             Object.Destroy(npc);
             Object.Destroy(host);
             WorldSessionManager.ClearSavedSession();
+        }
+
+        [UnityTest]
+        public IEnumerator SecretLetterRouteAdoptsPersistentAuthoritativeSession()
+        {
+            WorldSessionManager.ClearSavedSession();
+            var fake = new FakeApiClient();
+            var host = new GameObject("Secret Letter Route Test");
+            var manager = host.AddComponent<WorldSessionManager>();
+            manager.Configure(fake);
+
+            manager.RunSecretLetterRoute("expose_truth");
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual("secret-letter-session", manager.SessionId);
+            Assert.AreEqual(5, manager.State.version);
+            Assert.AreEqual(
+                "truth_exposed",
+                manager.LastSceneRun.ending);
+            Assert.AreEqual(
+                manager.SessionId,
+                PlayerPrefs.GetString(
+                    WorldSessionManager.LastSessionKey));
+            Object.Destroy(host);
+            WorldSessionManager.ClearSavedSession();
+        }
+
+        [UnityTest]
+        public IEnumerator SnapshotCreatesPreviouslyUnknownRuntimeNpc()
+        {
+            var host = new GameObject("Dynamic NPC Reconcile Test");
+            var registry = host.AddComponent<WorldEntityRegistry>();
+
+            registry.Reconcile(new PresentationSnapshotDto
+            {
+                characters = new[]
+                {
+                    new CharacterPresentationStateDto
+                    {
+                        character_id = "char_steward",
+                        display_name = "管家",
+                        location_id = "loc_gatehouse",
+                        is_alive = true,
+                    },
+                },
+                items = Array.Empty<ItemPresentationStateDto>(),
+                alliances = Array.Empty<AlliancePresentationStateDto>(),
+            });
+            yield return null;
+
+            Assert.IsTrue(
+                registry.TryGetEntity(
+                    "char_steward",
+                    out var steward));
+            Assert.IsTrue(steward.gameObject.activeSelf);
+            Assert.IsNotNull(
+                steward.GetComponent<NpcPatrolController>());
+            Object.Destroy(host);
+            yield return null;
         }
 
         private sealed class FakeApiClient : INovelSimApiClient
@@ -226,6 +345,66 @@ namespace NovelSim.Tests
                     {
                         narration = "守卫给出了真实回应。",
                     },
+                });
+            }
+
+            public IEnumerator RunSecretLetterScene(
+                string route,
+                Action<SecretLetterRunResponse> onSuccess,
+                Action<string> onFailure)
+            {
+                yield return null;
+                onSuccess(new SecretLetterRunResponse
+                {
+                    status = "completed",
+                    session_id = "secret-letter-session",
+                    default_actor = "char_player",
+                    route = route,
+                    ending = "truth_exposed",
+                    objective_satisfied = true,
+                    state = State(5),
+                    memory_record_count = 7,
+                    world_meta = new WorldMetaDto
+                    {
+                        scenario = "午夜前的密信",
+                    },
+                });
+            }
+
+            public IEnumerator FetchPresentationSnapshot(
+                string sessionId,
+                Action<PresentationSnapshotResponse> onSuccess,
+                Action<string> onFailure)
+            {
+                yield return null;
+                onSuccess(new PresentationSnapshotResponse
+                {
+                    status = "ok",
+                    session_id = sessionId,
+                    snapshot = new PresentationSnapshotDto
+                    {
+                        timeline_id = "test-timeline",
+                        state_version = 1,
+                        current_scene_id = "lane",
+                        last_sequence = 1999,
+                    },
+                });
+            }
+
+            public IEnumerator FetchPresentationEvents(
+                string sessionId,
+                long afterSequence,
+                Action<PresentationEventsResponse> onSuccess,
+                Action<string> onFailure)
+            {
+                yield return null;
+                onSuccess(new PresentationEventsResponse
+                {
+                    status = "ok",
+                    session_id = sessionId,
+                    after_sequence = afterSequence,
+                    next_sequence = afterSequence,
+                    commands = Array.Empty<PresentationCommandDto>(),
                 });
             }
 

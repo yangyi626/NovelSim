@@ -40,6 +40,7 @@ from world_schema import (
 from world_schema.models import Actor, ActionType
 
 from .config import get_llm_config
+from .llm_telemetry import call_openai_compatible
 from .patch_validator import validate_patch
 
 
@@ -302,7 +303,9 @@ class CharacterAgent:
     # ------------------------------------------------------------------
 
     def _call_llm(self, messages: list) -> str:
-        resp = openai.ChatCompletion.create(
+        resp = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="character_agent",
             model=self.model, messages=messages, temperature=0.6,
         )
         return resp.choices[0].message.content.strip()

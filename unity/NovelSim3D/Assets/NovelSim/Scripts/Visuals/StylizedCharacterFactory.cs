@@ -103,6 +103,49 @@ namespace NovelSim.Visuals
             return Build(root, "Guard Visual", palette, true);
         }
 
+        public static StylizedCharacterAnimator BuildQingqing(Transform root)
+        {
+            var palette = new CharacterPalette
+            {
+                cloth = Material(
+                    "Qingqing Plum Cloth",
+                    new Color(0.31f, 0.075f, 0.19f),
+                    0.38f),
+                clothAccent = Material(
+                    "Qingqing Orchid Edge",
+                    new Color(0.58f, 0.25f, 0.48f),
+                    0.46f,
+                    new Color(0.025f, 0.004f, 0.018f)),
+                accent = Material(
+                    "Qingqing Pale Sash",
+                    new Color(0.78f, 0.57f, 0.67f),
+                    0.3f),
+                skin = Material(
+                    "Qingqing Warm Skin",
+                    new Color(0.86f, 0.66f, 0.55f),
+                    0.42f),
+                hair = Material(
+                    "Qingqing Ink Hair",
+                    new Color(0.012f, 0.009f, 0.017f),
+                    0.56f),
+                eye = Material(
+                    "Qingqing Eyes",
+                    new Color(0.03f, 0.012f, 0.022f),
+                    0.68f),
+                metal = Material(
+                    "Qingqing Hairpin Silver",
+                    new Color(0.52f, 0.49f, 0.56f),
+                    0.82f,
+                    Color.black,
+                    0.68f),
+                boot = Material(
+                    "Qingqing Boots",
+                    new Color(0.055f, 0.025f, 0.04f),
+                    0.3f),
+            };
+            return Build(root, "Ye Qingqing Visual", palette, false);
+        }
+
         private static StylizedCharacterAnimator Build(
             Transform root,
             string visualName,

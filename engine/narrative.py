@@ -29,6 +29,10 @@ from world_schema import (
 )
 
 from .config import get_llm_config
+from .llm_telemetry import (
+    call_openai_compatible,
+    chat_generation_options,
+)
 from .narrative_consistency import check_narrative, NarrativeCheckResult
 
 
@@ -45,6 +49,8 @@ SYSTEM_PROMPT = """你是一个小说叙事生成器。系统刚刚在世界里�
 5. 旁白用第三人称，文笔要有小说感，呼应古风/穿越题材。
 6. 对白要符合角色身份和当前情绪 (情绪在角色状态里)。
 7. system_hints 用现代游戏提示口吻，告知玩家状态变化 (如"夜清清对你的敌意上升")。
+8. grounded_event_ids 必须列出你实际依据的已提交事件 id。
+9. referenced_entity_ids 必须列出正文和对白涉及的角色、物品、地点 id；不得编造实体。
 
 # 输出格式
 {
@@ -53,7 +59,9 @@ SYSTEM_PROMPT = """你是一个小说叙事生成器。系统刚刚在世界里�
     {"speaker_id": "角色id", "line": "...", "tone": "语气", "to_id": "对谁说(可选)"}
   ],
   "system_hints": ["...玩家提示..."],
-  "viewpoint": "third_person"
+  "viewpoint": "third_person",
+  "grounded_event_ids": ["已提交事件id"],
+  "referenced_entity_ids": ["实际引用的实体id"]
 }
 """
 
@@ -134,6 +142,13 @@ class NarrativeGenerator:
             f"时间: {state.world_time}",
         ]
 
+        if state.world_constraints:
+            lines.append("\n# 权威世界约束")
+            for constraint in state.world_constraints:
+                lines.append(
+                    f"- {constraint.constraint_id}: {constraint.statement}"
+                )
+
         # 触发行动 (如果有)
         if action:
             lines.append(f"\n# 触发行动\n玩家({action.actor.actor_id})执行了: {action.action_type.value}")
@@ -142,6 +157,7 @@ class NarrativeGenerator:
 
         # 已提交事件: 把 patch 翻译成"发生了什么"的清单
         lines.append("\n# 已发生的事件 (必须忠于这些变化)")
+        lines.append(f"事件 ID: {event.event_id}")
         lines.append(f"事件类型: {event.event_type}")
         if event.patch.operations:
             for op in event.patch.operations:
@@ -200,8 +216,17 @@ class NarrativeGenerator:
         return loc.display_name if loc else (state.current_scene_id or "?")
 
     def _call_llm(self, messages: list) -> str:
-        resp = openai.ChatCompletion.create(
-            model=self.model, messages=messages, temperature=0.7,  # 叙事要创造性，高温
+        resp = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="narrative",
+            model=self.model,
+            messages=messages,
+            temperature=0.7,  # 叙事要创造性，高温
+            **chat_generation_options(
+                self.model,
+                max_tokens=1536,
+                thinking=False,
+            ),
         )
         return resp.choices[0].message.content.strip()
 

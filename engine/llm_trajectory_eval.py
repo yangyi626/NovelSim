@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from world_schema import WorldEvent, WorldState
 
 from .config import get_llm_config
+from .llm_telemetry import call_openai_compatible
 from .persistence import TurnRecord
 
 
@@ -298,7 +299,9 @@ class LLMTrajectoryEvaluator:
     def _call_llm(self, messages: list) -> str:
         if self.before_llm_call is not None:
             self.before_llm_call()
-        response = openai.ChatCompletion.create(
+        response = call_openai_compatible(
+            openai.ChatCompletion.create,
+            operation="trajectory_judge",
             api_key=self.api_key,
             api_base=self.base_url,
             model=self.model,

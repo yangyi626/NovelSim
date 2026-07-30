@@ -54,6 +54,8 @@ class TestFullPipelineMocked:
                  "tone": "欣慰", "to_id": QINGQING},
             ],
             "system_hints": ["获得: 夜清清的外衫"],
+            "grounded_event_ids": ["event_000001"],
+            "referenced_entity_ids": [NIGHT, QINGQING, OUTER_ROBE],
         }, ensure_ascii=False))
 
         pipe = TurnPipeline(parser=parser, proposer=proposer, narrator=narrator)

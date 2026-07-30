@@ -11,12 +11,15 @@ from __future__ import annotations
 from typing import Dict
 
 from world_schema import (
+    ActionPolicy,
     AgentGoal,
     AgentPlan,
     Character,
     CharacterBelief,
+    CharacterCapability,
     CharacterPsyche,
     CharacterRelation,
+    EntityAffordance,
     Item,
     Location,
     Operation,
@@ -24,6 +27,8 @@ from world_schema import (
     PlotArc,
     Rule,
     StatePatch,
+    WorldConcept,
+    WorldConstraint,
     WorldRule,
     WorldState,
 )
@@ -57,6 +62,156 @@ def build_world_rules() -> list:
             statement="夜轻歌为小王爷未过门王妃，婚约未解除前不得另嫁。",
         ),
     ]
+
+
+def build_world_concepts() -> Dict[str, WorldConcept]:
+    """当前古代玄幻世界可用和明确不可用的概念目录。"""
+
+    return {
+        "concept_walk": WorldConcept(
+            concept_id="concept_walk",
+            display_name="徒步",
+            aliases=["走路", "步行", "徒步"],
+            category="transport",
+        ),
+        "concept_horse": WorldConcept(
+            concept_id="concept_horse",
+            display_name="马匹",
+            aliases=["骑马", "马匹", "坐骑"],
+            mention_patterns=[
+                r"骑(?:着|上)?(?:一匹)?马",
+                r"一匹[^，。\s]{0,8}马",
+            ],
+            category="transport",
+            requires_entity=True,
+            required_capability_ids=["transport.ride_horse"],
+        ),
+        "concept_airplane": WorldConcept(
+            concept_id="concept_airplane",
+            display_name="飞机",
+            aliases=["飞机", "航空器", "直升机"],
+            category="technology",
+            available=False,
+            requires_entity=True,
+            required_capability_ids=["transport.pilot_aircraft"],
+        ),
+        "concept_teleportation": WorldConcept(
+            concept_id="concept_teleportation",
+            display_name="瞬移",
+            aliases=["瞬移", "传送到", "空间传送", "凭空", "隔空取物", "直接变到"],
+            category="magic",
+            available=False,
+            required_capability_ids=["magic.teleport"],
+        ),
+    }
+
+
+def build_world_constraints() -> list:
+    return [
+        WorldConstraint(
+            constraint_id="constraint_ancient_transport",
+            category="technology",
+            statement="当前北月国世界没有现代飞行器，也不存在已注册的瞬移体系。",
+            allowed_concept_ids=["concept_walk", "concept_horse"],
+            forbidden_concept_ids=[
+                "concept_airplane",
+                "concept_teleportation",
+            ],
+            strict_narrative_grounding=True,
+            strict_knowledge_boundaries=True,
+        )
+    ]
+
+
+def build_character_capabilities() -> Dict[str, list]:
+    common = [
+        CharacterCapability(capability_id="movement.walk"),
+        CharacterCapability(capability_id="social.speak"),
+        CharacterCapability(capability_id="perception.observe"),
+    ]
+    return {
+        NIGHT: [cap.copy(deep=True) for cap in common],
+        QINGQING: [cap.copy(deep=True) for cap in common],
+        LIN: [cap.copy(deep=True) for cap in common],
+        GRANDPA: [cap.copy(deep=True) for cap in common],
+    }
+
+
+def build_entity_affordances() -> Dict[str, list]:
+    return {
+        OUTER_ROBE: [
+            EntityAffordance(
+                affordance_id="affordance_outer_robe_transfer",
+                entity_id=OUTER_ROBE,
+                action_type="swap_object",
+            )
+        ]
+    }
+
+
+def build_action_policies() -> Dict[str, ActionPolicy]:
+    return {
+        "move": ActionPolicy(
+            action_type="move",
+            required_parameters=["destination_id"],
+            required_capability_ids=["movement.walk"],
+            affordance_parameter="transport_entity_id",
+            allowed_patch_operations=["move_character"],
+        ),
+        "swap_object": ActionPolicy(
+            action_type="swap_object",
+            requires_target=True,
+            affordance_from_target=True,
+            allowed_patch_operations=[
+                "transfer_item",
+                "update_relation",
+            ],
+        ),
+        "speak": ActionPolicy(
+            action_type="speak",
+            # speak 可是公开自言/宣告；定向对话由 talk_to 工具强制目标。
+            requires_target=False,
+            required_capability_ids=["social.speak"],
+            allowed_patch_operations=[
+                "update_relation",
+                "update_belief",
+            ],
+        ),
+        "observe": ActionPolicy(
+            action_type="observe",
+            required_capability_ids=["perception.observe"],
+            allowed_patch_operations=["update_belief"],
+        ),
+        "investigate": ActionPolicy(
+            action_type="investigate",
+            required_capability_ids=["perception.observe"],
+            allowed_patch_operations=["update_belief"],
+        ),
+        "gift": ActionPolicy(
+            action_type="gift",
+            requires_target=True,
+            affordance_from_target=True,
+            allowed_patch_operations=["transfer_item", "update_relation"],
+        ),
+        "use_item": ActionPolicy(
+            action_type="use_item",
+            requires_target=True,
+            affordance_from_target=True,
+            allowed_patch_operations=[
+                "set_attr",
+                "update_belief",
+            ],
+        ),
+        "attack": ActionPolicy(
+            action_type="attack",
+            requires_target=True,
+            allowed_patch_operations=[
+                "set_attr",
+                "update_relation",
+                "kill_character",
+            ],
+        ),
+    }
 
 
 def build_locations() -> Dict[str, Location]:
@@ -337,6 +492,11 @@ def build_snapshot() -> WorldState:
         },
         rules=build_rules(),
         world_rules=build_world_rules(),
+        world_concepts=build_world_concepts(),
+        world_constraints=build_world_constraints(),
+        character_capabilities=build_character_capabilities(),
+        entity_affordances=build_entity_affordances(),
+        action_policies=build_action_policies(),
         character_psyches=build_psyches(),
         flags={
             "plot.shaming_in_progress": True,

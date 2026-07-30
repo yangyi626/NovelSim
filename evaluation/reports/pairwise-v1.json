@@ -1,0 +1,429 @@
+{
+  "schema_version": 1,
+  "sample_count": 6,
+  "judged_count": 6,
+  "parse_failure_count": 0,
+  "call_failure_count": 0,
+  "objective_override_count": 0,
+  "original_a_win_count": 6,
+  "original_b_win_count": 0,
+  "tie_count": 0,
+  "per_system_wins": {
+    "novelsim_grounded_llm": 6
+  },
+  "dimension_wins": {
+    "anthropomorphism": {
+      "novelsim_grounded_llm": 6
+    },
+    "character_fidelity": {
+      "novelsim_grounded_llm": 4,
+      "tie": 2
+    },
+    "creativity": {
+      "novelsim_grounded_llm": 3
+    },
+    "immersion_setting": {
+      "novelsim_grounded_llm": 6
+    },
+    "storyline_quality": {
+      "novelsim_grounded_llm": 3
+    },
+    "writing_quality": {
+      "novelsim_grounded_llm": 6
+    }
+  },
+  "human_label_count": 0,
+  "human_agreement_rate": null,
+  "cohen_kappa": null,
+  "llm_usage": {
+    "call_count": 6,
+    "failed_call_count": 0,
+    "prompt_tokens": 3892,
+    "completion_tokens": 1893,
+    "total_tokens": 5785,
+    "cached_tokens": 0,
+    "latency_ms": 37576.21
+  },
+  "estimated_cost": null,
+  "cost_currency": null,
+  "records": [
+    {
+      "sample_id": "pair_pair_robe_01",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "a",
+      "blind_right_original": "b",
+      "prompt_hash": "951ee5dfb91265155954925cd355125e9c374277eb9faa803916aef4ebefe1e5",
+      "judge_winner_blind": "left",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "left",
+          "rationale": "左侧生动描绘了角色的生理反应（僵硬、咬唇）和心理活动（屈辱、隐忍），展现了有限认知下的真实人性。右侧仅为状态陈述，完全缺失人类情感与反应。"
+        },
+        "character_fidelity": {
+          "winner": "left",
+          "rationale": "左侧准确体现了夜清清嫉妒且曾陷害对方的复杂关系，面对羞辱时的隐怒符合其人设与处境。右侧无角色行为描写，无法体现人格一致性。"
+        },
+        "immersion_setting": {
+          "winner": "left",
+          "rationale": "左侧通过晨风、枯叶、衣料摩擦声等细节营造了古代巷道的氛围，沉浸感强。右侧是干瘪的系统日志式语言，彻底破坏了玄幻世界的沉浸体验。"
+        },
+        "writing_quality": {
+          "winner": "left",
+          "rationale": "左侧文笔流畅，用词精准（如‘行云流水’、‘空气凝固’），画面感强。右侧语言机械重复，缺乏文学性，不符合叙事文本的基本质量要求。"
+        },
+        "creativity": {
+          "winner": "left",
+          "rationale": "左侧在遵循事实基础上，创造性地添加了环境互动和微表情描写，丰富了场景层次。右侧仅复述结果，无任何创意增量。"
+        }
+      },
+      "overall_rationale": "左侧提供了高质量的文学叙事，完美融合了动作、心理与环境描写，符合角色关系与世界设定。右侧仅为机械的状态更新记录，完全不具备互动叙事应有的阅读体验和沉浸感，两者差距巨大。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "59ad6e82785247fbaa70ac8e949d5a27",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 726,
+          "completion_tokens": 381,
+          "total_tokens": 1107,
+          "cached_tokens": 0,
+          "latency_ms": 7568.753,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 726,
+        "completion_tokens": 381,
+        "total_tokens": 1107,
+        "cached_tokens": 0,
+        "latency_ms": 7568.753
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_02",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "9686358956e7c3a5bba3f389935637dc130d28f69e9f2312de88c9d3d88d0f7c",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧展现了角色的羞耻、愤怒等具体情绪反应，符合人类心理；左侧仅为系统日志，无角色人性体现。"
+        },
+        "character_fidelity": {
+          "winner": "right",
+          "rationale": "右侧夜清清的受辱反应符合其嫉妒且曾陷害对方的敌对关系设定；左侧未展示任何角色行为或态度。"
+        },
+        "immersion_setting": {
+          "winner": "right",
+          "rationale": "右侧通过环境描写和感官细节营造了古代玄幻氛围；左侧完全脱离叙事语境，破坏沉浸感。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧文笔流畅、画面感强；左侧是枯燥的技术描述，缺乏文学性和可读性。"
+        },
+        "storyline_quality": {
+          "winner": "right",
+          "rationale": "右侧推动了剧情冲突，提供了后续互动的契机；左侧仅陈述事实变更，无剧情推进价值。"
+        }
+      },
+      "overall_rationale": "右侧提供了高质量的叙事体验，生动描绘了动作、环境及角色反应，完美契合script模式要求。左侧仅是机械的状态更新记录，缺乏故事性和沉浸感，无法作为互动叙事内容。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "dc84e08baa064c78a5016687c9d07c2f",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 685,
+          "completion_tokens": 275,
+          "total_tokens": 960,
+          "cached_tokens": 0,
+          "latency_ms": 5491.793,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 685,
+        "completion_tokens": 275,
+        "total_tokens": 960,
+        "cached_tokens": 0,
+        "latency_ms": 5491.793
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_03",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "29971c8bd0c36060a94c61a60076171736a2288667f2451547f8622e79cc473d",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧展现了角色的情绪反应（震惊、愤怒）和肢体细节，符合人类在突发冲突下的自然表现；左侧仅为系统日志，无角色人性体现。"
+        },
+        "character_fidelity": {
+          "winner": "right",
+          "rationale": "右侧夜清清的愤怒与嫉妒设定相符，夜轻歌的强硬动作符合夺衣情境；左侧未展现任何角色性格或关系动态，缺乏一致性描写。"
+        },
+        "immersion_setting": {
+          "winner": "right",
+          "rationale": "右侧通过晨风、枯叶、布料摩擦声等细节营造了古代巷弄的氛围感；左侧完全脱离叙事语境，破坏了沉浸体验。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧语言生动具体，画面感强，节奏紧凑；左侧是枯燥的状态陈述，缺乏文学性和可读性，不符合互动叙事要求。"
+        },
+        "creativity": {
+          "winner": "right",
+          "rationale": "右侧在事实框架内丰富了动作细节和环境反馈，增加了戏剧张力；左侧仅复述事实，无任何创造性叙事增量。"
+        }
+      },
+      "overall_rationale": "右侧提供了高质量的叙事体验，生动刻画了冲突瞬间的角色反应与环境氛围，完全符合自由模式要求。左侧仅是机械的状态更新记录，缺乏故事性、情感张力和沉浸感，无法作为有效的叙事输出。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "1a543e525b85419d93d1b2796a1aad5b",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 657,
+          "completion_tokens": 353,
+          "total_tokens": 1010,
+          "cached_tokens": 0,
+          "latency_ms": 6913.35,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 657,
+        "completion_tokens": 353,
+        "total_tokens": 1010,
+        "cached_tokens": 0,
+        "latency_ms": 6913.35
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_01",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "0d22a0e415cf6992e56f8429aff922c7ca2005a7d8ead795b4149a628b3a17e3",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧通过感官描写体现角色的主观体验，左侧仅为机械的状态陈述，缺乏人类感知的温度。"
+        },
+        "character_fidelity": {
+          "winner": "tie",
+          "rationale": "两者均未违背角色设定。右侧虽添加环境氛围，但未扭曲角色行为或认知，符合既定身份。"
+        },
+        "immersion_setting": {
+          "winner": "right",
+          "rationale": "右侧具体描绘了古代建筑与光影，增强了北月国的沉浸感；左侧完全缺失环境与氛围描写。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧文笔优美、画面感强；左侧语言干瘪，仅完成功能指令，缺乏文学性与自然度。"
+        },
+        "storyline_quality": {
+          "winner": "right",
+          "rationale": "右侧提供了连贯的空间移动过程，因果清晰且具叙事张力；左侧跳跃式结论，缺乏剧情推进的质感。"
+        }
+      },
+      "overall_rationale": "右侧在保持事实一致的前提下，显著提升了文学性、沉浸感和叙事流畅度。左侧虽合规但过于简略，像系统日志而非互动叙事，体验远逊于右侧。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "87cb866acee24cff8a4457c42b0fa3e1",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 599,
+          "completion_tokens": 271,
+          "total_tokens": 870,
+          "cached_tokens": 0,
+          "latency_ms": 5437.22,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 599,
+        "completion_tokens": 271,
+        "total_tokens": 870,
+        "cached_tokens": 0,
+        "latency_ms": 5437.22
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_02",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "a",
+      "blind_right_original": "b",
+      "prompt_hash": "76ea03dbb5a9b8f92f067ae38229ad20ee141d0ac048955d575fa25e337ae814",
+      "judge_winner_blind": "left",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "left",
+          "rationale": "左侧通过动作和感官描写体现角色的疲惫与决断，具有人的质感；右侧仅为事实陈述，缺乏角色内在体验。"
+        },
+        "character_fidelity": {
+          "winner": "left",
+          "rationale": "左侧符合夜轻歌沉稳内敛的性格设定，行为逻辑自然；右侧无性格展现，无法评估一致性，但左侧更贴合人物形象。"
+        },
+        "immersion_setting": {
+          "winner": "left",
+          "rationale": "左侧通过青石板、薄雾、朱红大门等细节构建了古代玄幻氛围；右侧完全缺失环境描写，沉浸感极弱。"
+        },
+        "writing_quality": {
+          "winner": "left",
+          "rationale": "左侧文笔流畅，用词精准，画面感强；右侧过于干瘪，像系统日志而非叙事文本，文学性不足。"
+        },
+        "creativity": {
+          "winner": "left",
+          "rationale": "左侧在既定移动路径上丰富了环境互动和心理过渡，增加了叙事厚度；右侧无任何创造性扩展。"
+        }
+      },
+      "overall_rationale": "左侧提供了高质量的沉浸式叙事，兼顾环境氛围与角色状态，符合自由模式下的创作预期。右侧仅复述动作，缺乏文学价值和阅读体验，差距明显。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "8061886c153e48aa9486721cd7c5af5c",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 609,
+          "completion_tokens": 325,
+          "total_tokens": 934,
+          "cached_tokens": 0,
+          "latency_ms": 6324.689,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 609,
+        "completion_tokens": 325,
+        "total_tokens": 934,
+        "cached_tokens": 0,
+        "latency_ms": 6324.689
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_03",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "8e4deab9e4910534ec677a9670239a3494a5897e067d5c9bc5478e1d09e060f6",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧通过敛去神色、步履不停等细节展现角色的心理状态与行动意志，左侧仅为机械陈述，缺乏人性温度。"
+        },
+        "character_fidelity": {
+          "winner": "tie",
+          "rationale": "两者均符合移动指令。右侧虽未直接体现嫉妒关系，但保持了角色作为夜府三小姐的身份认知，无违和之处。"
+        },
+        "immersion_setting": {
+          "winner": "right",
+          "rationale": "右侧通过青石板、朱红高墙、石兽等意象构建了古代玄幻氛围，左侧完全缺失环境描写，沉浸感极弱。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧文笔流畅，画面感强，用词精准；左侧过于干瘪，缺乏文学性，仅起到功能说明作用。"
+        },
+        "storyline_quality": {
+          "winner": "right",
+          "rationale": "右侧将移动过程转化为具有因果和空间感的叙事片段，增强了剧情连贯性；左侧仅是状态跳变。"
+        }
+      },
+      "overall_rationale": "右侧在保持事实一致的前提下，提供了丰富的环境描写和角色细节，显著提升了沉浸感与阅读体验。左侧虽准确但过于枯燥，缺乏叙事美感。",
+      "human_winner": null,
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "c551b9f1b71e434eb11904e35e22343f",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 616,
+          "completion_tokens": 288,
+          "total_tokens": 904,
+          "cached_tokens": 0,
+          "latency_ms": 5840.405,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 616,
+        "completion_tokens": 288,
+        "total_tokens": 904,
+        "cached_tokens": 0,
+        "latency_ms": 5840.405
+      }
+    }
+  ]
+}

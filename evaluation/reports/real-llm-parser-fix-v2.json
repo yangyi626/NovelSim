@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "suite_id": "novelsim-real-turn-v1",
+  "run_id": "real_llm_63ab79df0ba44fac",
+  "generated_at": "2026-07-29T17:02:48.560145+00:00",
+  "model": "qwen3.7-plus",
+  "required_run_count": 20,
+  "run_count": 2,
+  "complete": false,
+  "passed": false,
+  "state_commit_rate": 1.0,
+  "objective_success_rate": 1.0,
+  "replay_consistency_rate": 1.0,
+  "causal_valid_rate": 1.0,
+  "narrative_coverage_rate": 1.0,
+  "narrative_grounding_rate": 1.0,
+  "failure_distribution": {},
+  "total_latency": {
+    "sample_count": 2,
+    "mean_ms": 15117.391,
+    "p50_ms": 15117.391,
+    "p95_ms": 16308.807,
+    "max_ms": 16441.187
+  },
+  "llm_usage": {
+    "call_count": 6,
+    "failed_call_count": 0,
+    "prompt_tokens": 5810,
+    "completion_tokens": 1473,
+    "total_tokens": 7283,
+    "cached_tokens": 0,
+    "latency_ms": 30227.172
+  },
+  "estimated_cost": null,
+  "cost_currency": null,
+  "records": [
+    {
+      "case_id": "fix_robe_07",
+      "user_text": "夜轻歌一把取过庶妹的外衫，收为己用。",
+      "objective": "obtain_outer_robe",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "swap_object",
+      "operation_types": [
+        "transfer_item",
+        "update_relation",
+        "update_relation"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的晨风微凉，卷起几片枯叶。夜轻歌目光一凛，并未多言，径直伸手探向身侧。指尖触及那层柔软的织物，她手腕发力，毫不客气地将夜清清身上的外衫一把扯下。动作虽快，却带着几分蛮横与张扬。随着衣料剥离的细微声响，那件绣着淡雅兰草的外衫已落入夜轻歌手中。夜清清猝不及防，只觉肩头一凉，原本端庄的仪态瞬间被这突如其来的掠夺打破，白皙的面庞因惊怒而涨红，眼中寒光乍现。",
+      "dialogue_texts": [
+        "char_yeqingqing: 夜轻歌！你疯了吗？光天化日之下强夺庶妹衣物，这就是嫡出的风范？",
+        "char_yeqingge: 哼，这衣服穿在你身上也是糟蹋。既然我看上了，便是我的。"
+      ],
+      "latency_ms": 16441.187,
+      "llm_calls": [
+        {
+          "call_id": "424a34a034004148ac8bf9d22374969c",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1007,
+          "completion_tokens": 96,
+          "total_tokens": 1103,
+          "cached_tokens": 0,
+          "latency_ms": 2647.59,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "6694a86844604ff8a7f033355af05640",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 969,
+          "completion_tokens": 285,
+          "total_tokens": 1254,
+          "cached_tokens": 0,
+          "latency_ms": 5642.922,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "e3edad63706a4b17a57dc93339376f27",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 807,
+          "completion_tokens": 434,
+          "total_tokens": 1241,
+          "cached_tokens": 0,
+          "latency_ms": 8146.655,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 2783,
+        "completion_tokens": 815,
+        "total_tokens": 3598,
+        "cached_tokens": 0,
+        "latency_ms": 16437.167
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    },
+    {
+      "case_id": "fix_command_01",
+      "user_text": "我命令夜清清立刻把外衫交给我。",
+      "objective": "command_without_forced_transfer",
+      "status": "committed",
+      "objective_passed": true,
+      "state_committed": true,
+      "action_type": "speak",
+      "operation_types": [
+        "update_relation",
+        "update_relation"
+      ],
+      "rejection_code": null,
+      "event_id": "event_000001",
+      "final_version": 1,
+      "replay_consistent": true,
+      "causal_valid": true,
+      "narrative_present": true,
+      "narrative_grounded": true,
+      "narrative_text": "华容巷的晨风带着几分料峭，卷起几片枯叶。夜轻歌目光清冷，直视着面前的少女，语气中不带丝毫温度，命令她交出身上的外衫。这突如其来的强硬姿态，让原本就心存芥蒂的夜清清微微一怔。在她眼中，眼前这个毫无修为的‘废柴’姐姐，此刻竟敢对自己发号施令，简直是荒谬至极。那股被冒犯的怒意与轻视交织在一起，让她看向夜轻歌的眼神愈发冰冷。",
+      "dialogue_texts": [
+        "char_yeqingqing: 你算什么东西，也配命令我？"
+      ],
+      "latency_ms": 13793.595,
+      "llm_calls": [
+        {
+          "call_id": "062ef8a20ab4447b987a571631d6a8e8",
+          "operation": "action_parser",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1003,
+          "completion_tokens": 108,
+          "total_tokens": 1111,
+          "cached_tokens": 0,
+          "latency_ms": 2665.613,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "e37c74c70b744c17a767d2efbe843596",
+          "operation": "transition",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 1247,
+          "completion_tokens": 246,
+          "total_tokens": 1493,
+          "cached_tokens": 0,
+          "latency_ms": 5086.535,
+          "success": true,
+          "error_type": null
+        },
+        {
+          "call_id": "7d04747056e747558f743d2938d930e3",
+          "operation": "narrative",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 777,
+          "completion_tokens": 304,
+          "total_tokens": 1081,
+          "cached_tokens": 0,
+          "latency_ms": 6037.857,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 3,
+        "failed_call_count": 0,
+        "prompt_tokens": 3027,
+        "completion_tokens": 658,
+        "total_tokens": 3685,
+        "cached_tokens": 0,
+        "latency_ms": 13790.005
+      },
+      "estimated_cost": null,
+      "cost_currency": null,
+      "error": ""
+    }
+  ]
+}

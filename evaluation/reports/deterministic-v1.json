@@ -1,0 +1,1274 @@
+{
+  "schema_version": 1,
+  "suite_id": "novelsim-secret-letter-objective-v1",
+  "run_id": "evaluation_824921617298808b",
+  "generated_at": "2026-07-29T17:03:06.242028+00:00",
+  "deterministic": true,
+  "random_seed": 20260729,
+  "pricing": {
+    "currency": "USD",
+    "input_per_million": 0.0,
+    "cached_input_per_million": 0.0,
+    "output_per_million": 0.0
+  },
+  "case_count": 9,
+  "run_count": 9,
+  "records": [
+    {
+      "case_id": "free_defenders_allied",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "core_objective",
+        "alliance_expected",
+        "free"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "completed",
+      "ending_id": "defenders_allied",
+      "objective_satisfied": true,
+      "turns_used": 5,
+      "initial_version": 0,
+      "final_version": 5,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "99723bbd0b1f7f5efb4f448a8bb77c6dfc76811988a7b7a75a4377e97007fefc",
+      "tool_sequence": [
+        "pick_up",
+        "observe",
+        "share_information",
+        "share_information",
+        "propose_alliance"
+      ],
+      "tool_call_count": 5,
+      "successful_tool_calls": 5,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "f9f2a43e744848998eda08a8b8e32732",
+        "143393fedebe4cae8329efc72fae8f3c",
+        "cea85314b65e4079bf88c44bde1916f7",
+        "ab2046f7ba224164bb113bc1f7ce2adf",
+        "c7faad2297d14b80a6c6dd8d9f99816a"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002",
+        "event_000003",
+        "event_000004",
+        "event_000005"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 2,
+      "valid_propagation_count": 2,
+      "evidence_chain_sample_count": 2,
+      "complete_evidence_chain_count": 2,
+      "alliance_count": 1,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 32.517,
+      "stage_latency_ms": {
+        "decision": 0.26,
+        "execution": 14.071,
+        "lifecycle": 0.759,
+        "memory_retrieval": 0.249,
+        "observation": 9.01,
+        "perception": 0.307,
+        "reflection": 0.523,
+        "validation": 0.51
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "script_defenders_allied",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "script",
+      "tags": [
+        "deterministic",
+        "core_objective",
+        "alliance_expected",
+        "script"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "completed",
+      "ending_id": "defenders_allied",
+      "objective_satisfied": true,
+      "turns_used": 5,
+      "initial_version": 0,
+      "final_version": 5,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "99723bbd0b1f7f5efb4f448a8bb77c6dfc76811988a7b7a75a4377e97007fefc",
+      "tool_sequence": [
+        "pick_up",
+        "observe",
+        "share_information",
+        "share_information",
+        "propose_alliance"
+      ],
+      "tool_call_count": 5,
+      "successful_tool_calls": 5,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "c19107b79ad54bb88f38aaf64b7eefa2",
+        "63fc6ba1de474ba9a98f35e4735f1b14",
+        "8f82695ae16a459bafbdf104a9d54169",
+        "1ce2a4f6eb094f01b82fc531d615e13d",
+        "065c820ed00b459e98c459a2fc3de3b0"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002",
+        "event_000003",
+        "event_000004",
+        "event_000005"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 2,
+      "valid_propagation_count": 2,
+      "evidence_chain_sample_count": 2,
+      "complete_evidence_chain_count": 2,
+      "alliance_count": 1,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 51.54,
+      "stage_latency_ms": {
+        "decision": 0.356,
+        "execution": 22.426,
+        "lifecycle": 1.28,
+        "memory_retrieval": 0.353,
+        "observation": 17.701,
+        "perception": 0.474,
+        "reflection": 0.717,
+        "validation": 0.605
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "player_destroys_letter",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "player_route"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "completed",
+      "ending_id": "letter_destroyed",
+      "objective_satisfied": false,
+      "turns_used": 2,
+      "initial_version": 0,
+      "final_version": 2,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "e8bfcf6d229cf47f3079440d44d74c81fccea85b49c10e4817322a8c158176f1",
+      "tool_sequence": [
+        "pick_up",
+        "destroy_item"
+      ],
+      "tool_call_count": 2,
+      "successful_tool_calls": 2,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "07b5884bae964cfcb04ec773b6244020",
+        "e2938265fad44125a133af90863a19b1"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 17.358,
+      "stage_latency_ms": {
+        "decision": 0.173,
+        "execution": 5.136,
+        "lifecycle": 0.369,
+        "memory_retrieval": 2.076,
+        "observation": 4.431,
+        "perception": 0.167,
+        "reflection": 0.284,
+        "validation": 0.255
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "player_intercepts_letter",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "player_route"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "completed",
+      "ending_id": "player_intercepted",
+      "objective_satisfied": false,
+      "turns_used": 2,
+      "initial_version": 0,
+      "final_version": 2,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "8ce8c0856b5aa6040463bd75ffd1f5ef36725516b075e27b12aa531e2e5949c4",
+      "tool_sequence": [
+        "pick_up",
+        "move_to"
+      ],
+      "tool_call_count": 2,
+      "successful_tool_calls": 2,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "abb43e15771d474ead5f97d42e37e24b",
+        "e24862787b3240cd816082e36c4c3ffd"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 20.16,
+      "stage_latency_ms": {
+        "decision": 0.353,
+        "execution": 7.077,
+        "lifecycle": 0.41,
+        "memory_retrieval": 0.188,
+        "navigation": 0.072,
+        "observation": 4.699,
+        "perception": 0.425,
+        "reflection": 0.276,
+        "validation": 0.29
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "player_exposes_truth",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "player_route",
+        "core_objective",
+        "alliance_expected"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "completed",
+      "ending_id": "truth_exposed",
+      "objective_satisfied": true,
+      "turns_used": 5,
+      "initial_version": 0,
+      "final_version": 5,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "27e2debd15a701a07c36800b5b77e1396b419646552328345705db644f58a935",
+      "tool_sequence": [
+        "pick_up",
+        "observe",
+        "share_information",
+        "share_information",
+        "propose_alliance"
+      ],
+      "tool_call_count": 5,
+      "successful_tool_calls": 5,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "f78b15be65184d42b27513fd39b6f4dc",
+        "6acc59489a64449cbb971b7d24cae3de",
+        "7806190b1d03470497bd73578a285504",
+        "d5bba139dabf4cab86b13e7faba39f2f",
+        "3eb89d80e8514d76b8323c2cf45eeab6"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002",
+        "event_000003",
+        "event_000004",
+        "event_000005"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 2,
+      "valid_propagation_count": 2,
+      "evidence_chain_sample_count": 2,
+      "complete_evidence_chain_count": 2,
+      "alliance_count": 1,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 41.745,
+      "stage_latency_ms": {
+        "decision": 0.415,
+        "execution": 15.151,
+        "lifecycle": 0.938,
+        "memory_retrieval": 0.378,
+        "observation": 14.817,
+        "perception": 0.441,
+        "reflection": 0.689,
+        "validation": 0.66
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "bounded_turn_limit",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "budget"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "turn_limit",
+      "ending_id": null,
+      "objective_satisfied": false,
+      "turns_used": 2,
+      "initial_version": 0,
+      "final_version": 2,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "a482bcca729b7f11b26fa3f05bed4383b4396226c82dddd5387b6fad04356881",
+      "tool_sequence": [
+        "pick_up",
+        "observe"
+      ],
+      "tool_call_count": 2,
+      "successful_tool_calls": 2,
+      "expected_rejection_count": 0,
+      "matched_expected_rejection_count": 0,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [],
+      "failure_distribution": {},
+      "trace_ids": [
+        "3dd65003e0e64f6d9b65c03b1b603eb6",
+        "f325fec40e6f43348b5d2f4d6ba03942"
+      ],
+      "event_ids": [
+        "event_000001",
+        "event_000002"
+      ],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 17.712,
+      "stage_latency_ms": {
+        "decision": 0.188,
+        "execution": 6.409,
+        "lifecycle": 0.413,
+        "memory_retrieval": 0.181,
+        "observation": 5.096,
+        "perception": 0.207,
+        "reflection": 0.27,
+        "validation": 0.272
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "reject_alliance_without_evidence",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "expected_rejection",
+        "alliance"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "tool_failed",
+      "ending_id": null,
+      "objective_satisfied": false,
+      "turns_used": 1,
+      "initial_version": 0,
+      "final_version": 0,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "tool_sequence": [
+        "propose_alliance"
+      ],
+      "tool_call_count": 1,
+      "successful_tool_calls": 0,
+      "expected_rejection_count": 1,
+      "matched_expected_rejection_count": 1,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [
+        "precondition_failed"
+      ],
+      "failure_distribution": {
+        "precondition_failed": 1
+      },
+      "trace_ids": [
+        "47a85ad16c9e4a1fafa6c57afa490cef"
+      ],
+      "event_ids": [],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 8.674,
+      "stage_latency_ms": {
+        "decision": 0.083,
+        "execution": 2.532,
+        "lifecycle": 0.309,
+        "memory_retrieval": 0.121,
+        "perception": 0.104,
+        "recovery": 0.162,
+        "validation": 0.139
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "reject_unknown_entity",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "expected_rejection",
+        "entity"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "tool_failed",
+      "ending_id": null,
+      "objective_satisfied": false,
+      "turns_used": 1,
+      "initial_version": 0,
+      "final_version": 0,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "tool_sequence": [
+        "talk_to"
+      ],
+      "tool_call_count": 1,
+      "successful_tool_calls": 0,
+      "expected_rejection_count": 1,
+      "matched_expected_rejection_count": 1,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [
+        "target_not_found"
+      ],
+      "failure_distribution": {
+        "target_not_found": 1
+      },
+      "trace_ids": [
+        "7d1c55fc9562455d9401be6b64f7e237"
+      ],
+      "event_ids": [],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 7.617,
+      "stage_latency_ms": {
+        "decision": 0.086,
+        "execution": 2.332,
+        "lifecycle": 0.219,
+        "memory_retrieval": 0.077,
+        "perception": 0.087,
+        "recovery": 0.156,
+        "validation": 0.15
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    },
+    {
+      "case_id": "reject_knowledge_leak",
+      "repetition": 1,
+      "scenario_id": "secret_letter",
+      "mode": "free",
+      "tags": [
+        "deterministic",
+        "expected_rejection",
+        "cognitive_boundary"
+      ],
+      "random_seed": 20260729,
+      "passed": true,
+      "assertion_failures": [],
+      "status": "tool_failed",
+      "ending_id": null,
+      "objective_satisfied": false,
+      "turns_used": 1,
+      "initial_version": 0,
+      "final_version": 0,
+      "initial_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "final_state_hash": "a19963cdd1bdc57ea6cc069249d0b65881a6399c93c317f7541df19924345f66",
+      "tool_sequence": [
+        "share_information"
+      ],
+      "tool_call_count": 1,
+      "successful_tool_calls": 0,
+      "expected_rejection_count": 1,
+      "matched_expected_rejection_count": 1,
+      "unexpected_rejection_count": 0,
+      "failure_codes": [
+        "cognitive_boundary"
+      ],
+      "failure_distribution": {
+        "cognitive_boundary": 1
+      },
+      "trace_ids": [
+        "4a739d71b7864d749caba518ff5b449a"
+      ],
+      "event_ids": [],
+      "replay_consistent": true,
+      "illegal_patch_commit_count": 0,
+      "unknown_entity_accept_count": 0,
+      "causal_violation_count": 0,
+      "knowledge_leak_count": 0,
+      "propagation_count": 0,
+      "valid_propagation_count": 0,
+      "evidence_chain_sample_count": 0,
+      "complete_evidence_chain_count": 0,
+      "alliance_count": 0,
+      "invalid_loop_count": 0,
+      "structural_character_violation_count": 0,
+      "latency_ms": 7.904,
+      "stage_latency_ms": {
+        "decision": 0.086,
+        "execution": 2.489,
+        "lifecycle": 0.241,
+        "memory_retrieval": 0.081,
+        "perception": 0.145,
+        "recovery": 0.183,
+        "validation": 0.148
+      },
+      "llm_calls": [],
+      "llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      },
+      "estimated_cost": null,
+      "cost_currency": null
+    }
+  ],
+  "metrics": {
+    "run_count": 9,
+    "benchmark_pass_rate": 1.0,
+    "objective_completion_rate": 0.333333,
+    "core_event_completion_rate": 1.0,
+    "tool_success_rate": 1.0,
+    "expected_rejection_rate": 1.0,
+    "replay_consistency_rate": 1.0,
+    "propagation_accuracy": 1.0,
+    "evidence_chain_completeness": 1.0,
+    "structural_character_consistency": 1.0,
+    "alliance_formation_rate": 1.0,
+    "illegal_patch_commit_count": 0,
+    "unknown_entity_accept_count": 0,
+    "causal_violation_count": 0,
+    "knowledge_leak_count": 0,
+    "unexpected_rejection_count": 0,
+    "invalid_loop_count": 0,
+    "failure_distribution": {
+      "cognitive_boundary": 1,
+      "precondition_failed": 1,
+      "target_not_found": 1
+    },
+    "total_latency": {
+      "sample_count": 9,
+      "mean_ms": 22.803,
+      "p50_ms": 17.712,
+      "p95_ms": 47.622,
+      "max_ms": 51.54
+    },
+    "stage_latency": {
+      "decision": {
+        "sample_count": 9,
+        "mean_ms": 0.222,
+        "p50_ms": 0.188,
+        "p95_ms": 0.391,
+        "max_ms": 0.415
+      },
+      "execution": {
+        "sample_count": 9,
+        "mean_ms": 8.625,
+        "p50_ms": 6.409,
+        "p95_ms": 19.516,
+        "max_ms": 22.426
+      },
+      "lifecycle": {
+        "sample_count": 9,
+        "mean_ms": 0.549,
+        "p50_ms": 0.41,
+        "p95_ms": 1.143,
+        "max_ms": 1.28
+      },
+      "memory_retrieval": {
+        "sample_count": 9,
+        "mean_ms": 0.412,
+        "p50_ms": 0.188,
+        "p95_ms": 1.397,
+        "max_ms": 2.076
+      },
+      "navigation": {
+        "sample_count": 1,
+        "mean_ms": 0.072,
+        "p50_ms": 0.072,
+        "p95_ms": 0.072,
+        "max_ms": 0.072
+      },
+      "observation": {
+        "sample_count": 6,
+        "mean_ms": 9.292,
+        "p50_ms": 7.053,
+        "p95_ms": 16.98,
+        "max_ms": 17.701
+      },
+      "perception": {
+        "sample_count": 9,
+        "mean_ms": 0.262,
+        "p50_ms": 0.207,
+        "p95_ms": 0.461,
+        "max_ms": 0.474
+      },
+      "recovery": {
+        "sample_count": 3,
+        "mean_ms": 0.167,
+        "p50_ms": 0.162,
+        "p95_ms": 0.181,
+        "max_ms": 0.183
+      },
+      "reflection": {
+        "sample_count": 6,
+        "mean_ms": 0.46,
+        "p50_ms": 0.403,
+        "p95_ms": 0.71,
+        "max_ms": 0.717
+      },
+      "validation": {
+        "sample_count": 9,
+        "mean_ms": 0.337,
+        "p50_ms": 0.272,
+        "p95_ms": 0.638,
+        "max_ms": 0.66
+      }
+    },
+    "llm_usage": {
+      "call_count": 0,
+      "failed_call_count": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cached_tokens": 0,
+      "latency_ms": 0.0
+    },
+    "estimated_cost": null,
+    "cost_currency": null
+  },
+  "mode_comparisons": [
+    {
+      "comparison_id": "free_vs_script_canonical",
+      "sample_pairs": 1,
+      "free_pass_rate": 1.0,
+      "script_pass_rate": 1.0,
+      "same_final_state_rate": 1.0,
+      "same_tool_chain_rate": 1.0,
+      "free_p50_latency_ms": 32.517,
+      "script_p50_latency_ms": 51.54
+    }
+  ],
+  "ablations": {
+    "isolated": true,
+    "authoritative_store_used": false,
+    "guard_profiles": [
+      {
+        "profile": {
+          "profile_id": "G0",
+          "label": "仅提示词",
+          "enabled_gates": []
+        },
+        "probe_count": 6,
+        "rejected_count": 0,
+        "violation_accept_count": 6,
+        "rejection_rate": 0.0,
+        "probes": [
+          {
+            "probe_id": "forbidden_world_concept",
+            "gate": "world_concept",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "unknown_entity",
+            "gate": "entity",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "missing_capability",
+            "gate": "capability_affordance",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "knowledge_boundary",
+            "gate": "cognitive_boundary",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "action_patch_causality",
+            "gate": "causal_authorization",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "narrative_event_basis",
+            "gate": "narrative_grounding",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          }
+        ]
+      },
+      {
+        "profile": {
+          "profile_id": "G1",
+          "label": "结构化世界规则",
+          "enabled_gates": [
+            "world_concept",
+            "entity"
+          ]
+        },
+        "probe_count": 6,
+        "rejected_count": 2,
+        "violation_accept_count": 4,
+        "rejection_rate": 0.333333,
+        "probes": [
+          {
+            "probe_id": "forbidden_world_concept",
+            "gate": "world_concept",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "unknown_entity",
+            "gate": "entity",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "missing_capability",
+            "gate": "capability_affordance",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "knowledge_boundary",
+            "gate": "cognitive_boundary",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "action_patch_causality",
+            "gate": "causal_authorization",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          },
+          {
+            "probe_id": "narrative_event_basis",
+            "gate": "narrative_grounding",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          }
+        ]
+      },
+      {
+        "profile": {
+          "profile_id": "G2",
+          "label": "执行门禁",
+          "enabled_gates": [
+            "world_concept",
+            "entity",
+            "capability_affordance",
+            "cognitive_boundary",
+            "causal_authorization"
+          ]
+        },
+        "probe_count": 6,
+        "rejected_count": 5,
+        "violation_accept_count": 1,
+        "rejection_rate": 0.833333,
+        "probes": [
+          {
+            "probe_id": "forbidden_world_concept",
+            "gate": "world_concept",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "unknown_entity",
+            "gate": "entity",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "missing_capability",
+            "gate": "capability_affordance",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "knowledge_boundary",
+            "gate": "cognitive_boundary",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "action_patch_causality",
+            "gate": "causal_authorization",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "narrative_event_basis",
+            "gate": "narrative_grounding",
+            "production_rejected": true,
+            "profile_rejected": false,
+            "violation_accepted": true
+          }
+        ]
+      },
+      {
+        "profile": {
+          "profile_id": "G3",
+          "label": "完整闭环",
+          "enabled_gates": [
+            "world_concept",
+            "entity",
+            "capability_affordance",
+            "cognitive_boundary",
+            "causal_authorization",
+            "narrative_grounding"
+          ]
+        },
+        "probe_count": 6,
+        "rejected_count": 6,
+        "violation_accept_count": 0,
+        "rejection_rate": 1.0,
+        "probes": [
+          {
+            "probe_id": "forbidden_world_concept",
+            "gate": "world_concept",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "unknown_entity",
+            "gate": "entity",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "missing_capability",
+            "gate": "capability_affordance",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "knowledge_boundary",
+            "gate": "cognitive_boundary",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "action_patch_causality",
+            "gate": "causal_authorization",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          },
+          {
+            "probe_id": "narrative_event_basis",
+            "gate": "narrative_grounding",
+            "production_rejected": true,
+            "profile_rejected": true,
+            "violation_accepted": false
+          }
+        ]
+      }
+    ],
+    "memory_variants": [
+      {
+        "variant_id": "no_memory",
+        "memory_enabled": false,
+        "query_count": 50,
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "mrr": 0.0,
+        "ndcg": 0.0,
+        "irrelevant_rate": 1.0,
+        "p95_latency_ms": 0.001
+      },
+      {
+        "variant_id": "sqlite_fts5",
+        "memory_enabled": true,
+        "query_count": 50,
+        "hit_rate": 0.84,
+        "recall": 0.84,
+        "mrr": 0.805,
+        "ndcg": 0.813851,
+        "irrelevant_rate": 0.481481,
+        "p95_latency_ms": 6.016
+      }
+    ],
+    "production_probe_failures": [],
+    "passed": true
+  },
+  "acceptance_checks": [
+    {
+      "check_id": "illegal_patch_commits",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "0",
+      "threshold": "0",
+      "evidence": "StatePatch 校验与事件回放"
+    },
+    {
+      "check_id": "unknown_entity_accepts",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "0",
+      "threshold": "0",
+      "evidence": "事件目标与权威实体表"
+    },
+    {
+      "check_id": "causal_violation_commits",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "0",
+      "threshold": "0",
+      "evidence": "ToolCall/事件/Patch causal_evidence"
+    },
+    {
+      "check_id": "knowledge_leaks",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "0",
+      "threshold": "0",
+      "evidence": "传播事件提交前的来源角色认知"
+    },
+    {
+      "check_id": "replay_consistency",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=100%",
+      "evidence": "逐事件重放与终态哈希"
+    },
+    {
+      "check_id": "benchmark_expectations",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=100%",
+      "evidence": "固定案例断言"
+    },
+    {
+      "check_id": "core_event_completion",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=80%",
+      "evidence": "标记 core_objective 的固定案例"
+    },
+    {
+      "check_id": "tool_execution_success",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=95%",
+      "evidence": "排除规则预期拒绝后的 ToolResult"
+    },
+    {
+      "check_id": "expected_rejections",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=100%",
+      "evidence": "非法案例的结构化失败码"
+    },
+    {
+      "check_id": "propagation_accuracy",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=100%",
+      "evidence": "传播记录、目标认知和证据三方一致"
+    },
+    {
+      "check_id": "evidence_chain_completeness",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "100.00%",
+      "threshold": ">=100%",
+      "evidence": "传播证据及 parent_evidence_ids"
+    },
+    {
+      "check_id": "narrative_event_grounding",
+      "passed": false,
+      "measured": false,
+      "required_for_suite": false,
+      "actual": "not measured",
+      "threshold": "100%",
+      "evidence": "确定性 Scene 工具套件不生成 Narrative；由真实 Turn/Pairwise 套件补充"
+    },
+    {
+      "check_id": "real_llm_regression_runs",
+      "passed": false,
+      "measured": false,
+      "required_for_suite": false,
+      "actual": "0",
+      "threshold": ">=20",
+      "evidence": "真实模型回归单独运行，不能用确定性 Mock 代替"
+    },
+    {
+      "check_id": "free_vs_script_canonical_authoritative_equivalence",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "state=100.00%, chain=100.00%",
+      "threshold": "state=100%, chain=100%",
+      "evidence": "Free/Script 固定种子逐重复配对"
+    },
+    {
+      "check_id": "ablation_isolation",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "temporary/in-memory",
+      "threshold": "no authoritative store",
+      "evidence": "AblationReport authoritative_store_used"
+    },
+    {
+      "check_id": "full_guard_violation_accepts",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "0",
+      "threshold": "0",
+      "evidence": "G3 production validator probes"
+    },
+    {
+      "check_id": "memory_ablation_effect",
+      "passed": true,
+      "measured": true,
+      "required_for_suite": true,
+      "actual": "Hit 0.000->0.840, MRR 0.000->0.805",
+      "threshold": "enabled > no_memory",
+      "evidence": "50-query scoped Chinese memory benchmark"
+    }
+  ],
+  "passed": true
+}

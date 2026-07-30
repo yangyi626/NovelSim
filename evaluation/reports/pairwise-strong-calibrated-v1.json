@@ -1,0 +1,435 @@
+{
+  "schema_version": 1,
+  "sample_count": 6,
+  "judged_count": 6,
+  "parse_failure_count": 0,
+  "call_failure_count": 0,
+  "objective_override_count": 0,
+  "original_a_win_count": 3,
+  "original_b_win_count": 3,
+  "tie_count": 0,
+  "per_system_wins": {
+    "direct_prompt_llm_baseline": 3,
+    "novelsim_grounded_llm": 3
+  },
+  "dimension_wins": {
+    "anthropomorphism": {
+      "direct_prompt_llm_baseline": 3,
+      "novelsim_grounded_llm": 3
+    },
+    "character_fidelity": {
+      "direct_prompt_llm_baseline": 3,
+      "novelsim_grounded_llm": 3
+    },
+    "creativity": {
+      "direct_prompt_llm_baseline": 1,
+      "novelsim_grounded_llm": 2
+    },
+    "immersion_setting": {
+      "novelsim_grounded_llm": 2,
+      "tie": 4
+    },
+    "storyline_quality": {
+      "direct_prompt_llm_baseline": 2,
+      "novelsim_grounded_llm": 1
+    },
+    "writing_quality": {
+      "direct_prompt_llm_baseline": 3,
+      "novelsim_grounded_llm": 3
+    }
+  },
+  "human_label_count": 6,
+  "human_agreement_rate": 0.833333,
+  "cohen_kappa": 0.666667,
+  "llm_usage": {
+    "call_count": 6,
+    "failed_call_count": 0,
+    "prompt_tokens": 4554,
+    "completion_tokens": 2073,
+    "total_tokens": 6627,
+    "cached_tokens": 0,
+    "latency_ms": 41497.185
+  },
+  "estimated_cost": null,
+  "cost_currency": null,
+  "records": [
+    {
+      "sample_id": "pair_pair_robe_01",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "a",
+      "blind_right_original": "b",
+      "prompt_hash": "1197e19fe1ba6f845e015210877a909d268d0ecb3d7ccc2a5c83dac2aa04a668",
+      "judge_winner_blind": "left",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "left",
+          "rationale": "左侧细致描写了夜清清肢体僵硬、护手落空及咬唇等生理反应，更具真实感。右侧侧重心理概括，缺乏具体的人类行为细节。"
+        },
+        "character_fidelity": {
+          "winner": "left",
+          "rationale": "左侧夜清清的屈辱与隐忍符合其嫉妒且曾陷害的人设，反应合理。右侧未体现具体互动张力，角色反应较为扁平，缺乏个性深度。"
+        },
+        "immersion_setting": {
+          "winner": "left",
+          "rationale": "左侧通过衣料摩擦声、枯叶、周围目光等感官细节增强了华容巷的氛围沉浸感。右侧叙述较抽象，环境代入感较弱。"
+        },
+        "writing_quality": {
+          "winner": "left",
+          "rationale": "左侧描写具体生动，画面感强，动作与反应衔接自然。右侧用词如“诡异的缺口”略显生硬，表达不如左侧流畅自然。"
+        },
+        "creativity": {
+          "winner": "left",
+          "rationale": "左侧在既定动作下丰富了互动细节和旁观者视角，增加了戏剧张力。右侧仅复述动作并附加抽象评论，创新意义较小。"
+        }
+      },
+      "overall_rationale": "左侧在人物反应的真实性、环境沉浸感及写作细节上均优于右侧。它通过具体的感官描写和肢体语言展现了角色间的张力，而右侧过于抽象且缺乏生动的互动细节。",
+      "human_winner": "a",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "3b357939ab4a47bf878569a3d1320fa3",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 836,
+          "completion_tokens": 365,
+          "total_tokens": 1201,
+          "cached_tokens": 0,
+          "latency_ms": 7302.901,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 836,
+        "completion_tokens": 365,
+        "total_tokens": 1201,
+        "cached_tokens": 0,
+        "latency_ms": 7302.901
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_02",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "88f71ca4c2639877fbc99ed8ae1b57d0cf9606775ab91911d6435fb1da94a875",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧通过具体感官描写（肩头一凉）和直接对话展现角色反应，更具真实感。左侧仅用概括性词汇描述情绪变化，缺乏即时的人性化互动细节。"
+        },
+        "character_fidelity": {
+          "winner": "right",
+          "rationale": "右侧夜清清的羞愤与指责符合其被当众羞辱后的嫉妒人设。左侧虽提及恨意，但缺乏具体行为支撑，且“再无回旋余地”属于过度推断，偏离了角色当下的即时反应。"
+        },
+        "immersion_setting": {
+          "winner": "right",
+          "rationale": "右侧通过丝绸摩擦声、晨风等细节营造沉浸感，符合古代玄幻氛围。左侧侧重剧情总结，削弱了场景的在场感和氛围渲染，略显抽离。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧语言自然流畅，动作描写具体有力。左侧存在“指尖灵力微吐...强行剥离”等略显生硬的表述，且结尾处叙述过于直白，文学性稍逊。"
+        },
+        "storyline_quality": {
+          "winner": "right",
+          "rationale": "右侧以角色台词收尾，留下明确的冲突悬念，推动剧情发展。左侧以全知视角总结关系状态，封闭了后续互动的可能性，叙事推进力较弱。"
+        }
+      },
+      "overall_rationale": "右侧在角色反应的真实性、场景沉浸感及叙事开放性上均优于左侧。它通过具体的感官细节和对话展现冲突，而非概括性陈述，更符合互动叙事对即时体验和剧情推进的要求。",
+      "human_winner": "a",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "d17a91162cd94c0eb284d11b2fff33c5",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 786,
+          "completion_tokens": 357,
+          "total_tokens": 1143,
+          "cached_tokens": 0,
+          "latency_ms": 7210.541,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 786,
+        "completion_tokens": 357,
+        "total_tokens": 1143,
+        "cached_tokens": 0,
+        "latency_ms": 7210.541
+      }
+    },
+    {
+      "sample_id": "pair_pair_robe_03",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "560f0907a87667cee46e72a667288a4b15b37dbe99544b069683e4d4dad5cf61",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "a",
+      "effective_winner_original": "a",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧通过具体的台词反应展现了角色的震惊与愤怒，更具人际互动的真实感；左侧仅依赖心理描写和旁白总结，缺乏即时的人际反馈。"
+        },
+        "character_fidelity": {
+          "winner": "right",
+          "rationale": "右侧夜清清的斥责符合其嫉妒且曾陷害对方的敌对设定，反应自然；左侧虽提及嫉恨，但缺乏具体行为支撑，且‘利益纽带崩断’属于过度解读。"
+        },
+        "immersion_setting": {
+          "winner": "tie",
+          "rationale": "两者均保持了古代玄幻的氛围，环境描写（晨风、尘埃/枯叶）均合格，未出现现代元素或违和感，沉浸感相当。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧叙事节奏紧凑，动作与对话结合自然；左侧辞藻略显堆砌（如‘毒火翻涌’），且结尾的升华稍显刻意，不如右侧干脆利落。"
+        },
+        "creativity": {
+          "winner": "right",
+          "rationale": "右侧引入了周围环境的反应（众目睽睽）和角色的直接语言冲突，增加了场景的动态张力；左侧主要停留在内心戏和静态描述上。"
+        }
+      },
+      "overall_rationale": "右侧胜出。它通过具体的对话和更自然的互动反应，更好地体现了角色间的敌对关系和现场张力。左侧虽然文笔尚可，但过于依赖旁白总结情感变化，缺乏即时的角色互动反馈，显得略微空洞。",
+      "human_winner": "a",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "3bf69eafc63942acb9cd6993a7c8a968",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 765,
+          "completion_tokens": 347,
+          "total_tokens": 1112,
+          "cached_tokens": 0,
+          "latency_ms": 7114.191,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 765,
+        "completion_tokens": 347,
+        "total_tokens": 1112,
+        "cached_tokens": 0,
+        "latency_ms": 7114.191
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_01",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "2d3d91b58a37a930c376469abd63e18ac6864ee4289d45b05fd849007c1f85e1",
+      "judge_winner_blind": "left",
+      "judge_winner_original": "b",
+      "effective_winner_original": "b",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "left",
+          "rationale": "左侧通过心理描写和肢体动作展现了角色的决绝与感知，右侧仅描述移动过程，缺乏人物内在反应。"
+        },
+        "character_fidelity": {
+          "winner": "left",
+          "rationale": "左侧准确呈现了两人间的敌对张力及夜轻歌的独立行动；右侧忽略了同场的夜清清，且未体现关系背景。"
+        },
+        "immersion_setting": {
+          "winner": "tie",
+          "rationale": "两者均保持了古代玄幻的氛围。左侧侧重巷弄环境，右侧侧重府邸内部，皆符合设定，无明显违和。"
+        },
+        "writing_quality": {
+          "winner": "left",
+          "rationale": "左侧用词更具张力，意象具体（如“蛇信”、“踏碎过往”）；右侧叙述较为平铺直叙，文学性稍弱。"
+        },
+        "storyline_quality": {
+          "winner": "left",
+          "rationale": "左侧清晰交代了从对峙到离开的因果逻辑；右侧跳跃至府内，省略了离开巷子的过程，连贯性略逊。"
+        }
+      },
+      "overall_rationale": "左侧在角色互动、心理刻画及叙事连贯性上均优于右侧。它忠实处理了同场角色的敌对关系，而右侧忽略了关键角色夜清清，导致情境缺失。",
+      "human_winner": "b",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "bae1a8d3de0c46c18153e2c724a4dea8",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 712,
+          "completion_tokens": 301,
+          "total_tokens": 1013,
+          "cached_tokens": 0,
+          "latency_ms": 6192.563,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 712,
+        "completion_tokens": 301,
+        "total_tokens": 1013,
+        "cached_tokens": 0,
+        "latency_ms": 6192.563
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_02",
+      "scenario_id": "huarong_lane",
+      "mode": "free",
+      "status": "judged",
+      "blind_left_original": "a",
+      "blind_right_original": "b",
+      "prompt_hash": "9ff291a4099389cbcf98a5499c37edaf0b1ad4e9da2aea754fc685fd4e6196ed",
+      "judge_winner_blind": "right",
+      "judge_winner_original": "b",
+      "effective_winner_original": "b",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "right",
+          "rationale": "右侧通过夜清清的嫉妒反应和夜轻歌的无视，展现了更丰富的人际互动与心理动机，左侧仅为单人行动。"
+        },
+        "character_fidelity": {
+          "winner": "right",
+          "rationale": "右侧紧扣‘嫉妒陷害’的关系设定，描写了夜清清敢怒不敢言的状态，符合人物背景；左侧完全忽略了同场角色。"
+        },
+        "immersion_setting": {
+          "winner": "tie",
+          "rationale": "两者均保持了古代玄幻的氛围。左侧侧重环境静谧，右侧侧重市井喧嚣与暗流涌动，均无违和感。"
+        },
+        "writing_quality": {
+          "winner": "right",
+          "rationale": "右侧画面感更强，通过细节（攥帕角、怨毒一瞥）增强了戏剧张力，语言自然流畅；左侧略显平铺直叙。"
+        },
+        "creativity": {
+          "winner": "right",
+          "rationale": "右侧在遵循移动指令的同时，创造性地处理了同场角色的静态反应，丰富了叙事层次，未违反因果边界。"
+        }
+      },
+      "overall_rationale": "右侧不仅完成了移动指令，还有效利用了同场角色夜清清的存在，通过其嫉妒反应增强了戏剧冲突和人物 fidelity。左侧虽文笔尚可，但忽略了关键的角色关系和同场互动，显得单薄。",
+      "human_winner": "a",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "5abad61876614537904f6a8088b3e905",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 718,
+          "completion_tokens": 305,
+          "total_tokens": 1023,
+          "cached_tokens": 0,
+          "latency_ms": 6081.86,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 718,
+        "completion_tokens": 305,
+        "total_tokens": 1023,
+        "cached_tokens": 0,
+        "latency_ms": 6081.86
+      }
+    },
+    {
+      "sample_id": "pair_pair_walk_03",
+      "scenario_id": "huarong_lane",
+      "mode": "script",
+      "status": "judged",
+      "blind_left_original": "b",
+      "blind_right_original": "a",
+      "prompt_hash": "1c240bb8cebe90cb62672f9283e5959d3c0504d28e768a58142aeaf31f257b36",
+      "judge_winner_blind": "left",
+      "judge_winner_original": "b",
+      "effective_winner_original": "b",
+      "objective_override": false,
+      "dimensions": {
+        "anthropomorphism": {
+          "winner": "left",
+          "rationale": "左侧通过夜清清攥紧锦帕、嫉恨却不敢追的细节，展现了角色的有限认知与复杂心理。右侧仅描写主角行动，缺乏对在场另一角色的反应刻画，人性维度较单薄。"
+        },
+        "character_fidelity": {
+          "winner": "left",
+          "rationale": "左侧准确呈现了夜清清的嫉妒与忌惮，符合已知关系设定。右侧完全忽略夜清清的存在，未体现其因陷害而产生的紧张或敌意，违背了角色关系的既定事实。"
+        },
+        "immersion_setting": {
+          "winner": "tie",
+          "rationale": "两者均保持了古代玄幻的氛围。左侧侧重巷内对峙的冷冽与心理张力，右侧侧重路途空间转换与府邸威严感。虽侧重点不同，但均未出现现代元素或出戏描写，沉浸感相当。"
+        },
+        "writing_quality": {
+          "winner": "left",
+          "rationale": "左侧描写具体生动，如“毒草疯长”、“残叶嘲弄”，意象丰富且自然。右侧叙述较为平铺直叙，虽清晰但缺乏文学张力，用词相对常规，感染力稍逊于左侧。"
+        },
+        "storyline_quality": {
+          "winner": "left",
+          "rationale": "左侧完整处理了“离开”这一动作的因果：先交代与夜清清的割裂，再描述行程。右侧直接跳跃至抵达，忽略了同场角色的反应和离开的即时情境，叙事连贯性略弱。"
+        }
+      },
+      "overall_rationale": "左侧在保持沉浸感的同时，更忠实地处理了同场角色夜清清的反应，符合人物关系设定，增强了剧情的因果逻辑和人性深度。右侧虽完成了移动指令，但忽略了关键的角色互动背景，叙事较为干瘪。",
+      "human_winner": "b",
+      "error": null,
+      "raw_output_excerpt": "",
+      "llm_calls": [
+        {
+          "call_id": "13d4b009ec90407ca42c65cf04d07deb",
+          "operation": "pairwise_judge",
+          "kind": "chat",
+          "model": "qwen3.7-plus",
+          "prompt_tokens": 737,
+          "completion_tokens": 398,
+          "total_tokens": 1135,
+          "cached_tokens": 0,
+          "latency_ms": 7595.129,
+          "success": true,
+          "error_type": null
+        }
+      ],
+      "llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 737,
+        "completion_tokens": 398,
+        "total_tokens": 1135,
+        "cached_tokens": 0,
+        "latency_ms": 7595.129
+      }
+    }
+  ]
+}

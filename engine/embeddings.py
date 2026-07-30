@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Protocol
 
+from .llm_telemetry import call_openai_compatible
+
 
 class EmbeddingError(RuntimeError):
     """嵌入请求或返回数据无效。"""
@@ -42,7 +44,10 @@ class OpenAICompatibleEmbedder:
         import openai
 
         try:
-            response = openai.Embedding.create(
+            response = call_openai_compatible(
+                openai.Embedding.create,
+                operation="memory_embedding",
+                kind="embedding",
                 api_key=self.api_key,
                 api_base=self.base_url,
                 model=self.model,
