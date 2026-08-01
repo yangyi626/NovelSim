@@ -1,11 +1,11 @@
 # NovelSim 大厂游戏 AI 项目优化 Plan
 
-> 版本：V2.2（执行版）
-> 更新日期：2026-08-01
+> 版本：V2.3（执行版）
+> 更新日期：2026-08-02
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1、确定性/SFT/GRPO 数据、Prompted/SFT/GRPO 执行代码、本地 Adapter Policy、Dev Runtime smoke 与 reward-hacking 审计器均已落地；下一步仍是执行真实 Prompted smoke 与服务器 0.6B SFT smoke，不能以 fake backend 或确定性 reward 审计代替模型报告。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1/2、权威计划推进、Expert v4、SFT/GRPO v5、真实 Prompted smoke、本地 Adapter Policy、Dev Runtime smoke 与 reward-hacking 审计器均已落地；下一步是服务器单卡 4090 上执行 0.6B SFT smoke，不能以 fake backend、API 大模型或确定性 reward 审计代替本地训练 checkpoint。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
-> V2 开发分支：`codex/trainable-planner-v2`；正式数据采集代码基线：`f6f9f20`。
+> V2 开发分支：`codex/trainable-planner-v2`；权威评估代码基线：`00b97cf`；Expert v4 / SFT v5 / GRPO v5 数据报告提交：`7ac00cc`。
 
 ---
 
@@ -48,8 +48,9 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成，Phase 3/4 训练前代码就绪** | SFT/GRPO Adapter Policy、逐文件 checkpoint hash、Dev inference→Gate→replay、可重建 `NovelSimEnv`、结果 reward 与 hacking audit 已实现；PromptedLLM 实跑与训练 checkpoint 尚未完成 |
-| 当前唯一主线 | **执行两个真实 smoke** | Prompted 代码已就绪但尚无真实 API 报告；0.6B 代码已就绪但尚无 checkpoint。两者通过前不声称模型提升、不启动 4B |
+| V2 代码实施 | **Phase 1/2 完成，Phase 3/4 训练前代码就绪** | 权威计划状态机、SFT/GRPO Adapter Policy、逐文件 checkpoint hash、Dev inference→Gate→replay、可重建 `NovelSimEnv`、结果 reward 与 hacking audit 已实现；全量 Python 回归 `415 passed, 15 deselected`；训练 checkpoint 尚未完成 |
+| V2 真实 Prompted 基线 | **已完成** | `qwen3.7-plus-2026-05-26`：4/4 目标成功、17/17 Schema 与 Gate 通过、0 fallback、0 非法提案/提交、4/4 回放一致、22,581 tokens |
+| 当前唯一主线 | **服务器 0.6B SFT smoke** | 代码和 SFT v5 数据预检已通过；服务器 adapter 尚不存在。0.6B 的训练、Dev eval、保存与 Runtime 回放通过前不启动 4B/GRPO，也不声称训练提升 |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -84,8 +85,8 @@ Unity / Python 权威游戏世界
 4. **尚未把个人后训练经历落到游戏运行时。**
    简历中已经有 SFT、GRPO、OPD-lite、trajectory rollout 和 failure attribution；NovelSim 仍缺一条把这些经历统一起来的可公开证据链。
 
-5. **指标合同已经分开，训练模型的真实数字尚缺。**
-   数据和 smoke 报告已独立统计 illegal proposal 与 illegal commit；仍需用真实 Prompt/SFT/GRPO rollout 证明模型提议质量变化，同时验证 Runtime 非法提交始终为 0。
+5. **指标合同已经分开，训练模型的真实数字仍缺。**
+   真实 Prompted 报告已独立统计 illegal proposal 与 illegal commit，当前均为 0；仍需用真实 SFT/GRPO checkpoint rollout 证明训练后的提议质量变化，同时验证 Runtime 非法提交始终为 0。
 
 ---
 
@@ -254,6 +255,24 @@ V2 继续坚持：
 ```
 
 SPARK 中“新话题自然涌现”的机制只能映射成非权威的 `discussion_thread` 或 NPC 关注点，不能自动注册新实体、新科技、新魔法和新事实。
+
+### 4.5 权威计划推进与多解结果验收
+
+NPC 的长期计划不再由“任意一次合法动作”或模型自报成功推进，而是由 Runtime 在动作效果通过 Gate 后，对比提交前后的声明式状态谓词：
+
+```text
+ToolCall
+→ ToolRegistry 生成候选 StatePatch
+→ Schema / World / Causal Gate 验证
+→ 投影 next WorldState
+→ PlanStepCondition 从 false 变为 true
+→ 自动生成 advance_plan operation
+→ 动作效果与计划推进原子提交为同一个 WorldEvent
+```
+
+支持的条件包括：物品持有、角色到达、事实被观察、信息持有者、联盟成员/人数/目标/共享证据，以及可信的工具提交。模型不能直接输出 `advance_plan`，失败、无关动作或已经满足的条件不会重复推进；其他 NPC 的合法动作也可以通过真实世界效果推进计划拥有者的步骤。
+
+最终验收采用“约束集合 + 结果状态”，不使用唯一动作序列。以密信场景为例，必须满足“盟友获得政变事实”以及“管家加入至少两人的 `protect_estate` 活跃联盟且共享该事实”；联盟另一成员可以是盟友、守卫或其他满足世界规则的角色。这既允许合理多解，也保留成员、人数、目标和证据四类可执行硬约束。
 
 ---
 
@@ -688,7 +707,7 @@ Phase 1B 验收：
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
 
-> 状态：**进行中，确定性数据主干与 Prompted smoke 代码已完成，真实 Prompted 调用未执行**。正式 manifest 为 12 variants × 20 seeds × 3 families 共 720 场景，Train/Dev/Test-ID/Test-OOD 为 360/40/80/240，leakage audit 0 issue。Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`，受控恢复 `720 episode = 33.33%`；目标成功和回放一致均 `2,160/2,160`，illegal proposal `720`、illegal commit `0`。Prompted 零费用计划按 Train/Dev × 两个 ID family 分层固定 4 场景、24 call/100k Token 上限，Test 完全不选；因尚无真实 provider 响应和 Token，不能标记 Phase 2 完全结束。
+> 状态：**已完成（2026-08-02）**。正式 manifest `split_87e3df852d2cb212` 为 12 variants × 20 seeds × 3 families 共 720 场景，Train/Dev/Test-ID/Test-OOD 为 360/40/80/240，leakage audit 0 issue。Expert v4 的 Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`，受控恢复 `720 episode = 33.33%`；目标成功和回放一致均 `2,160/2,160`，illegal proposal `720`、illegal commit `0`。真实 Prompted v4 只运行冻结的 Train/Dev 四场景：17 次 `qwen3.7-plus-2026-05-26` 调用、22,581 tokens，Schema/Gate `17/17`、fallback 0、目标成功与回放一致 `4/4`、illegal proposal/commit 均为 0；Test-ID/Test-OOD 仍封存。
 
 建议新增：
 
@@ -717,7 +736,7 @@ training/audit_leakage.py
 
 ### Phase 3：SFT Planner（4–6 天）
 
-> 状态：**进行中，数据、训练、本地推理与 Runtime smoke 代码已就绪，服务器训练未开始**。正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；内容 hash 不包含 split/source 元数据，Train/Dev 重叠 0，Test-ID/Test-OOD 未读取。Qwen3-0.6B/4B QLoRA 配置、逐文件 adapter hash 校验、`SFTPolicy/GRPOPolicy` 与 Dev inference→Gate→replay 验收器均已通过 fake checkpoint 自动化测试；真实预检仍因 adapter/run manifest 不存在而 `ready=false`，因此尚无 checkpoint、不能宣称模型提升。
+> 状态：**进行中，SFT v5 数据、训练、本地推理与 Runtime smoke 代码已就绪，服务器训练未开始**。Expert v4 的正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 Prompt v4 的 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；Train/Dev 内容 hash 重叠 0，Test-ID/Test-OOD 未读取。`train_sft --validate-only` 已核对 dataset/card/file SHA-256、样本数、prompt 版本和封存边界并返回 `valid=true`。Qwen3-0.6B/1.7B/4B QLoRA 配置、逐文件 adapter hash 校验、`SFTPolicy/GRPOPolicy` 与 Dev inference→Gate→replay 验收器均已通过自动化测试；真实服务器 adapter/run manifest 尚不存在，因此仍不能宣称模型训练或提升。
 
 任务：
 
@@ -736,7 +755,7 @@ training/audit_leakage.py
 
 ### Phase 4：GRPO 环境训练（6–8 天）
 
-> 状态：**训练前代码与确定性 reward audit 已完成，真实训练待 SFT checkpoint**。Train/Dev 轨迹已生成 `3,600/400` 个唯一、可重建权威初态的 GRPO prompt，hash 重叠 0；`NovelSimEnv` 保证同组 4 个候选独立 reset 到相同 state hash，状态仍只能经 ToolRegistry/FSM/Gate 提交。冻结 Dev 的两个 ID family 共 14 个 adversarial probe 已通过 11 项 reward-hacking 不变量，包含“门禁接受但与目标无关的闲聊不获正分”，illegal commit 为 0（审计 `reward-audit-de0eaeec3593e1dd`）；TRL 1.8.0 `GRPOTrainer`、objective-only/mixed 配置、QLoRA SFT-parent 校验和 GRPO adapter manifest 已实现。由于真实 SFT adapter 尚不存在，预检当前 `ready=false`，不能声称 Phase 4 训练完成。
+> 状态：**GRPO v5 训练前代码与确定性 reward audit 已完成，真实训练待 SFT checkpoint**。Train/Dev 已生成 `3,600/400` 个唯一、可重建权威初态的 Prompt v4 GRPO 样本，hash 重叠 0；`NovelSimEnv` 保证同组候选独立 reset 到相同 state hash，状态仍只能经 ToolRegistry/FSM/Gate 提交。冻结 Dev 的两个 ID family 共 14 个 adversarial probe 已通过 11 项 reward-hacking 不变量，包含“门禁接受但与目标无关的闲聊不获正分”，illegal commit 为 0（审计 `reward-audit-031dcac357ce4494`）；TRL 1.8.0 `GRPOTrainer`、objective-only/mixed 配置、QLoRA SFT-parent 校验和 GRPO adapter manifest 已实现。`train_grpo --inspect` 当前准确报告 `run_manifest_missing, adapter_directory_missing`，因此 `ready=false`，不能声称 Phase 4 训练完成。
 
 建议新增：
 
@@ -852,7 +871,7 @@ training/reward_audit.py
 - 保留项目运行时 Python 3.8，另建 Python 3.11/3.12 训练环境，避免升级破坏 V1；
 - 训练栈固定为 `Transformers + PEFT + TRL + bitsandbytes + vLLM`；
 - QLoRA 初始设置：4-bit NF4、double quant、bf16、gradient checkpointing、micro batch `1`，再用 gradient accumulation 获得有效 batch；
-- 当前唯一样本 prompt 字符 P50/P95 为 `4,359/4,582`，completion 字符 P50/P95 为 `345/378`；配置先用 `max_length=2048`，模型加载后必须对全部 3,400 样本做真实 tokenizer 审计且超限为 0，不能用字符数冒充 token 数或静默截断；
+- 当前 SFT v5 样本 prompt 字符 P50/P95 约为 `4,890/5,879`，completion 字符 P50/P95 为 `345/378`；配置先用 `max_length=2048`，模型加载后必须对全部 3,400 样本做真实 tokenizer 审计且超限为 0，不能用字符数冒充 token 数或静默截断；
 - GRPO 先尝试 colocate vLLM、`gpu_memory_utilization≈0.2` 与 sleep mode；每次正式运行前记录峰值显存；
 - 执行顺序固定为 0.6B pipeline smoke → 1.7B reward/debug → 4B SFT → 4B GRPO memory smoke；
 - 若 4B GRPO 无法稳定落入 24GB，则将 1.7B 作为 GRPO 主实验，4B 保留为 SFT 主实验，不能用 OOM 反复试参消耗项目周期；
@@ -938,11 +957,11 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **按 `prompted_smoke_v1.json` 显式运行真实 `PromptedLLMPolicy`，核对实际模型、Prompt 版本、Token、fallback、Gate 与预算报告；Test-ID/Test-OOD 保持封存。**
-2. **把已生成的 SFT Train/Dev 数据同步到服务器，使用 `sft_qwen3_0.6b_smoke.json` 完成全量 tokenizer 长度审计与 100-step pipeline smoke。**
-3. **0.6B smoke 在服务器 4090 上通过加载、训练、Dev eval、adapter 保存、推理和 Runtime 回放后，再启动 Qwen3-4B QLoRA 主训练。**
+1. **把 `codex/trainable-planner-v2`、SFT v5 Train/Dev 数据及数据卡同步到服务器，使用 `sft_qwen3_0.6b_smoke.json` 完成真实 tokenizer 全量审计与 100-step QLoRA pipeline smoke。**
+2. **对 0.6B adapter 运行冻结 Dev 的 `checkpoint_smoke_qwen3_0.6b.json --execute`，验收实际加载、Schema、Gate、目标完成、非法提交和确定性回放，并提交 run manifest/model card；不上传大权重到 Git。**
+3. **只有 0.6B SFT 闭环通过后，才运行 1.7B debug 与 4B SFT 主实验；SFT 主 checkpoint 固定后，再按 objective-only 20-step → mixed 50-step → GRPO Runtime smoke 的顺序进入强化学习。**
 
-第一项不得调用 Test 数据或把 fallback 冒充模型成功；第二项通过前不运行 4B；第三项通过前不执行 GRPO。`NovelSimEnv`、GRPO 数据、reward audit 与训练入口完成不等于模型训练完成；当前 GRPO preflight 因缺少真实 SFT adapter 明确为 `ready=false`。
+真实 Prompted smoke 已完成，不再是阻塞项。第一项通过前不运行 4B；第二项通过前不执行 GRPO；Test-ID/Test-OOD 在训练和选 checkpoint 期间保持封存。`NovelSimEnv`、GRPO 数据、reward audit 与训练入口完成不等于模型训练完成；当前 GRPO preflight 因缺少真实 SFT adapter 明确为 `ready=false`。
 
 下一次进度汇报必须给出以下可核验证据，而不是只报百分比：
 

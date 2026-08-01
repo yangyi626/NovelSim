@@ -28,7 +28,7 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 .\.venv\Scripts\python.exe -m pip install -e ".[training]"
 ```
 
-当前命令只导出已完成的 `secret_letter_v1` 确定性基准，用于验证合同，不是正式训练集。Phase 2 冻结 scenario-family split 和泄漏审计前，不允许批量生成 SFT 数据。
+当前命令只导出 `secret_letter_v1` 确定性基准，用于验证合同，不是正式训练集。正式训练数据应使用下文已冻结的 Expert v4 → SFT/GRPO v5 流水线，不从单个演示场景直接拼接样本。
 
 ## 参数化场景与 split smoke
 
@@ -48,7 +48,7 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 
 当前 smoke manifest 共 150 个场景：Train 70、Dev 10、Test-ID 20、Test-OOD 50。content hash、variant 和 world package 跨 split 重叠必须为 0；实体和规则 ID 重叠作为诊断矩阵报告，因为同一世界族会有意复用公共游戏本体。
 
-## 正式确定性专家数据 v1
+## 正式确定性专家数据 v4
 
 正式 manifest 使用 12 variants × 20 seeds × 3 families，共 720 个参数化场景。每个场景采集三条轨迹：
 
@@ -61,9 +61,9 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 ```powershell
 .\.venv\Scripts\python.exe -m training.collect_dataset `
   --manifest training\manifests\scenario-split-v1.json `
-  --output-dir data\trajectories\novelsim-planner-expert-v1 `
-  --report-dir training\reports\novelsim-planner-expert-v1 `
-  --code-commit f6f9f20
+  --output-dir data\trajectories\novelsim-planner-expert-v4 `
+  --report-dir training\reports\novelsim-planner-expert-v4 `
+  --code-commit 00b97cf553ce8923cc1bb4e2d6eee974c863c4bc
 ```
 
 实测结果：2,160 episodes、9,120 decision steps；受控恢复 720 episodes（33.33%）；目标成功与回放一致均为 2,160/2,160；illegal proposal 720（全部来自预期的首步拒绝），illegal commit 0。Train/Dev/Test-ID/Test-OOD 分别为 1,080/120/240/720 episodes，其中 Test-ID 与 Test-OOD 在数据卡中显式封存。
@@ -72,7 +72,7 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 
 ## PromptedLLM Train/Dev 限量 smoke
 
-Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planner_prompt.v1`：角色可见 observation、精简 Tool Schema、相同 system prompt。Prompted 请求固定关闭 Qwen thinking、限制 completion、设置 provider timeout，并通过现有 telemetry 记录响应中的真实 Token 与模型名。
+Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planner_prompt.v4`：角色可见 observation、精简 Tool Schema、当前权威计划步骤、相同 system prompt。Prompted 请求固定关闭 Qwen thinking、限制 completion、设置 provider timeout，并通过现有 telemetry 记录响应中的真实 Token 与模型名。Runtime 只在声明的状态谓词由假变真后原子推进计划，不允许模型直接提交 `advance_plan`。
 
 默认命令只生成/核对计划，不调用模型：
 
@@ -93,7 +93,9 @@ Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planne
   --code-commit <当前提交SHA>
 ```
 
-真实报告会分别给出 provider call/failed call、模型 Schema 通过、scripted fallback、Gate 通过、illegal proposal、illegal commit、目标完成、回放一致和 Token。Fallback 只用于让 smoke 继续，不计为模型成功；即使轨迹满足目标，也只标记 `eligible_for_sft_review`，不会自动并入 SFT。当前仓库只有 `executes_provider_calls=false` 的冻结计划，没有伪造真实调用报告。
+真实报告会分别给出 provider call/failed call、模型 Schema 通过、scripted fallback、Gate 通过、illegal proposal、illegal commit、目标完成、回放一致和 Token。Fallback 只用于让 smoke 继续，不计为模型成功；即使轨迹满足目标，也只标记 `eligible_for_sft_review`，不会自动并入 SFT。
+
+2026-08-02 已用真实 `qwen3.7-plus-2026-05-26` 执行冻结的 Train/Dev 四场景：17 次 provider call、22,581 tokens，Schema 与 Gate 均为 `17/17`，fallback、illegal proposal、illegal commit 均为 `0`，目标成功与回放一致均为 `4/4`。报告位于 `training/reports/prompted-smoke-v1/`。该结果证明 Prompt v4 与 Runtime 闭环可工作，不代表本地 SFT/GRPO 模型已经训练完成。
 
 ## 两类安全指标
 
@@ -106,7 +108,7 @@ Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planne
 
 `content_hash` 用于数据去重与跨 split 泄漏审计。它覆盖世界、观察、决策语义、工具结果、事件、奖励和失败标签，但排除 run ID、trace 时间、延迟、随机 call/decision ID 等易变遥测，因此相同语义轨迹重复采集仍得到相同哈希。
 
-## SFT prompt-completion 数据 v1
+## SFT prompt-completion 数据 v5
 
 SFT 数据只读取正式轨迹的 `train.jsonl` 和 `dev.jsonl`，命令行没有 Test 输入参数。构建器会先用专家数据卡核对源文件 SHA-256，再执行以下规则：
 
@@ -122,11 +124,11 @@ SFT 数据只读取正式轨迹的 `train.jsonl` 和 `dev.jsonl`，命令行没�
 
 ```powershell
 .\.venv\Scripts\python.exe -m training.build_sft_dataset `
-  --train-input data\trajectories\novelsim-planner-expert-v1\train.jsonl `
-  --dev-input data\trajectories\novelsim-planner-expert-v1\dev.jsonl `
-  --source-card training\reports\novelsim-planner-expert-v1\dataset-card.json `
-  --output-dir data\sft\novelsim-planner-v1 `
-  --report-dir training\reports\novelsim-planner-sft-v1
+  --train-input data\trajectories\novelsim-planner-expert-v4\train.jsonl `
+  --dev-input data\trajectories\novelsim-planner-expert-v4\dev.jsonl `
+  --source-card training\reports\novelsim-planner-expert-v4\dataset-card.json `
+  --output-dir data\sft\novelsim-planner-v5 `
+  --report-dir training\reports\novelsim-planner-sft-v5
 ```
 
 正式源步骤为 Train `4,680`、Dev `520`；分别剔除 `360/40` 个非法首步和 `1,260/140` 个相同训练语义重复项，得到 Train `3,060`、Dev `340` 个唯一监督样本，并完整保留 `360/40` 个恢复反馈上下文；Train/Dev content hash 重叠为 `0`。JSONL 在 `data/sft/` 下由 Git 忽略，仓库提交数据卡和文件哈希。
@@ -203,11 +205,11 @@ python -m training.checkpoint_smoke \
 
 该 smoke 必须实际加载 adapter，在冻结 Dev 场景逐步生成 `PlannerDecision`，经过权威 Runtime Gate，保存可回放 trajectory，并同时满足：无生成错误、Schema 全通过、illegal commit 为 0、目标完成、回放一致。报告和 trajectory 默认写入 Git 忽略目录，不能用单元测试的 fake backend 代替服务器报告。
 
-## GRPO 可重建环境与数据 v1
+## GRPO 可重建环境与数据 v5
 
 GRPO 不把某一条专家动作当作唯一答案。`training.build_grpo_dataset` 从 Train/Dev 轨迹为每个决策步保存：
 
-- 与 SFT/Prompted 完全相同的 `novelsim_planner_prompt.v1`；
+- 与 SFT/Prompted 完全相同的 `novelsim_planner_prompt.v4`；
 - 场景 family、variant、seed 和场景 content hash；
 - 当前步之前的已提交 `WorldEvent` 前缀；
 - 当前 actor、结构化 failure feedback 和起始状态 hash。
@@ -216,11 +218,11 @@ GRPO 不把某一条专家动作当作唯一答案。`training.build_grpo_datase
 
 ```powershell
 .\.venv\Scripts\python.exe -m training.build_grpo_dataset `
-  --train-input data\trajectories\novelsim-planner-expert-v1\train.jsonl `
-  --dev-input data\trajectories\novelsim-planner-expert-v1\dev.jsonl `
-  --source-card training\reports\novelsim-planner-expert-v1\dataset-card.json `
-  --output-dir data\grpo\novelsim-planner-v1 `
-  --report-dir training\reports\novelsim-planner-grpo-v1
+  --train-input data\trajectories\novelsim-planner-expert-v4\train.jsonl `
+  --dev-input data\trajectories\novelsim-planner-expert-v4\dev.jsonl `
+  --source-card training\reports\novelsim-planner-expert-v4\dataset-card.json `
+  --output-dir data\grpo\novelsim-planner-v5 `
+  --report-dir training\reports\novelsim-planner-grpo-v5
 ```
 
 正式结果为 Train `3,600`、Dev `400` 个唯一环境 prompt；分别去除 `1,080/120` 个相同 prompt+权威初态重复项，保留恢复 feedback `360/40` 个，Train/Dev content hash 重叠为 `0`。Test-ID/Test-OOD 没有读取。
@@ -233,13 +235,13 @@ GRPO 不把某一条专家动作当作唯一答案。`training.build_grpo_datase
 
 ```powershell
 .\.venv\Scripts\python.exe -m training.reward_audit `
-  --grpo-file data\grpo\novelsim-planner-v1\dev.jsonl `
-  --trajectory-file data\trajectories\novelsim-planner-expert-v1\dev.jsonl `
-  --split dev --group-size 4 --max-samples 3 `
-  --output training\reports\novelsim-planner-grpo-v1\reward-audit.json
+  --grpo-file data\grpo\novelsim-planner-v5\dev.jsonl `
+  --trajectory-file data\trajectories\novelsim-planner-expert-v4\dev.jsonl `
+  --split dev --group-size 7 --max-samples 2 `
+  --output training\reports\novelsim-planner-grpo-v5\reward-audit.json
 ```
 
-当前确定性审计 `reward-audit-de0eaeec3593e1dd` 通过 11 项不变量：同组初态一致、格式/未知实体为负、合法参考动作优于 wait、门禁接受但与目标无关的闲聊不获正分、伪造 evidence/goal 不获益、重复动作受罚、objective-only 拒绝不获正分、`illegal_commit_count=0`。这是 reward/Runtime 设计证据，不是模型效果报告。
+当前确定性审计 `reward-audit-031dcac357ce4494` 对两个 Dev 样本执行 14 个 probe，并通过 11 项不变量：同组初态一致、格式/未知实体为负、合法参考动作优于 wait、门禁接受但与目标无关的闲聊不获正分、伪造 evidence/goal 不获益、重复动作受罚、objective-only 拒绝不获正分、`illegal_commit_count=0`。这是 reward/Runtime 设计证据，不是模型效果报告。
 
 ## 单卡 4090 GRPO
 
