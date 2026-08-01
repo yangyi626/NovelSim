@@ -1,0 +1,176 @@
+{
+  "content_origin": "original_for_novelsim_v2",
+  "code_commits": [
+    "f6f9f20"
+  ],
+  "controlled_recovery": {
+    "episode_count": 720,
+    "episode_rate": 0.333333,
+    "meets_requirement": true,
+    "required_minimum_rate": 0.2
+  },
+  "dataset_id": "novelsim_planner_expert_v1",
+  "episode_family_distribution": {
+    "rescue_escort": 720,
+    "resource_negotiation": 720,
+    "secret_transport": 720
+  },
+  "episode_source_distribution": {
+    "controlled_recovery": 720,
+    "safe_heuristic": 720,
+    "scripted_expert": 720
+  },
+  "files": {
+    "dev.jsonl": {
+      "bytes": 8125636,
+      "path": "dev.jsonl",
+      "sha256": "05c73f64df8bf380d2e9438ab846e93d506dfa22bba863c0ddb3d6590dbac4c5"
+    },
+    "dev.parquet": {
+      "bytes": 119359,
+      "path": "dev.parquet",
+      "sha256": "7b1d08ea02d3f1ca7007f289b78d8b496ec35b2fbf448553081cdbd0dcd0adde"
+    },
+    "test_id.jsonl": {
+      "bytes": 16253753,
+      "path": "test_id.jsonl",
+      "sha256": "32e3ce8292181fb3b0f6d4bbce0d04f0b0c41a203de1b64511056016cd8b1ae6"
+    },
+    "test_id.parquet": {
+      "bytes": 207416,
+      "path": "test_id.parquet",
+      "sha256": "67c91976181e99a09bc98a5c7ae0a74f1faf300ad45e6ceafa329fe11fc736e0"
+    },
+    "test_ood.jsonl": {
+      "bytes": 38985439,
+      "path": "test_ood.jsonl",
+      "sha256": "4a9866b50f620120e3a34c0f0fe2b61eccb04c16eaccfec8ed624b4998eb0c36"
+    },
+    "test_ood.parquet": {
+      "bytes": 333215,
+      "path": "test_ood.parquet",
+      "sha256": "79fa123fecdc8d017547dd7c10755585d7f4b6b93573e9bd9008f57b1adf0a5a"
+    },
+    "train.jsonl": {
+      "bytes": 73134018,
+      "path": "train.jsonl",
+      "sha256": "948bcc0ab356f4815776c28f54a25c925a3effbde6b8dbc5f7bb70860101cd02"
+    },
+    "train.parquet": {
+      "bytes": 768812,
+      "path": "train.parquet",
+      "sha256": "5d025cb3a040c7c1a169e82280e94838c83a66d4b04457154a63711da991c85b"
+    }
+  },
+  "generator_version": "scenario_generator.v1",
+  "license_spdx": "CC-BY-4.0",
+  "manifest_hash": "0b3fb988497f14b6a115177e5f1750eed8a2cac6f08b98c116790dd7d1cb43f1",
+  "manifest_id": "split_0b3fb988497f14b6",
+  "overall": {
+    "episode_count": 2160,
+    "failure_distribution": {
+      "navigation_failed": 240,
+      "tool_precondition_failed": 240,
+      "unknown_entity": 240
+    },
+    "illegal_commit_count": 0,
+    "illegal_proposal_count": 720,
+    "mean_step_reward": 0.244737,
+    "objective_success_count": 2160,
+    "replay_consistent_count": 2160,
+    "step_count": 9120,
+    "unique_content_hash_count": 2160
+  },
+  "per_split": {
+    "dev": {
+      "episode_count": 120,
+      "failure_distribution": {
+        "tool_precondition_failed": 20,
+        "unknown_entity": 20
+      },
+      "illegal_commit_count": 0,
+      "illegal_proposal_count": 40,
+      "mean_step_reward": 0.246154,
+      "objective_success_count": 120,
+      "replay_consistent_count": 120,
+      "sealed_for_training": false,
+      "step_count": 520,
+      "unique_content_hash_count": 120
+    },
+    "test_id": {
+      "episode_count": 240,
+      "failure_distribution": {
+        "tool_precondition_failed": 40,
+        "unknown_entity": 40
+      },
+      "illegal_commit_count": 0,
+      "illegal_proposal_count": 80,
+      "mean_step_reward": 0.246154,
+      "objective_success_count": 240,
+      "replay_consistent_count": 240,
+      "sealed_for_training": true,
+      "step_count": 1040,
+      "unique_content_hash_count": 240
+    },
+    "test_ood": {
+      "episode_count": 720,
+      "failure_distribution": {
+        "navigation_failed": 240
+      },
+      "illegal_commit_count": 0,
+      "illegal_proposal_count": 240,
+      "mean_step_reward": 0.241667,
+      "objective_success_count": 720,
+      "replay_consistent_count": 720,
+      "sealed_for_training": true,
+      "step_count": 2880,
+      "unique_content_hash_count": 720
+    },
+    "train": {
+      "episode_count": 1080,
+      "failure_distribution": {
+        "tool_precondition_failed": 180,
+        "unknown_entity": 180
+      },
+      "illegal_commit_count": 0,
+      "illegal_proposal_count": 360,
+      "mean_step_reward": 0.246154,
+      "objective_success_count": 1080,
+      "replay_consistent_count": 1080,
+      "sealed_for_training": false,
+      "step_count": 4680,
+      "unique_content_hash_count": 1080
+    }
+  },
+  "policies": [
+    "controlled_recovery",
+    "safe_heuristic",
+    "scripted_expert"
+  ],
+  "scenario_families": [
+    "rescue_escort",
+    "resource_negotiation",
+    "secret_transport"
+  ],
+  "schema_version": "novelsim_dataset_card.v1",
+  "step_family_distribution": {
+    "rescue_escort": 2880,
+    "resource_negotiation": 2400,
+    "secret_transport": 3840
+  },
+  "step_source_distribution": {
+    "controlled_recovery": 3600,
+    "safe_heuristic": 2880,
+    "scripted_expert": 2640
+  },
+  "training_boundary": {
+    "allowed_splits": [
+      "train"
+    ],
+    "checkpoint_selection_split": "dev",
+    "sealed_splits": [
+      "test_id",
+      "test_ood"
+    ]
+  }
+}

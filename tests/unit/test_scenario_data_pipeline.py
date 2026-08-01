@@ -204,6 +204,7 @@ def test_dataset_collector_packages_each_split_and_seals_test_data(tmp_path):
     assert card["overall"]["step_count"] == 114
     assert card["overall"]["illegal_commit_count"] == 0
     assert card["overall"]["illegal_proposal_count"] == 9
+    assert card["code_commits"] == ["test"]
     assert card["episode_source_distribution"] == {
         "controlled_recovery": 9,
         "safe_heuristic": 9,

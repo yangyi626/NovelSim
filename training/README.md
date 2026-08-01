@@ -48,6 +48,28 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 
 当前 smoke manifest 共 150 个场景：Train 70、Dev 10、Test-ID 20、Test-OOD 50。content hash、variant 和 world package 跨 split 重叠必须为 0；实体和规则 ID 重叠作为诊断矩阵报告，因为同一世界族会有意复用公共游戏本体。
 
+## 正式确定性专家数据 v1
+
+正式 manifest 使用 12 variants × 20 seeds × 3 families，共 720 个参数化场景。每个场景采集三条轨迹：
+
+- `scripted_expert`：标准专家路线；
+- `safe_heuristic`：语义不同但合法的替代路线；
+- `controlled_recovery`：一次被 Gate 拒绝的提议，随后读取结构化 feedback 并完成恢复。
+
+复现命令：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.collect_dataset `
+  --manifest training\manifests\scenario-split-v1.json `
+  --output-dir data\trajectories\novelsim-planner-expert-v1 `
+  --report-dir training\reports\novelsim-planner-expert-v1 `
+  --code-commit f6f9f20
+```
+
+实测结果：2,160 episodes、9,120 decision steps；受控恢复 720 episodes（33.33%）；目标成功与回放一致均为 2,160/2,160；illegal proposal 720（全部来自预期的首步拒绝），illegal commit 0。Train/Dev/Test-ID/Test-OOD 分别为 1,080/120/240/720 episodes，其中 Test-ID 与 Test-OOD 在数据卡中显式封存。
+
+完整 JSONL/Parquet 默认写入 `data/trajectories/` 并由 Git 忽略，仓库只提交 manifest、泄漏审计、数据卡与文件 SHA-256。PromptedLLM 来源尚未并入这份确定性专家数据，必须单独运行、单独标记真实模型与 Token，并通过同一 verifier 后才能合并。
+
 ## 两类安全指标
 
 - `illegal_proposal`：Planner 提议被 Schema、实体、能力、Affordance、知识或 Patch Gate 拒绝；

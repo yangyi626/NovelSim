@@ -3,8 +3,9 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1 已完成，Phase 2 的三个参数化世界族与 split/audit smoke 已完成，下一步扩充 rollout 规模并冻结正式数据 manifest，不提前训练。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1 已完成，Phase 2 的正式确定性专家数据已达到规模、恢复与泄漏门槛；下一步完成有限 PromptedLLM 数据源验证并进入 0.6B SFT pipeline smoke。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
+> V2 开发分支：`codex/trainable-planner-v2`；正式数据采集代码基线：`f6f9f20`。
 
 ---
 
@@ -47,8 +48,8 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1 完成，Phase 2 进行中** | 已实现三个原创世界族、scripted rollout/filter、150 场景 smoke manifest 与 leakage audit；尚未达到 200 episode / 5,000 决策步，尚无训练脚本或 checkpoint |
-| 当前唯一主线 | **Phase 2 扩量与冻结** | 增加场景结构与策略路线多样性，采集并过滤正式 rollout，达到规模门槛后冻结 Train/Dev/Test-ID/Test-OOD manifest |
+| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成** | 720 个场景采集 Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`；PromptedLLM 来源、SFT 脚本和 checkpoint 尚未完成 |
+| 当前唯一主线 | **Prompted 数据 smoke → Phase 3** | 只在 Train/Dev 小样本运行真实 PromptedLLM，记录模型/Token/fallback/verifier；不打开 Test-ID/Test-OOD，然后构建 SFT train/dev 数据 |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -687,7 +688,7 @@ Phase 1B 验收：
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
 
-> 状态：**进行中**。已实现 `secret_transport / resource_negotiation / rescue_escort`、跨地点 Scene、scripted collector、filter、split builder 和 leakage audit；10 variants × 5 seeds × 3 families 共 150 个 smoke 场景，Train/Dev/Test-ID/Test-OOD 为 70/10/20/50，content/variant/world-package 跨 split 重叠均为 0。正式 200 episode / 5,000 决策步规模与多路线采集尚未完成。
+> 状态：**进行中，确定性数据主干已完成**。正式 manifest 为 12 variants × 20 seeds × 3 families 共 720 场景，Train/Dev/Test-ID/Test-OOD 为 360/40/80/240，leakage audit 0 issue。Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`，受控恢复 `720 episode = 33.33%`；目标成功和回放一致均 `2,160/2,160`，illegal proposal `720`、illegal commit `0`。完整数据文件 hash 全部与数据卡一致；PromptedLLM 数据源尚未实跑，不能标记 Phase 2 完全结束。
 
 建议新增：
 
@@ -930,11 +931,11 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **扩展三个世界族的初始位置、物品所有权、可选路线和受控失败/恢复结构，避免只学习固定三到五步模板。**
-2. **用 Scripted / Heuristic / Prompted 三类来源采集并过滤至少 200 episode、5,000 有效决策步，生成数据卡与统计报告。**
-3. **冻结正式 Train/Dev/Test-ID/Test-OOD manifest 并再次运行 content/variant/entity/rule/prompt leakage audit，通过后才启动 0.6B SFT pipeline smoke。**
+1. **在 Train/Dev 的有限样本上运行真实 `PromptedLLMPolicy`，单独记录模型、Prompt 版本、Token、fallback 和 verifier 通过率；Test-ID/Test-OOD 保持封存。**
+2. **从 Train JSONL 生成结构化 SFT 样本，Dev 只用于验证和 checkpoint 选择；实现 hash 审计、0.6B 配置和 100–500 step pipeline smoke。**
+3. **0.6B smoke 在服务器 4090 上通过加载、训练、保存、推理和 Runtime 回放后，再启动 Qwen3-4B QLoRA 主训练。**
 
-第一项完成前不把重复模板扩量冒充数据规模；第二项完成前不写 SFT 训练脚本；第三项完成前不运行 4B 主训练。
+第一项不得调用 Test 数据或把 fallback 冒充模型成功；第二项完成前不运行 4B；第三项通过前不进入 GRPO。
 
 下一次进度汇报必须给出以下可核验证据，而不是只报百分比：
 

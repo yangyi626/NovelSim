@@ -134,6 +134,7 @@ def write_dataset(
         "generator_version": manifest.generator_version,
         "license_spdx": "CC-BY-4.0",
         "content_origin": "original_for_novelsim_v2",
+        "code_commits": sorted({item.code_commit for item in records}),
         "policies": sorted(source_distribution),
         "scenario_families": sorted(family_distribution),
         "overall": overall,
@@ -211,6 +212,7 @@ def _render_card_markdown(card: Dict[str, Any]) -> str:
         "# NovelSim Planner Expert Dataset v1",
         "",
         "- Manifest: `%s`" % card["manifest_id"],
+        "- Code commit: `%s`" % ", ".join(card["code_commits"]),
         "- Episodes: `%s`" % overall["episode_count"],
         "- Decision steps: `%s`" % overall["step_count"],
         "- Objective success: `%s/%s`" % (
