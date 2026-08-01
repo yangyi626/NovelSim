@@ -128,7 +128,7 @@ def write_dataset(
     )
     card = {
         "schema_version": "novelsim_dataset_card.v1",
-        "dataset_id": "novelsim_planner_expert_v3",
+        "dataset_id": "novelsim_planner_expert_v4",
         "manifest_id": manifest.manifest_id,
         "manifest_hash": manifest.manifest_hash,
         "generator_version": manifest.generator_version,
@@ -209,7 +209,7 @@ def _file_record(path: Path) -> Dict[str, Any]:
 def _render_card_markdown(card: Dict[str, Any]) -> str:
     overall = card["overall"]
     lines = [
-        "# NovelSim Planner Expert Dataset v3",
+        "# NovelSim Planner Expert Dataset v4",
         "",
         "- Manifest: `%s`" % card["manifest_id"],
         "- Code commit: `%s`" % ", ".join(card["code_commits"]),

@@ -19,7 +19,7 @@ from .export_trajectories import load_trajectories_jsonl
 from .novelsim_env import NovelSimEnv, NovelSimEnvSpec
 
 
-GRPO_DATASET_ID = "novelsim_planner_grpo_v4"
+GRPO_DATASET_ID = "novelsim_planner_grpo_v5"
 ALLOWED_SPLITS = ("train", "dev")
 SEALED_SPLITS = ("test_id", "test_ood")
 

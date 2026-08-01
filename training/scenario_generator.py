@@ -49,6 +49,9 @@ class ScenarioCondition(BaseModel):
     entity_id: str = ""
     expected_id: str = ""
     member_ids: List[str] = Field(default_factory=list)
+    minimum_member_count: int = Field(0, ge=0)
+    goal_key: str = ""
+    shared_fact_id: str = ""
     fact_id: str = ""
     flag_key: str = ""
     expected_value: Any = None
@@ -65,7 +68,7 @@ class GeneratedScenario(BaseModel):
     scenario_family: ScenarioFamily
     variant_id: str
     random_seed: int
-    template_version: str = "scenario_generator.v2"
+    template_version: str = "scenario_generator.v3"
     source_type: str = "original_parameterized_generator"
     content_origin: str = "original_for_novelsim_v2"
     license_spdx: str = "CC-BY-4.0"
@@ -197,6 +200,8 @@ def scenario_content_hash(value) -> str:
 def _secret_transport(variant: int, seed: int) -> Dict[str, Any]:
     from examples.secret_letter import (
         ALLY,
+        FACT_PLOT,
+        GOAL_PROTECT,
         GUARD,
         PLAYER,
         STEWARD,
@@ -250,10 +255,20 @@ def _secret_transport(variant: int, seed: int) -> Dict[str, Any]:
         participants=[PLAYER, GUARD, STEWARD, ALLY],
         objective="取得密信、传播可信证据并形成防卫联盟",
         calls=calls,
-        success_conditions=[ScenarioCondition(
-            kind=ConditionKind.alliance_members,
-            member_ids=sorted([STEWARD, ALLY]),
-        )],
+        success_conditions=[
+            ScenarioCondition(
+                kind=ConditionKind.belief_holder,
+                entity_id=ALLY,
+                fact_id=FACT_PLOT,
+            ),
+            ScenarioCondition(
+                kind=ConditionKind.alliance_members,
+                member_ids=[STEWARD],
+                minimum_member_count=2,
+                goal_key=GOAL_PROTECT,
+                shared_fact_id=FACT_PLOT,
+            ),
+        ],
         parameters={
             "letter_style": state.items[item_id].display_name,
             "trust_jitter": "deterministic_seeded",
@@ -612,7 +627,20 @@ def _condition_matches(
         return actor is not None and actor.location_id == condition.expected_id
     if condition.kind == ConditionKind.alliance_members:
         expected = set(condition.member_ids)
-        return any(expected.issubset(alliance.member_ids) for alliance in state.alliances.values())
+        return any(
+            alliance.status == "active"
+            and expected.issubset(alliance.member_ids)
+            and len(set(alliance.member_ids)) >= condition.minimum_member_count
+            and (
+                not condition.goal_key
+                or alliance.goal_key == condition.goal_key
+            )
+            and (
+                not condition.shared_fact_id
+                or condition.shared_fact_id in alliance.shared_fact_ids
+            )
+            for alliance in state.alliances.values()
+        )
     if condition.kind == ConditionKind.belief_holder:
         return get_belief(state, condition.entity_id, condition.fact_id) is not None
     if condition.kind == ConditionKind.flag_equals:

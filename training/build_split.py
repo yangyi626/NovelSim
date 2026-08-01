@@ -47,7 +47,7 @@ class SplitManifest(BaseModel):
     split_seed: int
     ood_families: List[ScenarioFamily]
     entries: List[SplitEntry]
-    generator_version: str = "scenario_generator.v2"
+    generator_version: str = "scenario_generator.v3"
     manifest_hash: Optional[str] = None
 
     class Config:

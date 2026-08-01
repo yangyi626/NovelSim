@@ -120,9 +120,14 @@ def _condition_holds(condition: PlanStepCondition, state: WorldState) -> bool:
         return any(
             alliance.status == "active"
             and expected_members.issubset(alliance.member_ids)
+            and len(set(alliance.member_ids)) >= condition.minimum_member_count
             and (
                 condition.goal_key is None
                 or alliance.goal_key == condition.goal_key
+            )
+            and (
+                condition.shared_fact_id is None
+                or condition.shared_fact_id in alliance.shared_fact_ids
             )
             for alliance in state.alliances.values()
         )

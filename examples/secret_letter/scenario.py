@@ -219,8 +219,10 @@ def build_snapshot() -> WorldState:
                             ),
                             PlanStepCondition(
                                 kind=PlanConditionKind.alliance_formed,
-                                member_ids=[STEWARD, ALLY],
+                                member_ids=[STEWARD],
+                                minimum_member_count=2,
                                 goal_key=GOAL_PROTECT,
+                                shared_fact_id=FACT_PLOT,
                             ),
                         ],
                     )

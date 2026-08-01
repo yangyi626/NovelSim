@@ -82,9 +82,9 @@ def _write_fake_checkpoint(tmp_path, *, policy_kind="sft"):
         "validation": {
             "prompt_version": "novelsim_planner_prompt.v4",
             "dataset_id": (
-                "novelsim_planner_sft_v4"
+                    "novelsim_planner_sft_v5"
                 if policy_kind == "sft"
-                else "novelsim_planner_grpo_v4"
+                    else "novelsim_planner_grpo_v5"
             ),
         },
         "parent_sft_checkpoint": (

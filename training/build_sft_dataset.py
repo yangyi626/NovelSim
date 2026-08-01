@@ -31,7 +31,7 @@ from .export_trajectories import load_trajectories_jsonl
 
 
 SFT_SCHEMA_VERSION = "novelsim_planner_sft_sample.v1"
-SFT_DATASET_ID = "novelsim_planner_sft_v4"
+SFT_DATASET_ID = "novelsim_planner_sft_v5"
 PROMPT_VERSION = PLANNER_PROMPT_VERSION
 ALLOWED_SPLITS = ("train", "dev")
 SEALED_SPLITS = ("test_id", "test_ood", "adversarial")

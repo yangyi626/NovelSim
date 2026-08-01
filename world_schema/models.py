@@ -628,6 +628,8 @@ class PlanStepCondition(BaseModel):
     target_character_id: Optional[str] = None
     member_ids: List[str] = Field(default_factory=list)
     goal_key: Optional[str] = None
+    shared_fact_id: Optional[str] = None
+    minimum_member_count: int = Field(2, ge=2)
     min_confidence: float = Field(0.0, ge=0.0, le=1.0)
     actor_id: Optional[str] = None
     tool_name: Optional[str] = None
@@ -648,10 +650,13 @@ class PlanStepCondition(BaseModel):
             PlanConditionKind.tool_committed: ("tool_name",),
         }.get(kind, ())
         missing = [name for name in required if not values.get(name)]
-        if kind == PlanConditionKind.alliance_formed and len(
-            values.get("member_ids") or []
-        ) < 2:
-            missing.append("member_ids>=2")
+        if kind == PlanConditionKind.alliance_formed:
+            if not values.get("member_ids"):
+                missing.append("member_ids>=1")
+            if values.get("minimum_member_count", 2) < len(
+                values.get("member_ids") or []
+            ):
+                missing.append("minimum_member_count>=len(member_ids)")
         if missing:
             raise ValueError(
                 "%s requires %s" % (kind.value, ", ".join(missing))

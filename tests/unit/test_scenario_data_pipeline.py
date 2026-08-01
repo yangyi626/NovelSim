@@ -1,9 +1,16 @@
+import asyncio
 import json
 
 import pytest
 from pydantic import ValidationError
 
-from engine import replay_game_trajectory
+from engine import (
+    CORE_TOOL_PERMISSIONS,
+    AgentExecutionStateMachine,
+    ToolCall,
+    create_core_tool_registry,
+    replay_game_trajectory,
+)
 from training.audit_leakage import audit_split_manifest, write_leakage_report
 from training.build_split import (
     DataSplit,
@@ -22,6 +29,7 @@ from training.rollout_collector import (
 from training.scenario_generator import (
     GeneratedScenario,
     ScenarioFamily,
+    evaluate_scenario,
     generate_scenario,
     generate_scenario_grid,
 )
@@ -104,6 +112,41 @@ def test_safe_heuristic_routes_are_legal_and_semantically_distinct():
     assert {
         item.source_type for item in scripted + heuristic
     } == {"scripted_expert", "safe_heuristic"}
+
+
+def test_secret_transport_accepts_evidence_backed_alternative_alliance():
+    scenario = generate_scenario(
+        ScenarioFamily.secret_transport,
+        variant_index=0,
+        seed=11,
+    )
+    state = scenario.initial_state
+    machine = AgentExecutionStateMachine(create_core_tool_registry())
+    calls = list(scenario.scripted_calls[:4]) + [
+        ToolCall(
+            actor_id="char_steward",
+            tool_name="propose_alliance",
+            arguments={
+                "target_character_id": "char_guard",
+                "goal_key": "protect_estate",
+                "shared_fact_id": "fact_regent_plot",
+            },
+        )
+    ]
+
+    for call in calls:
+        outcome = asyncio.run(machine.execute(
+            call,
+            state,
+            permissions=CORE_TOOL_PERMISSIONS,
+        ))
+        assert outcome.result.success is True
+        state = outcome.new_state
+
+    assert evaluate_scenario(scenario, state) is not None
+    alliance = next(iter(state.alliances.values()))
+    assert alliance.member_ids == ["char_guard", "char_steward"]
+    assert state.character_psyches["char_steward"].plans[0].status == "completed"
 
 
 def test_controlled_recovery_records_rejection_feedback_then_succeeds():

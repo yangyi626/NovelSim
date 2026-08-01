@@ -143,7 +143,7 @@ def test_checkpoint_inspection_requires_manifest_and_exact_file_hashes(tmp_path)
         "config": {"model_id": "Qwen/Qwen3-0.6B"},
         "validation": {
             "prompt_version": "novelsim_planner_prompt.v4",
-            "dataset_id": "novelsim_planner_sft_v4",
+            "dataset_id": "novelsim_planner_sft_v5",
         },
         "code_commit": "abc1234",
         "adapter_files": before.adapter_files,
@@ -154,7 +154,7 @@ def test_checkpoint_inspection_requires_manifest_and_exact_file_hashes(tmp_path)
     assert ready.ready is True
     assert ready.errors == []
     assert ready.training_code_commit == "abc1234"
-    assert ready.dataset_id == "novelsim_planner_sft_v4"
+    assert ready.dataset_id == "novelsim_planner_sft_v5"
 
     (adapter / "adapter_model.safetensors").write_bytes(b"tampered")
     tampered = inspect_adapter_checkpoint(config, repo_root=tmp_path)
@@ -186,7 +186,7 @@ def test_grpo_checkpoint_requires_grpo_manifest_and_parent_sft_hashes(tmp_path):
         "config": {"model_id": "Qwen/Qwen3-0.6B"},
         "validation": {
             "prompt_version": "novelsim_planner_prompt.v4",
-            "dataset_id": "novelsim_planner_grpo_v4",
+            "dataset_id": "novelsim_planner_grpo_v5",
         },
         "parent_sft_checkpoint": {
             "adapter_content_hash": "parent-adapter-hash",
@@ -199,7 +199,7 @@ def test_grpo_checkpoint_requires_grpo_manifest_and_parent_sft_hashes(tmp_path):
 
     ready = inspect_adapter_checkpoint(config, repo_root=tmp_path)
     assert ready.ready is True
-    assert ready.dataset_id == "novelsim_planner_grpo_v4"
+    assert ready.dataset_id == "novelsim_planner_grpo_v5"
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     payload["parent_sft_checkpoint"] = {}
