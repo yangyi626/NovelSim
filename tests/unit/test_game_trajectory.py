@@ -151,6 +151,32 @@ def test_jsonl_export_is_canonical_atomic_and_replay_verified(tmp_path, capsys):
     assert load_trajectories_jsonl(cli_path)[0].content_hash == output["content_hash"]
 
 
+def test_jsonl_export_retries_short_lived_windows_replace_lock(
+    tmp_path,
+    monkeypatch,
+):
+    import training.export_trajectories as export_module
+
+    real_replace = export_module.os.replace
+    attempts = {"count": 0}
+
+    def flaky_replace(source, target):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise PermissionError("simulated indexer lock")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(export_module.os, "replace", flaky_replace)
+    monkeypatch.setattr(export_module.time, "sleep", lambda seconds: None)
+    path = tmp_path / "retry.jsonl"
+    trajectory = build_secret_letter_v1_trajectory()
+
+    write_trajectories_jsonl([trajectory], path)
+
+    assert attempts["count"] == 2
+    assert load_trajectories_jsonl(path) == [trajectory]
+
+
 def test_parquet_step_export_and_dataset_summary(tmp_path, capsys):
     trajectory = build_secret_letter_v1_trajectory()
     parquet_path = tmp_path / "secret-letter.parquet"

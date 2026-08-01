@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 from uuid import uuid4
@@ -71,11 +72,37 @@ def write_trajectories_jsonl(
                     )
                 )
                 handle.write("\n")
-        os.replace(str(temporary), str(path))
+        _replace_with_retry(temporary, path)
     finally:
         if temporary.exists():
-            temporary.unlink()
+            _unlink_with_retry(temporary)
     return path
+
+
+def _replace_with_retry(source: Path, target: Path, *, attempts: int = 8) -> None:
+    """Preserve atomic writes across short-lived Windows file locks."""
+
+    for attempt in range(attempts):
+        try:
+            os.replace(str(source), str(target))
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def _unlink_with_retry(path: Path, *, attempts: int = 8) -> None:
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts:
+                raise
+            time.sleep(0.05 * (attempt + 1))
 
 
 def load_trajectories_jsonl(input_path) -> List[GameTrajectory]:
