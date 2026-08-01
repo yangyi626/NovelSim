@@ -1,9 +1,10 @@
 # NovelSim 大厂游戏 AI 项目优化 Plan
 
-> 版本：V2.0
-> 更新日期：2026-07-30
+> 版本：V2.1（执行版）
+> 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：冻结已经完成的 V1 求职版，下一阶段只推进“可训练高层 NPC Planner”主线。
+> 当前决策：V1 求职版保持冻结；V2 设计已经完成，实施从 Phase 1A“统一 Planner 合同”开始，不提前训练。
+> Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 
 ---
 
@@ -36,6 +37,20 @@ Unity / Python 权威游戏世界
 3. 轨迹数据构建、SFT、强化学习和严格 holdout；
 4. 多 NPC 认知隔离、信息传播和角色行为；
 5. Unity 可玩交付、工程测试和量化评测。
+
+### 0.1 当前执行快照
+
+| 模块 | 状态 | 已有证据 / 下一验收 |
+|---|---|---|
+| V1 求职版 | **100% 已完成并冻结** | Python `333 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7`；Windows 三路线 smoke 通过 |
+| V1 客观评测 | **已完成** | 确定性场景 `9/9`；真实 LLM `20/20` 完成运行、目标成功 `18/20 = 90%`；已提交事件的回放、因果证据、叙事覆盖与结构化依据均为 `100%` |
+| V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
+| V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
+| V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
+| V2 代码实施 | **0%，尚未开始** | 尚无 `PlannerPolicy`、`GameObservation`、`PlannerDecision`、`GameTrajectory`、场景族、split manifest、训练脚本或 checkpoint |
+| 当前唯一主线 | **Phase 1A** | 在不修改 Runtime 权威规则的前提下，让 Scripted / Prompt / ReAct 通过配置切换并复用同一 Policy 合同 |
+
+进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
 ---
 
@@ -603,6 +618,8 @@ Cognitive Integrity
 
 ### Phase 0：冻结 V1 与建立边界（2 天）
 
+> 状态：**已完成（2026-08-01 复核）**。V1 已合并并推送到 `main@8f36928`，工作树与远端一致。
+
 任务：
 
 - 保留现有 `GameAI_LLM_Agent求职版计划.md` 为完成态；
@@ -617,11 +634,14 @@ Cognitive Integrity
 
 ### Phase 1：Policy 与 Trajectory 合同（3–4 天）
 
+> 状态：**下一阶段，尚未开始**。先完成 Phase 1A，再开始 Phase 1B；本阶段不运行 SFT/GRPO。
+
 建议新增：
 
 ```text
 engine/planner_policy.py
 engine/game_observation.py
+engine/planner_decision.py
 engine/game_trajectory.py
 training/export_trajectories.py
 training/schemas.py
@@ -629,20 +649,41 @@ tests/unit/test_planner_policy.py
 tests/unit/test_game_trajectory.py
 ```
 
+#### Phase 1A：统一 Planner 合同（优先）
+
 任务：
 
-- 把现有 Prompt、Scripted 和 direct baseline 接到统一 `PlannerPolicy`；
-- 完成 `PlannerDecision`、`GameTrajectory`、`RewardBreakdown`；
+- 定义不可直接修改世界的 `GameObservation` 只读输入；
+- 定义结构化 `PlannerDecision`，只包含 intent、ToolCall、证据 ID、预期前置条件/效果、fallback 和置信度；
+- 定义 `PlannerPolicy` Protocol 及统一的超时、解析失败和 fallback 语义；
+- 将现有 Scripted、Prompt 和 ReAct 决策接成 adapter，不复制 ToolRegistry、FSM 或 Gate；
+- 增加配置切换，让同一“密信疑云”case 在不修改 Runtime 的情况下选择三种 Policy。
+
+Phase 1A 验收：
+
+- Scripted / Prompt / ReAct 三种 Policy 通过相同的输入输出合同；
+- `PlannerDecision` 不能携带或提交 `StatePatch`；
+- “夜轻歌开飞机飞走”等越界输入仍由 World Concept / Entity / Capability / Affordance Gate 拒绝，`WorldState` 不变；
+- 原有 Python 回归不下降，并新增 Policy 合同、序列化、超时和 fallback 单测。
+
+#### Phase 1B：Trajectory 与失败归因
+
+任务：
+
+- 完成 `GameTrajectory`、`RewardBreakdown` 和稳定 schema version；
 - 从现有 Trace 无损导出 JSONL/Parquet；
 - 区分 `illegal_proposal` 与 `illegal_commit`。
 
-验收：
+Phase 1B 验收：
 
-- 同一 case 切换 Policy 不修改 Runtime；
 - 任意 episode 可以从 trajectory 重放；
+- 同一输入、seed 与代码版本的状态 hash 可复现；
+- 每条失败轨迹都有确定性 failure label 和可读原因；
 - 现有 333 项 Python 回归不下降。
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
+
+> 状态：**待开始**，依赖 Phase 1A/1B 的稳定合同。
 
 建议新增：
 
@@ -671,6 +712,8 @@ training/audit_leakage.py
 
 ### Phase 3：SFT Planner（4–6 天）
 
+> 状态：**待开始**，只有数据 manifest、泄漏审计和 0.6B pipeline smoke 通过后才能启动 4B 主训练。
+
 任务：
 
 - Qwen3-0.6B 跑通 100–500 step smoke；
@@ -687,6 +730,8 @@ training/audit_leakage.py
 - 未达到效果时先修数据和任务定义，不直接扩大模型。
 
 ### Phase 4：GRPO 环境训练（6–8 天）
+
+> 状态：**待开始**，依赖可复现的 SFT checkpoint 与 reward audit。
 
 建议新增：
 
@@ -714,6 +759,8 @@ training/reward_audit.py
 
 ### Phase 5：严格评测与人评（4–6 天）
 
+> 状态：**待开始**，Test-OOD 在训练和选 checkpoint 期间保持封存。
+
 任务：
 
 - 运行 B0/B1/B2/M1/M2 完整矩阵；
@@ -729,6 +776,8 @@ training/reward_audit.py
 - 不用 Pairwise Judge 代替客观任务指标。
 
 ### Phase 6：Unity 集成与公开交付（3–4 天）
+
+> 状态：**待开始**，V1 Unity Demo 保持可用，V2 只增加策略切换和决策可视化。
 
 任务：
 
@@ -747,6 +796,8 @@ training/reward_audit.py
 ---
 
 ## 11. 四周 MVP 排期
+
+排期从 V2 首个实施日开始计算，不与 V1 已完成时间混合：
 
 | 周 | 主线 | 必须完成 |
 |---|---|---|
@@ -771,7 +822,8 @@ training/reward_audit.py
 | 档位 | 模型与任务 | 建议资源 | 目的 |
 |---|---|---|---|
 | Smoke | Qwen3-0.6B LoRA，少量 SFT/GRPO | 单卡 12–24GB | 验证代码和 reward |
-| MVP | Qwen3-4B LoRA/QLoRA | 单卡 24GB 或等价多卡 | 形成主结果 |
+| Debug | Qwen3-1.7B LoRA/QLoRA | 单卡 24GB | 验证真实长度、reward 方差和 rollout 稳定性 |
+| MVP | Qwen3-4B-Instruct-2507 LoRA/QLoRA | 单卡 4090 24GB | 形成 SFT 主结果；GRPO 先做显存 smoke 再决定是否作为主模型 |
 | Main | Qwen3-4B 更大 rollout / 8B 对照 | 2–4×24GB 或 1×80GB | 强化统计稳定性 |
 | Optional | 8B GRPO / OPD-lite | 视已有结果再申请 | 不属于完成条件 |
 
@@ -781,6 +833,18 @@ training/reward_audit.py
 - 先跑 20–50 个 episode 的固定 smoke，再跑全量；
 - 每个正式实验保存 config、seed、commit、显存峰值和 wall time；
 - 若 4B 单步 P95 超过交互预算，优先缩短 observation、禁用 thinking、量化和异步预取，而不是让 Unity 等模型。
+
+### 12.1 单卡服务器 4090 的固定实施口径
+
+- 训练环境使用服务器 Linux + CUDA；Windows 本地继续负责 Unity 与 V1 回归；
+- 保留项目运行时 Python 3.8，另建 Python 3.11/3.12 训练环境，避免升级破坏 V1；
+- 训练栈固定为 `Transformers + PEFT + TRL + bitsandbytes + vLLM`；
+- QLoRA 初始设置：4-bit NF4、double quant、bf16、gradient checkpointing、micro batch `1`，再用 gradient accumulation 获得有效 batch；
+- 第一轮上限建议为 prompt `1024` tokens、completion `128` tokens；确有证据不足时再扩上下文；
+- GRPO 先尝试 colocate vLLM、`gpu_memory_utilization≈0.2` 与 sleep mode；每次正式运行前记录峰值显存；
+- 执行顺序固定为 0.6B pipeline smoke → 1.7B reward/debug → 4B SFT → 4B GRPO memory smoke；
+- 若 4B GRPO 无法稳定落入 24GB，则将 1.7B 作为 GRPO 主实验，4B 保留为 SFT 主实验，不能用 OOM 反复试参消耗项目周期；
+- 8B 只做可选 SFT 对照，不把 8B GRPO 或 14B 作为交付条件。
 
 ---
 
@@ -862,8 +926,16 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **先实现 `PlannerPolicy + PlannerDecision`，把现有 Scripted、Direct Prompt、ReAct 接到同一接口。**
-2. **再实现 `GameTrajectory + deterministic verifier`，从现有 benchmark/Trace 导出第一版可重放数据。**
-3. **在生成任何大规模数据前冻结 `scenario_family` 与 Train/Dev/Test-ID/Test-OOD manifest。**
+1. **从 `main@8f36928` 创建 `codex/trainable-planner-v2`，完成 `GameObservation + PlannerDecision + PlannerPolicy` 及 Scripted / Prompt / ReAct adapter。**
+2. **通过 Phase 1A 回归后实现 `GameTrajectory + deterministic verifier`，从现有 benchmark/Trace 导出第一版可重放 JSONL。**
+3. **在生成任何大规模数据前实现三个参数化 `scenario_family`，冻结 Train/Dev/Test-ID/Test-OOD manifest 并运行 hash/leakage audit。**
 
 第一项完成前不写训练脚本；第二项完成前不开始 SFT；第三项完成前不批量采集数据。
+
+下一次进度汇报必须给出以下可核验证据，而不是只报百分比：
+
+- 新增/修改文件清单；
+- 新增测试数与全量回归结果；
+- 三种 Policy 对同一 case 的切换命令或配置；
+- 非法提议与非法提交的独立统计；
+- 对应 commit SHA。
