@@ -137,8 +137,50 @@ SFT 数据只读取正式轨迹的 `train.jsonl` 和 `dev.jsonl`，命令行没�
 
 训练环境与 Python 3.8 游戏 Runtime 隔离。服务器建议使用 Python 3.11/3.12，并先按服务器 CUDA 版本安装 PyTorch，再安装冻结的后训练栈：
 
+### 可校验的跨机器交付
+
+训练 JSONL 不进入 Git，因此不能只在服务器 `git pull` 后直接开训。本地先构建只含 SFT Train/Dev、数据卡、配置、Dev manifest 和依赖锁的哈希包；Test-ID/Test-OOD 不会进入归档：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.server_handoff build `
+  --config training\configs\server_sft_qwen3_0.6b_smoke.json
+.\.venv\Scripts\python.exe -m training.server_handoff verify `
+  --config training\configs\server_sft_qwen3_0.6b_smoke.json
+```
+
+将 `tmp/server-handoff/novelsim-qwen3-0.6b-sft-smoke-v5.tar.gz` 传到服务器。服务器必须先检出归档 manifest 记录的精确 commit，再安装；相同文件会复用，任何同路径不同哈希文件都会被拒绝覆盖。安装成功会写入 handoff receipt，真实训练入口缺少该 receipt 时会在加载 CUDA 模型前停止：
+
 ```bash
-python -m venv .venv-sft
+git fetch origin codex/trainable-planner-v2
+git checkout codex/trainable-planner-v2
+git pull --ff-only
+python3.11 -m venv .venv-sft
+source .venv-sft/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+python -m training.server_handoff install \
+  --config training/configs/server_sft_qwen3_0.6b_smoke.json \
+  --archive /path/to/novelsim-qwen3-0.6b-sft-smoke-v5.tar.gz
+```
+
+不加载 CUDA 模型的端到端 dry-run：
+
+```bash
+python -m training.server_handoff run \
+  --config training/configs/server_sft_qwen3_0.6b_smoke.json
+```
+
+dry-run 只证明数据/配置/Dev 场景可用，报告必须是 `executes_training=false`。真实执行命令为：
+
+```bash
+python -m training.server_handoff run \
+  --config training/configs/server_sft_qwen3_0.6b_smoke.json \
+  --execute
+```
+
+统一入口依次执行数据哈希预检、100-step SFT、adapter 逐文件审计和 Dev inference→Gate→replay。中断后会从输出目录中最大编号的 `checkpoint-*` 恢复；已有完整且哈希一致的 adapter 会复用。最终生成 `run-manifest.json`、服务器 pipeline `report.json` 和 `model-card.md`，记录有效配置哈希、真实 tokenizer 长度、训练指标、环境包版本、GPU 型号、峰值显存、adapter 哈希和 Runtime smoke 结果。
+
+```bash
 source .venv-sft/bin/activate
 python -m pip install --upgrade pip
 # 先从 pytorch.org 选择与服务器 CUDA 匹配的 torch 安装命令

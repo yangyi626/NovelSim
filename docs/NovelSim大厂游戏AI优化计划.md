@@ -48,9 +48,9 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1/2 完成，Phase 3/4 训练前代码就绪** | 权威计划状态机、SFT/GRPO Adapter Policy、逐文件 checkpoint hash、Dev inference→Gate→replay、可重建 `NovelSimEnv`、结果 reward 与 hacking audit 已实现；全量 Python 回归 `415 passed, 15 deselected`；训练 checkpoint 尚未完成 |
+| V2 代码实施 | **Phase 1/2 完成，Phase 3/4 训练前代码就绪** | 权威计划状态机、SFT/GRPO Adapter Policy、逐文件 checkpoint hash、Dev inference→Gate→replay、可重建 `NovelSimEnv`、结果 reward 与 hacking audit 已实现；全量 Python 回归 `424 passed, 15 deselected`；训练 checkpoint 尚未完成 |
 | V2 真实 Prompted 基线 | **已完成** | `qwen3.7-plus-2026-05-26`：4/4 目标成功、17/17 Schema 与 Gate 通过、0 fallback、0 非法提案/提交、4/4 回放一致、22,581 tokens |
-| 当前唯一主线 | **服务器 0.6B SFT smoke** | 代码和 SFT v5 数据预检已通过；服务器 adapter 尚不存在。0.6B 的训练、Dev eval、保存与 Runtime 回放通过前不启动 4B/GRPO，也不声称训练提升 |
+| 当前唯一主线 | **服务器 0.6B SFT smoke** | SFT v5 数据预检与跨机器哈希交付流水线已通过本地 dry-run；服务器 adapter 尚不存在。0.6B 的训练、Dev eval、保存与 Runtime 回放通过前不启动 4B/GRPO，也不声称训练提升 |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -736,7 +736,7 @@ training/audit_leakage.py
 
 ### Phase 3：SFT Planner（4–6 天）
 
-> 状态：**进行中，SFT v5 数据、训练、本地推理与 Runtime smoke 代码已就绪，服务器训练未开始**。Expert v4 的正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 Prompt v4 的 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；Train/Dev 内容 hash 重叠 0，Test-ID/Test-OOD 未读取。`train_sft --validate-only` 已核对 dataset/card/file SHA-256、样本数、prompt 版本和封存边界并返回 `valid=true`。Qwen3-0.6B/1.7B/4B QLoRA 配置、逐文件 adapter hash 校验、`SFTPolicy/GRPOPolicy` 与 Dev inference→Gate→replay 验收器均已通过自动化测试；真实服务器 adapter/run manifest 尚不存在，因此仍不能宣称模型训练或提升。
+> 状态：**进行中，SFT v5 数据、训练、本地推理、跨机器交付与 Runtime smoke 代码已就绪，服务器训练未开始**。Expert v4 的正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 Prompt v4 的 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；Train/Dev 内容 hash 重叠 0，Test-ID/Test-OOD 未读取。服务器 handoff 会把 Git 忽略的 Train/Dev JSONL 与数据卡、配置、Dev manifest 组成逐文件 SHA-256 归档，拒绝封存 split、commit 不匹配和同路径异内容覆盖；统一入口支持最大 checkpoint 自动续训，并在完成后产出有效配置哈希、真实 tokenizer 长度、GPU/峰值显存、adapter hash、Runtime smoke 和模型卡。当前本地 dry-run 仍为 `executes_training=false`，真实服务器 adapter/run manifest 尚不存在，因此不能宣称模型训练或提升。
 
 任务：
 
@@ -868,12 +868,14 @@ training/reward_audit.py
 ### 12.1 单卡服务器 4090 的固定实施口径
 
 - 训练环境使用服务器 Linux + CUDA；Windows 本地继续负责 Unity 与 V1 回归；
+- Git 只同步代码与数据卡；SFT Train/Dev 必须通过 `training.server_handoff` 构建、验证和安装，归档不得包含 Test-ID/Test-OOD，并要求服务器 checkout commit 与 handoff manifest 一致；
 - 保留项目运行时 Python 3.8，另建 Python 3.11/3.12 训练环境，避免升级破坏 V1；
 - 训练栈固定为 `Transformers + PEFT + TRL + bitsandbytes + vLLM`；
 - QLoRA 初始设置：4-bit NF4、double quant、bf16、gradient checkpointing、micro batch `1`，再用 gradient accumulation 获得有效 batch；
 - 当前 SFT v5 样本 prompt 字符 P50/P95 约为 `4,890/5,879`，completion 字符 P50/P95 为 `345/378`；配置先用 `max_length=2048`，模型加载后必须对全部 3,400 样本做真实 tokenizer 审计且超限为 0，不能用字符数冒充 token 数或静默截断；
 - GRPO 先尝试 colocate vLLM、`gpu_memory_utilization≈0.2` 与 sleep mode；每次正式运行前记录峰值显存；
 - 执行顺序固定为 0.6B pipeline smoke → 1.7B reward/debug → 4B SFT → 4B GRPO memory smoke；
+- 服务器统一命令为 `python -m training.server_handoff run --config training/configs/server_sft_qwen3_0.6b_smoke.json --execute`；中断时只从最大编号的合法 checkpoint 续训，完整 adapter 必须先通过逐文件哈希审计才允许复用；
 - 若 4B GRPO 无法稳定落入 24GB，则将 1.7B 作为 GRPO 主实验，4B 保留为 SFT 主实验，不能用 OOM 反复试参消耗项目周期；
 - 8B 只做可选 SFT 对照，不把 8B GRPO 或 14B 作为交付条件。
 

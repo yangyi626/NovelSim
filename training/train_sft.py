@@ -238,6 +238,8 @@ def run_training(
         ) from exc
 
     _validate_cuda_environment(config, torch)
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(0)
     root = Path(repo_root) if repo_root is not None else _repo_root()
     train_samples = load_sft_samples(
         _resolve(root, config.train_file),
@@ -374,9 +376,11 @@ def run_training(
         "config_sha256": (
             _sha256(Path(config_path)) if config_path is not None else None
         ),
+        "effective_config_sha256": _canonical_hash(json.loads(config.json())),
         "validation": validation,
         "token_length_audit": token_audit,
         "environment": _environment_record(torch),
+        "resource_usage": _resource_usage_record(torch),
         "code_commit": _git_commit(root),
         "metrics": metrics,
         "final_adapter": str(final_dir),
@@ -462,6 +466,24 @@ def _environment_record(torch) -> Dict[str, Any]:
         name: version(name)
         for name in ("transformers", "trl", "peft", "datasets", "accelerate", "bitsandbytes")
     }
+    return result
+
+
+def _resource_usage_record(torch) -> Dict[str, Any]:
+    result = {"cuda_available": torch.cuda.is_available()}
+    if not torch.cuda.is_available():
+        return result
+    divisor = float(1024 ** 3)
+    result.update({
+        "peak_memory_allocated_gib": round(
+            torch.cuda.max_memory_allocated(0) / divisor,
+            3,
+        ),
+        "peak_memory_reserved_gib": round(
+            torch.cuda.max_memory_reserved(0) / divisor,
+            3,
+        ),
+    })
     return result
 
 
