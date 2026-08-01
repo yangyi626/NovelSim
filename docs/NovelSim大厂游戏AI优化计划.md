@@ -3,7 +3,7 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1 已完成，Phase 2 的正式确定性专家数据已达到规模、恢复与泄漏门槛；下一步完成有限 PromptedLLM 数据源验证并进入 0.6B SFT pipeline smoke。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1 与确定性数据主干已完成，SFT Train/Dev 数据合同和单卡 4090 QLoRA 入口已落地；下一步完成有限 PromptedLLM 数据源验证，并在服务器运行 0.6B SFT pipeline smoke。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 > V2 开发分支：`codex/trainable-planner-v2`；正式数据采集代码基线：`f6f9f20`。
 
@@ -48,8 +48,8 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成** | 720 个场景采集 Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`；PromptedLLM 来源、SFT 脚本和 checkpoint 尚未完成 |
-| 当前唯一主线 | **Prompted 数据 smoke → Phase 3** | 只在 Train/Dev 小样本运行真实 PromptedLLM，记录模型/Token/fallback/verifier；不打开 Test-ID/Test-OOD，然后构建 SFT train/dev 数据 |
+| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成，Phase 3 数据/代码就绪** | 2,160 episode / 9,120 step 已生成；SFT Train/Dev 为 `3,060/340` 个唯一样本、跨 split hash 重叠 0；PromptedLLM 实跑与训练 checkpoint 尚未完成 |
+| 当前唯一主线 | **Prompted 数据 smoke + 0.6B 服务器 smoke** | PromptedLLM 只用 Train/Dev；0.6B 在 4090 完成 tokenizer 长度审计、100-step 训练、保存、推理与 Runtime 回放后才启动 4B |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -717,7 +717,7 @@ training/audit_leakage.py
 
 ### Phase 3：SFT Planner（4–6 天）
 
-> 状态：**待开始**，只有数据 manifest、泄漏审计和 0.6B pipeline smoke 通过后才能启动 4B 主训练。
+> 状态：**进行中，数据与训练代码已就绪，服务器训练未开始**。正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；内容 hash 不包含 split/source 元数据，Train/Dev 重叠 0，Test-ID/Test-OOD 未读取。Qwen3-0.6B/4B 的 QLoRA 配置与 `--validate-only` 已通过；尚无 checkpoint，不能宣称模型提升。
 
 任务：
 
@@ -845,7 +845,7 @@ training/reward_audit.py
 - 保留项目运行时 Python 3.8，另建 Python 3.11/3.12 训练环境，避免升级破坏 V1；
 - 训练栈固定为 `Transformers + PEFT + TRL + bitsandbytes + vLLM`；
 - QLoRA 初始设置：4-bit NF4、double quant、bf16、gradient checkpointing、micro batch `1`，再用 gradient accumulation 获得有效 batch；
-- 第一轮上限建议为 prompt `1024` tokens、completion `128` tokens；确有证据不足时再扩上下文；
+- 当前唯一样本 prompt 字符 P50/P95 为 `4,359/4,582`，completion 字符 P50/P95 为 `345/378`；配置先用 `max_length=2048`，模型加载后必须对全部 3,400 样本做真实 tokenizer 审计且超限为 0，不能用字符数冒充 token 数或静默截断；
 - GRPO 先尝试 colocate vLLM、`gpu_memory_utilization≈0.2` 与 sleep mode；每次正式运行前记录峰值显存；
 - 执行顺序固定为 0.6B pipeline smoke → 1.7B reward/debug → 4B SFT → 4B GRPO memory smoke；
 - 若 4B GRPO 无法稳定落入 24GB，则将 1.7B 作为 GRPO 主实验，4B 保留为 SFT 主实验，不能用 OOM 反复试参消耗项目周期；
@@ -932,10 +932,10 @@ NovelSim V2
 ## 16. 现在立即执行的前三项
 
 1. **在 Train/Dev 的有限样本上运行真实 `PromptedLLMPolicy`，单独记录模型、Prompt 版本、Token、fallback 和 verifier 通过率；Test-ID/Test-OOD 保持封存。**
-2. **从 Train JSONL 生成结构化 SFT 样本，Dev 只用于验证和 checkpoint 选择；实现 hash 审计、0.6B 配置和 100–500 step pipeline smoke。**
-3. **0.6B smoke 在服务器 4090 上通过加载、训练、保存、推理和 Runtime 回放后，再启动 Qwen3-4B QLoRA 主训练。**
+2. **把已生成的 SFT Train/Dev 数据同步到服务器，使用 `sft_qwen3_0.6b_smoke.json` 完成全量 tokenizer 长度审计与 100-step pipeline smoke。**
+3. **0.6B smoke 在服务器 4090 上通过加载、训练、Dev eval、adapter 保存、推理和 Runtime 回放后，再启动 Qwen3-4B QLoRA 主训练。**
 
-第一项不得调用 Test 数据或把 fallback 冒充模型成功；第二项完成前不运行 4B；第三项通过前不进入 GRPO。
+第一项不得调用 Test 数据或把 fallback 冒充模型成功；第二项通过前不运行 4B；第三项通过前不进入 GRPO。SFT 数据构建代码与本地配置验证完成不等于服务器训练完成。
 
 下一次进度汇报必须给出以下可核验证据，而不是只报百分比：
 

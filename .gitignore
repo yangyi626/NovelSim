@@ -50,6 +50,11 @@ data/trajectories/**/*.jsonl
 data/trajectories/**/*.parquet
 data/trajectories/**/dataset-card.json
 data/trajectories/**/dataset-card.md
+data/sft/**/*.jsonl
+data/sft/**/dataset-card.json
+data/sft/**/dataset-card.md
+training/outputs/
+checkpoints/
 
 # Web 前端：node_modules / 构建产物 (源码纳入版本控制)
 web/frontend/node_modules/

@@ -1,0 +1,11 @@
+# Install PyTorch first from https://pytorch.org/get-started/locally/ for the
+# server CUDA version. This stack is intentionally separate from the Python
+# 3.8 NovelSim runtime and targets Python 3.10+.
+transformers==5.14.1
+trl==1.8.0
+peft==0.19.1
+bitsandbytes==0.49.2
+datasets>=4.4,<5
+accelerate>=1.12,<2
+tensorboard>=2.20,<3
+safetensors>=0.6,<1
