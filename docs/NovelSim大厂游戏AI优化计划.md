@@ -3,7 +3,7 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1 与确定性数据主干已完成，SFT Train/Dev 数据合同和单卡 4090 QLoRA 入口已落地；下一步完成有限 PromptedLLM 数据源验证，并在服务器运行 0.6B SFT pipeline smoke。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1、确定性数据主干、SFT 数据合同与单卡 QLoRA 入口已落地；PromptedLLM 的 Train/Dev 限量采集代码和零费用计划已冻结，下一步执行真实 Prompted smoke 与服务器 0.6B SFT smoke。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 > V2 开发分支：`codex/trainable-planner-v2`；正式数据采集代码基线：`f6f9f20`。
 
@@ -49,7 +49,7 @@ Unity / Python 权威游戏世界
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
 | V2 代码实施 | **Phase 1 完成，Phase 2 接近完成，Phase 3 数据/代码就绪** | 2,160 episode / 9,120 step 已生成；SFT Train/Dev 为 `3,060/340` 个唯一样本、跨 split hash 重叠 0；PromptedLLM 实跑与训练 checkpoint 尚未完成 |
-| 当前唯一主线 | **Prompted 数据 smoke + 0.6B 服务器 smoke** | PromptedLLM 只用 Train/Dev；0.6B 在 4090 完成 tokenizer 长度审计、100-step 训练、保存、推理与 Runtime 回放后才启动 4B |
+| 当前唯一主线 | **执行两个真实 smoke** | Prompted 代码已就绪但尚无真实 API 报告；0.6B 代码已就绪但尚无 checkpoint。两者通过前不声称模型提升、不启动 4B |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -688,7 +688,7 @@ Phase 1B 验收：
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
 
-> 状态：**进行中，确定性数据主干已完成**。正式 manifest 为 12 variants × 20 seeds × 3 families 共 720 场景，Train/Dev/Test-ID/Test-OOD 为 360/40/80/240，leakage audit 0 issue。Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`，受控恢复 `720 episode = 33.33%`；目标成功和回放一致均 `2,160/2,160`，illegal proposal `720`、illegal commit `0`。完整数据文件 hash 全部与数据卡一致；PromptedLLM 数据源尚未实跑，不能标记 Phase 2 完全结束。
+> 状态：**进行中，确定性数据主干与 Prompted smoke 代码已完成，真实 Prompted 调用未执行**。正式 manifest 为 12 variants × 20 seeds × 3 families 共 720 场景，Train/Dev/Test-ID/Test-OOD 为 360/40/80/240，leakage audit 0 issue。Scripted / Safe Heuristic / Controlled Recovery 共 `2,160 episode / 9,120 step`，受控恢复 `720 episode = 33.33%`；目标成功和回放一致均 `2,160/2,160`，illegal proposal `720`、illegal commit `0`。Prompted 零费用计划按 Train/Dev × 两个 ID family 分层固定 4 场景、24 call/100k Token 上限，Test 完全不选；因尚无真实 provider 响应和 Token，不能标记 Phase 2 完全结束。
 
 建议新增：
 
@@ -931,7 +931,7 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **在 Train/Dev 的有限样本上运行真实 `PromptedLLMPolicy`，单独记录模型、Prompt 版本、Token、fallback 和 verifier 通过率；Test-ID/Test-OOD 保持封存。**
+1. **按 `prompted_smoke_v1.json` 显式运行真实 `PromptedLLMPolicy`，核对实际模型、Prompt 版本、Token、fallback、Gate 与预算报告；Test-ID/Test-OOD 保持封存。**
 2. **把已生成的 SFT Train/Dev 数据同步到服务器，使用 `sft_qwen3_0.6b_smoke.json` 完成全量 tokenizer 长度审计与 100-step pipeline smoke。**
 3. **0.6B smoke 在服务器 4090 上通过加载、训练、Dev eval、adapter 保存、推理和 Runtime 回放后，再启动 Qwen3-4B QLoRA 主训练。**
 

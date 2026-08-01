@@ -1,0 +1,17 @@
+{
+  "schema_version": "prompted_smoke_config.v1",
+  "config_id": "novelsim_prompted_smoke_v1",
+  "manifest": "training/manifests/scenario-split-v1.json",
+  "model_id": "qwen3.6-plus",
+  "prompt_version": "novelsim_planner_prompt.v1",
+  "scenarios_per_family_per_split": 1,
+  "allowed_splits": ["train", "dev"],
+  "max_turns_per_episode": 6,
+  "max_model_calls": 24,
+  "max_total_tokens": 100000,
+  "max_output_tokens_per_call": 512,
+  "temperature": 0.2,
+  "request_timeout_seconds": 30.0,
+  "output_dir": "data/trajectories/prompted-smoke-v1",
+  "report_dir": "training/reports/prompted-smoke-v1"
+}

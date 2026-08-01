@@ -20,23 +20,23 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, root_validator
 
 from engine import GameTrajectory, GameTrajectoryStep
-from engine.game_observation import GameObservation
 from engine.planner_decision import PlannerDecision
+from engine.planner_prompt import (
+    PLANNER_PROMPT_VERSION,
+    PLANNER_SYSTEM_PROMPT,
+    compact_observation,
+)
 
 from .export_trajectories import load_trajectories_jsonl
 
 
 SFT_SCHEMA_VERSION = "novelsim_planner_sft_sample.v1"
 SFT_DATASET_ID = "novelsim_planner_sft_v1"
-PROMPT_VERSION = "novelsim_planner_prompt.v1"
+PROMPT_VERSION = PLANNER_PROMPT_VERSION
 ALLOWED_SPLITS = ("train", "dev")
 SEALED_SPLITS = ("test_id", "test_ood", "adversarial")
 
-SYSTEM_PROMPT = """You are the high-level NPC planner in NovelSim.
-Choose exactly one grounded action from available_tools for the observed actor.
-Respect visible entities, rules, constraints, capabilities, affordances, evidence, persona, goals, and feedback.
-Return one PlannerDecision JSON object only. Never invent facts, entities, tools, world mutations, StatePatch, or operations. The authoritative runtime validates and commits all effects.
-If no action is grounded, return intent=wait with tool_call=null."""
+SYSTEM_PROMPT = PLANNER_SYSTEM_PROMPT
 
 
 class ChatMessage(BaseModel):
@@ -97,100 +97,6 @@ class SFTSample(BaseModel):
         if not values.get("sample_id"):
             values["sample_id"] = "sft_%s" % calculated[:20]
         return values
-
-
-def compact_observation(observation: GameObservation) -> Dict[str, Any]:
-    """Return the actor-visible facts needed to ground one planner action."""
-
-    payload: Dict[str, Any] = {
-        "world": {
-            "package_id": observation.world_package_id,
-            "scenario_family": observation.scenario_family,
-            "timeline_id": observation.timeline_id,
-            "version": observation.world_version,
-            "scene_id": observation.scene_id,
-            "time": observation.world_time,
-        },
-        "actor": {
-            "actor_id": observation.actor_id,
-            "location_id": observation.actor_location_id,
-            "persona_traits": list(observation.persona_traits),
-            "emotion": observation.emotion,
-            "emotion_intensity": observation.emotion_intensity,
-        },
-        "visible_characters": [
-            _drop_empty({
-                "id": item.character_id,
-                "name": item.display_name,
-                "location_id": item.location_id,
-                "identity_tags": list(item.identity_tags),
-                "is_alive": item.is_alive,
-                "relation": dict(item.relation_from_actor),
-            })
-            for item in observation.visible_characters
-        ],
-        "visible_items": [
-            _drop_empty({
-                "id": item.item_id,
-                "name": item.display_name,
-                "owner_id": item.owner_id,
-                "location_id": item.location_id,
-                "quantity": item.quantity,
-                "accessible": item.accessible,
-            })
-            for item in observation.visible_items
-        ],
-        "visible_locations": [
-            _drop_empty({
-                "id": item.location_id,
-                "name": item.display_name,
-                "accessible": item.accessible,
-            })
-            for item in observation.visible_locations
-        ],
-        "beliefs": [item.dict() for item in observation.beliefs],
-        "goals": [item.dict() for item in observation.goals],
-        "plans": [item.dict() for item in observation.plans],
-        "memories": [item.dict() for item in observation.memories],
-        "evidence_ids": list(observation.evidence_ids),
-        "rules": list(observation.world_rules),
-        "constraints": list(observation.world_constraints),
-        "concepts": {
-            "available": list(observation.available_concept_ids),
-            "unavailable": list(observation.unavailable_concept_ids),
-        },
-        "capability_ids": list(observation.capability_ids),
-        "visible_affordances": list(observation.visible_affordances),
-        "available_tools": [
-            compact_tool_schema(tool.name, tool.description, tool.parameters)
-            for tool in observation.available_tools
-        ],
-    }
-    if observation.feedback is not None:
-        payload["feedback"] = _drop_empty(observation.feedback.dict())
-    return _drop_empty(payload)
-
-
-def compact_tool_schema(
-    name: str,
-    description: str,
-    parameters: Dict[str, Any],
-) -> Dict[str, Any]:
-    properties = parameters.get("properties", {})
-    compact_properties: Dict[str, Any] = {}
-    for field_name, schema in sorted(properties.items()):
-        kept = {
-            key: schema[key]
-            for key in ("type", "enum", "minimum", "maximum", "minLength", "maxLength")
-            if key in schema
-        }
-        compact_properties[field_name] = kept or {"type": "string"}
-    return {
-        "name": name,
-        "description": description,
-        "required": list(parameters.get("required", [])),
-        "properties": compact_properties,
-    }
 
 
 def normalized_decision(decision: PlannerDecision) -> Dict[str, Any]:

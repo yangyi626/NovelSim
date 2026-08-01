@@ -15,6 +15,7 @@ from training.rollout_collector import (
     collect_scripted_trajectory,
 )
 from training.scenario_generator import ScenarioFamily, generate_scenario
+from engine.planner_prompt import planner_prompt_messages
 
 
 def _with_split(trajectory, split):
@@ -86,6 +87,9 @@ def test_sft_completion_is_normalized_and_prompt_is_actor_scoped():
     assert "initial_state" not in observation
     assert "available_tools" in observation
     assert "title" not in json.dumps(observation["available_tools"])
+    assert [item.dict() for item in sample.prompt] == planner_prompt_messages(
+        trajectory.steps[0].observation
+    )
 
 
 def test_sft_builder_rejects_sealed_or_mixed_splits():

@@ -1,0 +1,62 @@
+{
+  "actor_schedule": "deterministic_scripted_actor_only",
+  "allowed_splits": [
+    "train",
+    "dev"
+  ],
+  "config_hash": "d2a652b3c599c1af91bfb940dcbf469400860d2dedd369a96629f1f47e5b982c",
+  "config_id": "novelsim_prompted_smoke_v1",
+  "estimated_maximum_output_tokens": 12288,
+  "executes_provider_calls": false,
+  "manifest_hash": "0b3fb988497f14b6a115177e5f1750eed8a2cac6f08b98c116790dd7d1cb43f1",
+  "manifest_id": "split_0b3fb988497f14b6",
+  "maximum_model_calls": 24,
+  "maximum_total_tokens": 100000,
+  "model_id": "qwen3.6-plus",
+  "prompt_version": "novelsim_planner_prompt.v1",
+  "scenario_count": 4,
+  "schema_version": "prompted_smoke_plan.v1",
+  "sealed_splits_not_selected": [
+    "test_id",
+    "test_ood",
+    "adversarial"
+  ],
+  "selected_scenarios": [
+    {
+      "content_hash": "1b2431c3153b9496d0dd606c3f931b6275f07edd1b8e329dcab310a3b806d750",
+      "data_split": "train",
+      "random_seed": 1,
+      "scenario_family": "resource_negotiation",
+      "scenario_id": "resource_negotiation_v000_s000001",
+      "variant_id": "resource_negotiation_v000",
+      "world_package_id": "resource_negotiation_v000_s000001"
+    },
+    {
+      "content_hash": "c510f5fd14ca1bf12deeddead02e208af2e14bcba0eb5fe8e27288824f62e9ba",
+      "data_split": "train",
+      "random_seed": 1,
+      "scenario_family": "secret_transport",
+      "scenario_id": "secret_transport_v001_s000001",
+      "variant_id": "secret_transport_v001",
+      "world_package_id": "secret_transport_v001_s000001"
+    },
+    {
+      "content_hash": "8813ef08b2ebb741d2e84d482baca88ed2d279738726926ffb6d26218ace0716",
+      "data_split": "dev",
+      "random_seed": 1,
+      "scenario_family": "resource_negotiation",
+      "scenario_id": "resource_negotiation_v005_s000001",
+      "variant_id": "resource_negotiation_v005",
+      "world_package_id": "resource_negotiation_v005_s000001"
+    },
+    {
+      "content_hash": "389fca3e62581c9ee52e4c703efca6961d3327fc5d8371792c02ebc1396937a6",
+      "data_split": "dev",
+      "random_seed": 1,
+      "scenario_family": "secret_transport",
+      "scenario_id": "secret_transport_v005_s000001",
+      "variant_id": "secret_transport_v005",
+      "world_package_id": "secret_transport_v005_s000001"
+    }
+  ]
+}

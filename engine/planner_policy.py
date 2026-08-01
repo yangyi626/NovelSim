@@ -6,6 +6,7 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from contextvars import copy_context
 from enum import Enum
 from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Union
 
@@ -16,8 +17,12 @@ from .agent_tools import ToolCall, ToolDefinition
 from .config import get_llm_config
 from .game_observation import GameObservation, PlannerFeedback
 from .game_observation import build_game_observation
-from .llm_telemetry import call_openai_compatible
+from .llm_telemetry import call_openai_compatible, chat_generation_options
 from .planner_decision import PlannerDecision, PlannerIntent
+from .planner_prompt import (
+    PLANNER_PROMPT_VERSION,
+    planner_prompt_messages,
+)
 from world_schema import WorldState
 
 
@@ -114,9 +119,22 @@ class PromptedLLMPolicy:
         *,
         policy_id: str = PlannerPolicyKind.prompt.value,
         model: Optional[str] = None,
+        max_tokens: int = 512,
+        temperature: float = 0.2,
+        request_timeout_seconds: float = 30.0,
     ) -> None:
+        if max_tokens < 1:
+            raise ValueError("max_tokens must be positive")
+        if not 0.0 <= temperature <= 2.0:
+            raise ValueError("temperature must be in [0, 2]")
+        if request_timeout_seconds <= 0:
+            raise ValueError("request_timeout_seconds must be positive")
         self.policy_id = policy_id
         self.model = model
+        self.prompt_version = PLANNER_PROMPT_VERSION
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.request_timeout_seconds = request_timeout_seconds
         self._generator = generator or self._generate_openai_compatible
 
     def decide(
@@ -138,33 +156,20 @@ class PromptedLLMPolicy:
         cfg = get_llm_config()
         openai.api_key = cfg.api_key
         openai.api_base = cfg.base_url
-        tools = [definition.as_function_tool() for definition in available_tools]
-        payload = {
-            "observation": observation.dict(),
-            "available_tools": tools,
-        }
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a game NPC high-level planner. Return one JSON "
-                    "PlannerDecision. You may propose only one listed ToolCall. "
-                    "Never emit StatePatch, operations, expected_patch, hidden "
-                    "reasoning, or new world facts. Use wait with no tool_call "
-                    "when no grounded action is available."
-                ),
-            },
-            {
-                "role": "user",
-                "content": json.dumps(payload, ensure_ascii=False),
-            },
-        ]
+        messages = planner_prompt_messages(observation)
+        model = self.model or cfg.model
         response = call_openai_compatible(
             openai.ChatCompletion.create,
             operation="planner_policy",
-            model=self.model or cfg.model,
+            model=model,
             messages=messages,
-            temperature=0.2,
+            temperature=self.temperature,
+            request_timeout=self.request_timeout_seconds,
+            **chat_generation_options(
+                model,
+                max_tokens=self.max_tokens,
+                thinking=False,
+            ),
         )
         raw = response.choices[0].message.content.strip()
         parsed = _extract_json(raw)
@@ -225,7 +230,9 @@ class PlannerPolicyRouter:
     ) -> PlannerDecision:
         active = self._policies[self.config.active_policy]
         try:
+            context = copy_context()
             future = self._executor.submit(
+                context.run,
                 active.decide,
                 observation,
                 available_tools,

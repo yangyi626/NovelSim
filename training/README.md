@@ -70,6 +70,31 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 
 完整 JSONL/Parquet 默认写入 `data/trajectories/` 并由 Git 忽略，仓库只提交 manifest、泄漏审计、数据卡与文件 SHA-256。PromptedLLM 来源尚未并入这份确定性专家数据，必须单独运行、单独标记真实模型与 Token，并通过同一 verifier 后才能合并。
 
+## PromptedLLM Train/Dev 限量 smoke
+
+Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planner_prompt.v1`：角色可见 observation、精简 Tool Schema、相同 system prompt。Prompted 请求固定关闭 Qwen thinking、限制 completion、设置 provider timeout，并通过现有 telemetry 记录响应中的真实 Token 与模型名。
+
+默认命令只生成/核对计划，不调用模型：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.prompted_smoke `
+  --config training\configs\prompted_smoke_v1.json `
+  --write-plan training\manifests\prompted-smoke-v1.json
+```
+
+冻结计划只从 Train/Dev 各取 `resource_negotiation` 与 `secret_transport` 一个场景，共 4 个；Test-ID、Test-OOD、adversarial 不会进入候选。上限为 24 次模型决策、100,000 个实际 Token，每次最多 512 completion tokens；采集器还按 prompt UTF-8 字节数保守预留预算，余额不足时在调用前停止。
+
+真实调用必须显式执行，并要求 `.env`/环境中的 `LLM_MODEL` 与已审计 config 完全一致：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.prompted_smoke `
+  --config training\configs\prompted_smoke_v1.json `
+  --execute `
+  --code-commit <当前提交SHA>
+```
+
+真实报告会分别给出 provider call/failed call、模型 Schema 通过、scripted fallback、Gate 通过、illegal proposal、illegal commit、目标完成、回放一致和 Token。Fallback 只用于让 smoke 继续，不计为模型成功；即使轨迹满足目标，也只标记 `eligible_for_sft_review`，不会自动并入 SFT。当前仓库只有 `executes_provider_calls=false` 的冻结计划，没有伪造真实调用报告。
+
 ## 两类安全指标
 
 - `illegal_proposal`：Planner 提议被 Schema、实体、能力、Affordance、知识或 Patch Gate 拒绝；

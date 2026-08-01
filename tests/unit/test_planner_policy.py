@@ -1,5 +1,7 @@
 import asyncio
+import json
 import time
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -19,6 +21,9 @@ from engine import (
     ToolCall,
     build_game_observation,
     create_core_tool_registry,
+    call_openai_compatible,
+    capture_llm_usage,
+    planner_prompt_messages,
 )
 from examples.secret_letter import GUARD, LETTER, build_snapshot
 
@@ -235,3 +240,91 @@ def test_illegal_planner_proposal_cannot_commit_world_state():
     assert outcome.result.failure.code.value == "target_not_found"
     assert outcome.event is None
     assert outcome.new_state == state
+
+
+def test_prompted_openai_call_uses_shared_prompt_and_bounded_options(monkeypatch):
+    observation, registry = _observation()
+    captured = {}
+
+    def create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            model="qwen3.6-plus",
+            usage={
+                "prompt_tokens": 50,
+                "completion_tokens": 10,
+                "total_tokens": 60,
+            },
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({
+                "intent": "interact",
+                "tool_call": _pick_up_call("provider").dict(),
+                "confidence": 0.8,
+            })))],
+        )
+
+    monkeypatch.setattr(
+        "engine.planner_policy.get_llm_config",
+        lambda: SimpleNamespace(
+            api_key="test-key",
+            base_url="https://provider.invalid/v1",
+            model="qwen3.6-plus",
+        ),
+    )
+    monkeypatch.setattr(
+        "engine.planner_policy.openai.ChatCompletion.create",
+        create,
+    )
+    policy = PromptedLLMPolicy(
+        model="qwen3.6-plus",
+        max_tokens=256,
+        temperature=0.1,
+        request_timeout_seconds=7.0,
+    )
+
+    with capture_llm_usage() as collector:
+        decision = policy.decide(observation, _definitions(registry))
+
+    assert decision.tool_call.tool_name == "pick_up"
+    assert captured["messages"] == planner_prompt_messages(observation)
+    assert captured["max_tokens"] == 256
+    assert captured["enable_thinking"] is False
+    assert captured["temperature"] == 0.1
+    assert captured["request_timeout"] == 7.0
+    assert collector.summary().total_tokens == 60
+
+
+def test_policy_router_propagates_usage_context_into_worker_thread():
+    observation, registry = _observation()
+    fallback = ScriptedPolicy(lambda obs, tools: _pick_up_call("fallback"))
+
+    def generator(obs, tools):
+        call_openai_compatible(
+            lambda **kwargs: {
+                "model": "thread-model",
+                "usage": {
+                    "prompt_tokens": 12,
+                    "completion_tokens": 3,
+                    "total_tokens": 15,
+                },
+                "choices": [],
+            },
+            operation="planner_policy",
+            model="thread-model",
+        )
+        return _pick_up_call("thread")
+
+    router = PlannerPolicyRouter(
+        {
+            PlannerPolicyKind.scripted: fallback,
+            PlannerPolicyKind.prompt: PromptedLLMPolicy(generator),
+        },
+        config=PlannerPolicyConfig(active_policy=PlannerPolicyKind.prompt),
+    )
+    try:
+        with capture_llm_usage() as collector:
+            router.decide(observation, _definitions(registry))
+    finally:
+        router.close()
+
+    assert collector.summary().call_count == 1
+    assert collector.summary().total_tokens == 15

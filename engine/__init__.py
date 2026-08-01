@@ -93,6 +93,13 @@ from .game_observation import (
     build_game_observation,
 )
 from .planner_decision import PlannerDecision, PlannerIntent
+from .planner_prompt import (
+    PLANNER_PROMPT_VERSION,
+    PLANNER_SYSTEM_PROMPT,
+    compact_observation,
+    compact_tool_schema,
+    planner_prompt_messages,
+)
 from .game_trajectory import (
     FailureAttribution,
     FailureCategory,
@@ -287,6 +294,11 @@ __all__ = [
     "build_game_observation",
     "PlannerDecision",
     "PlannerIntent",
+    "PLANNER_PROMPT_VERSION",
+    "PLANNER_SYSTEM_PROMPT",
+    "compact_observation",
+    "compact_tool_schema",
+    "planner_prompt_messages",
     "FailureAttribution",
     "FailureCategory",
     "FailureLabel",
