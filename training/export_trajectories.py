@@ -140,6 +140,7 @@ def write_trajectory_steps_parquet(
                 "prompt_version": trajectory.prompt_version,
                 "code_commit": trajectory.code_commit,
                 "source_type": trajectory.source_type,
+                "data_split": trajectory.metadata.get("data_split", ""),
                 "step_index": step.step_index,
                 "actor_id": step.decision.actor_id,
                 "intent": step.decision.intent.value,

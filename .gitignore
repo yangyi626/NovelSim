@@ -46,6 +46,10 @@ data/qdrant/
 data/runtime/
 data/memory-retrieval-report*.json
 data/benchmarks/
+data/trajectories/**/*.jsonl
+data/trajectories/**/*.parquet
+data/trajectories/**/dataset-card.json
+data/trajectories/**/dataset-card.md
 
 # Web 前端：node_modules / 构建产物 (源码纳入版本控制)
 web/frontend/node_modules/

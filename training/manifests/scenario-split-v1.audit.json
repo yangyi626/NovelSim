@@ -1,0 +1,73 @@
+{
+  "content_hash_overlap": {
+    "dev__adversarial": 0,
+    "dev__test_id": 0,
+    "dev__test_ood": 0,
+    "test_id__adversarial": 0,
+    "test_id__test_ood": 0,
+    "test_ood__adversarial": 0,
+    "train__adversarial": 0,
+    "train__dev": 0,
+    "train__test_id": 0,
+    "train__test_ood": 0
+  },
+  "entity_overlap": {
+    "dev__adversarial": 0,
+    "dev__test_id": 12,
+    "dev__test_ood": 1,
+    "test_id__adversarial": 0,
+    "test_id__test_ood": 1,
+    "test_ood__adversarial": 0,
+    "train__adversarial": 0,
+    "train__dev": 12,
+    "train__test_id": 12,
+    "train__test_ood": 1
+  },
+  "entry_count": 720,
+  "issues": [],
+  "manifest_id": "split_0b3fb988497f14b6",
+  "passed": true,
+  "rule_overlap": {
+    "dev__adversarial": 0,
+    "dev__test_id": 1,
+    "dev__test_ood": 0,
+    "test_id__adversarial": 0,
+    "test_id__test_ood": 0,
+    "test_ood__adversarial": 0,
+    "train__adversarial": 0,
+    "train__dev": 1,
+    "train__test_id": 1,
+    "train__test_ood": 0
+  },
+  "schema_version": "leakage_audit.v1",
+  "split_counts": {
+    "dev": 40,
+    "test_id": 80,
+    "test_ood": 240,
+    "train": 360
+  },
+  "variant_overlap": {
+    "dev__adversarial": 0,
+    "dev__test_id": 0,
+    "dev__test_ood": 0,
+    "test_id__adversarial": 0,
+    "test_id__test_ood": 0,
+    "test_ood__adversarial": 0,
+    "train__adversarial": 0,
+    "train__dev": 0,
+    "train__test_id": 0,
+    "train__test_ood": 0
+  },
+  "world_package_overlap": {
+    "dev__adversarial": 0,
+    "dev__test_id": 0,
+    "dev__test_ood": 0,
+    "test_id__adversarial": 0,
+    "test_id__test_ood": 0,
+    "test_ood__adversarial": 0,
+    "train__adversarial": 0,
+    "train__dev": 0,
+    "train__test_id": 0,
+    "train__test_ood": 0
+  }
+}

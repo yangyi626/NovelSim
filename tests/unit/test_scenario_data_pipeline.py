@@ -13,7 +13,11 @@ from training.build_split import (
     write_split_manifest,
 )
 from training.filter_trajectories import filter_trajectories
-from training.rollout_collector import collect_scripted_trajectory
+from training.collect_dataset import collect_manifest_dataset, write_dataset
+from training.rollout_collector import (
+    collect_heuristic_trajectory,
+    collect_scripted_trajectory,
+)
 from training.scenario_generator import (
     GeneratedScenario,
     ScenarioFamily,
@@ -81,6 +85,26 @@ def test_scripted_rollouts_for_all_families_pass_runtime_and_filter():
     assert filtered.rejected == []
 
 
+def test_safe_heuristic_routes_are_legal_and_semantically_distinct():
+    scenarios = [
+        generate_scenario(family, variant_index=0, seed=11)
+        for family in ScenarioFamily
+    ]
+    scripted = [collect_scripted_trajectory(item) for item in scenarios]
+    heuristic = [collect_heuristic_trajectory(item) for item in scenarios]
+
+    assert [len(item.steps) for item in heuristic] == [5, 3, 4]
+    assert all(item.objective_satisfied for item in heuristic)
+    assert all(replay_game_trajectory(item).consistent for item in heuristic)
+    assert all(
+        left.content_hash != right.content_hash
+        for left, right in zip(scripted, heuristic)
+    )
+    assert {
+        item.source_type for item in scripted + heuristic
+    } == {"scripted_expert", "safe_heuristic"}
+
+
 def test_family_aware_split_has_no_variant_or_content_leakage(tmp_path):
     scenarios = generate_scenario_grid(variants_per_family=10)
     manifest = build_split_manifest(scenarios)
@@ -135,3 +159,37 @@ def test_leakage_audit_detects_ood_family_contamination():
         issue.code for issue in audit.issues
     }
 
+
+def test_dataset_collector_packages_each_split_and_seals_test_data(tmp_path):
+    scenarios = generate_scenario_grid(
+        variants_per_family=3,
+        seeds=[11],
+    )
+    manifest = build_split_manifest(scenarios)
+    trajectories = collect_manifest_dataset(manifest, code_commit="test")
+    card = write_dataset(
+        trajectories,
+        tmp_path,
+        manifest=manifest,
+        write_parquet=False,
+    )
+
+    assert card["overall"]["episode_count"] == 18
+    assert card["overall"]["step_count"] == 69
+    assert card["overall"]["illegal_commit_count"] == 0
+    assert card["episode_source_distribution"] == {
+        "safe_heuristic": 9,
+        "scripted_expert": 9,
+    }
+    assert card["step_source_distribution"] == {
+        "safe_heuristic": 36,
+        "scripted_expert": 33,
+    }
+    assert card["per_split"]["train"]["sealed_for_training"] is False
+    assert card["per_split"]["dev"]["sealed_for_training"] is False
+    assert card["per_split"]["test_id"]["sealed_for_training"] is True
+    assert card["per_split"]["test_ood"]["sealed_for_training"] is True
+    assert (tmp_path / "train.jsonl").exists()
+    assert (tmp_path / "test_ood.jsonl").exists()
+    assert (tmp_path / "dataset-card.json").exists()
+    assert (tmp_path / "dataset-card.md").exists()
