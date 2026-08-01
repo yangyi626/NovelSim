@@ -232,6 +232,59 @@ def test_prompted_actor_schedule_does_not_advance_after_gate_rejection():
     assert audit.decisions[3].gate_accepted is True
 
 
+def test_prompted_actor_schedule_requires_plan_progress_after_legal_action():
+    scenario = generate_scenario(
+        ScenarioFamily.secret_transport,
+        variant_index=0,
+        seed=11,
+    )
+    no_progress = ToolCall(
+        actor_id="char_guard",
+        tool_name="talk_to",
+        arguments={
+            "target_character_id": "char_steward",
+            "message": "我已核验密信。",
+            "tone": "谨慎",
+        },
+    )
+    calls = iter([
+        scenario.scripted_calls[0],
+        scenario.scripted_calls[1],
+        no_progress,
+        scenario.scripted_calls[2],
+        scenario.scripted_calls[3],
+    ])
+    observed_actors = []
+    observed_feedback = []
+
+    def generator(observation, definitions):
+        observed_actors.append(observation.actor_id)
+        observed_feedback.append(observation.feedback)
+        return next(calls)
+
+    _, audit = collect_prompted_episode(
+        scenario,
+        data_split="train",
+        config=_config(
+            max_turns_per_episode=5,
+            max_model_calls=5,
+            max_total_tokens=100000,
+        ),
+        policy=PromptedLLMPolicy(generator, model="fake-request-model"),
+    )
+
+    assert observed_actors == [
+        "char_guard",
+        "char_guard",
+        "char_guard",
+        "char_guard",
+        "char_steward",
+    ]
+    assert audit.decisions[2].gate_accepted is True
+    assert observed_feedback[3].success is True
+    assert observed_feedback[3].failure_code == "no_plan_progress"
+
+
 def test_prompted_token_budget_stops_before_provider_call():
     scenario = generate_scenario(
         ScenarioFamily.resource_negotiation,

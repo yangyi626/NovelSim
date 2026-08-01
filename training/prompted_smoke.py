@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, Field, root_validator, validator
+from world_schema import WorldState
 
 from engine import (
     CORE_TOOL_PERMISSIONS,
@@ -153,7 +154,7 @@ class PromptedSmokePlan(BaseModel):
     maximum_model_calls: int
     maximum_total_tokens: int
     estimated_maximum_output_tokens: int
-    actor_schedule: str = "deterministic_scripted_actor_only"
+    actor_schedule: str = "authoritative_plan_progress"
     executes_provider_calls: bool = False
     sealed_splits_not_selected: List[str] = Field(
         default_factory=lambda: ["test_id", "test_ood", "adversarial"]
@@ -311,8 +312,7 @@ def collect_prompted_episode(
         },
     )
     state = scenario.initial_state
-    previous_decision: Optional[PlannerDecision] = None
-    previous_failure = None
+    previous_feedback: Optional[PlannerFeedback] = None
     decisions: List[PromptedDecisionAudit] = []
     termination = "max_turns"
     fallback_count = 0
@@ -329,27 +329,13 @@ def collect_prompted_episode(
             min(schedule_index, len(scenario.scripted_calls) - 1)
         ]
         actor_id = expected_call.actor_id
-        feedback = None
-        if previous_failure is not None and previous_decision is not None:
-            feedback = PlannerFeedback(
-                previous_decision_id=previous_decision.decision_id,
-                tool_name=(
-                    previous_decision.tool_call.tool_name
-                    if previous_decision.tool_call is not None
-                    else None
-                ),
-                success=False,
-                failure_code=previous_failure.code.value,
-                summary=previous_failure.message,
-                retryable=previous_failure.retryable,
-            )
         observation = build_game_observation(
             state,
             actor_id,
             registry,
             world_package_id=scenario.world_package_id,
             scenario_family=scenario.scenario_family.value,
-            feedback=feedback,
+            feedback=previous_feedback,
             metadata={"prompted_smoke_turn": turn_index},
         )
         reserved_tokens = _conservative_token_upper_bound(
@@ -426,10 +412,10 @@ def collect_prompted_episode(
         if decision.tool_call is None:
             decisions.append(audit)
             termination = "model_wait"
-            previous_decision = decision
-            previous_failure = None
             break
 
+        progress_before = _declared_plan_progress(state)
+        has_declared_plan = _has_declared_plan(state)
         outcome = asyncio.run(runtime.execute(
             decision.tool_call,
             state,
@@ -461,9 +447,34 @@ def collect_prompted_episode(
         })
         decisions.append(audit)
         state = outcome.new_state
-        previous_decision = decision
-        previous_failure = outcome.result.failure
-        if outcome.result.success:
+        plan_progressed = _declared_plan_progress(state) > progress_before
+        if outcome.result.failure is not None:
+            previous_feedback = PlannerFeedback(
+                previous_decision_id=decision.decision_id,
+                tool_name=decision.tool_call.tool_name,
+                success=False,
+                failure_code=outcome.result.failure.code.value,
+                summary=outcome.result.failure.message,
+                retryable=outcome.result.failure.retryable,
+            )
+        elif has_declared_plan and not plan_progressed:
+            previous_feedback = PlannerFeedback(
+                previous_decision_id=decision.decision_id,
+                tool_name=decision.tool_call.tool_name,
+                success=True,
+                failure_code="no_plan_progress",
+                summary=(
+                    "The action was legal but did not advance any active plan "
+                    "step. Choose a different grounded action that satisfies "
+                    "the current step."
+                ),
+                retryable=True,
+            )
+        else:
+            previous_feedback = None
+        if outcome.result.success and (
+            plan_progressed or not has_declared_plan
+        ):
             schedule_index = min(
                 schedule_index + 1,
                 len(scenario.scripted_calls) - 1,
@@ -529,6 +540,23 @@ def collect_prompted_episode(
         decisions=decisions,
     )
     return trajectory, episode
+
+
+def _has_declared_plan(state: WorldState) -> bool:
+    return any(
+        plan.step_conditions
+        for psyche in state.character_psyches.values()
+        for plan in psyche.plans
+    )
+
+
+def _declared_plan_progress(state: WorldState) -> int:
+    return sum(
+        plan.current_step
+        for psyche in state.character_psyches.values()
+        for plan in psyche.plans
+        if plan.step_conditions
+    )
 
 
 def execute_prompted_smoke(

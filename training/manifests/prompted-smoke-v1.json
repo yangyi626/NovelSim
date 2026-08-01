@@ -1,5 +1,5 @@
 {
-  "actor_schedule": "deterministic_scripted_actor_only",
+  "actor_schedule": "authoritative_plan_progress",
   "allowed_splits": [
     "train",
     "dev"
