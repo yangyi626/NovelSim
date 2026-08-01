@@ -48,6 +48,7 @@ data/memory-retrieval-report*.json
 data/benchmarks/
 data/trajectories/**/*.jsonl
 data/trajectories/**/*.parquet
+data/trajectories/**/*.tmp
 data/trajectories/**/dataset-card.json
 data/trajectories/**/dataset-card.md
 data/sft/**/*.jsonl
