@@ -54,6 +54,7 @@ class SceneConfig(BaseModel):
     max_turns: int = Field(12, ge=1, le=200)
     random_seed: int = 0
     stop_on_tool_failure: bool = True
+    allow_multi_location: bool = False
     script_beats: List[ScriptBeat] = Field(default_factory=list)
 
     class Config:
@@ -328,7 +329,11 @@ def _select_participants(
     state: WorldState,
     config: SceneConfig,
 ) -> tuple:
-    location_id = config.location_id or state.current_scene_id
+    location_id = (
+        None
+        if config.allow_multi_location
+        else (config.location_id or state.current_scene_id)
+    )
     requested = (
         list(dict.fromkeys(config.participant_ids))
         if config.participant_ids

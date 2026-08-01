@@ -3,7 +3,7 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1“Policy 与 Trajectory 合同”已完成，下一步推进 Phase 2“参数化世界与数据流水线”，不提前训练。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1 已完成，Phase 2 的三个参数化世界族与 split/audit smoke 已完成，下一步扩充 rollout 规模并冻结正式数据 manifest，不提前训练。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 
 ---
@@ -47,8 +47,8 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1 已完成** | 已实现 Policy 合同、三种 adapter、可重放 `GameTrajectory`、Reward/Failure、JSONL/Parquet 导出和内容哈希；尚无参数化场景族、split manifest、训练脚本或 checkpoint |
-| 当前唯一主线 | **Phase 2** | 实现三个参数化 `scenario_family`、rollout collector、Train/Dev/Test-ID/Test-OOD manifest 和 hash/leakage audit |
+| V2 代码实施 | **Phase 1 完成，Phase 2 进行中** | 已实现三个原创世界族、scripted rollout/filter、150 场景 smoke manifest 与 leakage audit；尚未达到 200 episode / 5,000 决策步，尚无训练脚本或 checkpoint |
+| 当前唯一主线 | **Phase 2 扩量与冻结** | 增加场景结构与策略路线多样性，采集并过滤正式 rollout，达到规模门槛后冻结 Train/Dev/Test-ID/Test-OOD manifest |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -687,7 +687,7 @@ Phase 1B 验收：
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
 
-> 状态：**下一阶段，尚未开始**。Phase 1A/1B 合同已经稳定，先实现 generator/split/audit，再批量采集。
+> 状态：**进行中**。已实现 `secret_transport / resource_negotiation / rescue_escort`、跨地点 Scene、scripted collector、filter、split builder 和 leakage audit；10 variants × 5 seeds × 3 families 共 150 个 smoke 场景，Train/Dev/Test-ID/Test-OOD 为 70/10/20/50，content/variant/world-package 跨 split 重叠均为 0。正式 200 episode / 5,000 决策步规模与多路线采集尚未完成。
 
 建议新增：
 
@@ -930,11 +930,11 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **定义 `secret_transport / resource_negotiation / rescue_escort` 三个参数化世界族的公共 generator contract 与原创模板。**
-2. **实现 `rollout_collector + build_split + audit_leakage`，先用小规模数据冻结 Train/Dev/Test-ID/Test-OOD manifest。**
-3. **通过 family/entity/rule/content hash 审计后，采集至少 200 episode、5,000 有效决策步，再启动 0.6B SFT pipeline smoke。**
+1. **扩展三个世界族的初始位置、物品所有权、可选路线和受控失败/恢复结构，避免只学习固定三到五步模板。**
+2. **用 Scripted / Heuristic / Prompted 三类来源采集并过滤至少 200 episode、5,000 有效决策步，生成数据卡与统计报告。**
+3. **冻结正式 Train/Dev/Test-ID/Test-OOD manifest 并再次运行 content/variant/entity/rule/prompt leakage audit，通过后才启动 0.6B SFT pipeline smoke。**
 
-第一项完成前不批量采集；第二项完成前不写 SFT 训练脚本；第三项完成前不运行 4B 主训练。
+第一项完成前不把重复模板扩量冒充数据规模；第二项完成前不写 SFT 训练脚本；第三项完成前不运行 4B 主训练。
 
 下一次进度汇报必须给出以下可核验证据，而不是只报百分比：
 

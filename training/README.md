@@ -30,6 +30,24 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 
 当前命令只导出已完成的 `secret_letter_v1` 确定性基准，用于验证合同，不是正式训练集。Phase 2 冻结 scenario-family split 和泄漏审计前，不允许批量生成 SFT 数据。
 
+## 参数化场景与 split smoke
+
+三个原创世界族：
+
+- `secret_transport`：密信、证据传播与联盟；
+- `resource_negotiation`：稀缺资源、沟通与交付；
+- `rescue_escort`：跨地点取药、移动与救援交付。
+
+生成 10 variants × 5 seeds × 3 families 的小规模 split，并将整个 `rescue_escort` 世界族封存为 Test-OOD：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.build_split `
+  --output training\manifests\scenario-split-smoke-v1.json `
+  --audit-output training\manifests\scenario-split-smoke-v1.audit.json
+```
+
+当前 smoke manifest 共 150 个场景：Train 70、Dev 10、Test-ID 20、Test-OOD 50。content hash、variant 和 world package 跨 split 重叠必须为 0；实体和规则 ID 重叠作为诊断矩阵报告，因为同一世界族会有意复用公共游戏本体。
+
 ## 两类安全指标
 
 - `illegal_proposal`：Planner 提议被 Schema、实体、能力、Affordance、知识或 Patch Gate 拒绝；
@@ -40,4 +58,3 @@ JSONL 是自包含、可回放的 episode 权威格式；Parquet 是每个决策
 ## 内容哈希
 
 `content_hash` 用于数据去重与跨 split 泄漏审计。它覆盖世界、观察、决策语义、工具结果、事件、奖励和失败标签，但排除 run ID、trace 时间、延迟、随机 call/decision ID 等易变遥测，因此相同语义轨迹重复采集仍得到相同哈希。
-
