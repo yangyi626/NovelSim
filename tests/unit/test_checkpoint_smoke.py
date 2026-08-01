@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from engine import (
+    GRPOPolicy,
     LocalAdapterConfig,
     LocalGeneration,
     PlannerUsage,
@@ -49,7 +50,7 @@ class ScriptedLocalBackend:
         )
 
 
-def _write_fake_checkpoint(tmp_path):
+def _write_fake_checkpoint(tmp_path, *, policy_kind="sft"):
     adapter = tmp_path / "final_adapter"
     adapter.mkdir()
     (adapter / "adapter_config.json").write_text(json.dumps({
@@ -64,19 +65,35 @@ def _write_fake_checkpoint(tmp_path):
     (adapter / "adapter_model.safetensors").write_bytes(b"fake")
     manifest_path = tmp_path / "run-manifest.json"
     local_config = LocalAdapterConfig(
+        policy_kind=policy_kind,
         model_id="Qwen/Qwen3-0.6B",
         adapter_path=str(adapter),
         run_manifest_path=str(manifest_path),
     )
     evidence = inspect_adapter_checkpoint(local_config, repo_root=tmp_path)
     manifest_path.write_text(json.dumps({
-        "schema_version": "novelsim_sft_run_manifest.v1",
+        "schema_version": (
+            "novelsim_sft_run_manifest.v1"
+            if policy_kind == "sft"
+            else "novelsim_grpo_run_manifest.v1"
+        ),
         "status": "completed",
         "config": {"model_id": "Qwen/Qwen3-0.6B"},
         "validation": {
             "prompt_version": "novelsim_planner_prompt.v1",
-            "dataset_id": "novelsim_planner_sft_v1",
+            "dataset_id": (
+                "novelsim_planner_sft_v1"
+                if policy_kind == "sft"
+                else "novelsim_planner_grpo_v1"
+            ),
         },
+        "parent_sft_checkpoint": (
+            {
+                "adapter_content_hash": "parent-adapter-hash",
+                "run_manifest_sha256": "parent-manifest-hash",
+            }
+            if policy_kind == "grpo" else None
+        ),
         "code_commit": "fake-training-commit",
         "adapter_files": evidence.adapter_files,
         "adapter_content_hash": evidence.adapter_content_hash,
@@ -101,6 +118,14 @@ def test_checked_in_checkpoint_smoke_preflight_is_honest_before_training():
     assert "checkpoint:run_manifest_missing" in report["errors"]
     assert "checkpoint:adapter_directory_missing" in report["errors"]
 
+    grpo_config = load_checkpoint_smoke_config(
+        REPO_ROOT / "training/configs/checkpoint_smoke_grpo_qwen3_0.6b.json"
+    )
+    grpo_report = inspect_checkpoint_smoke(grpo_config, repo_root=REPO_ROOT)
+    assert grpo_report["ready"] is False
+    assert grpo_report["policy_kind"] == "grpo"
+    assert "checkpoint:run_manifest_missing" in grpo_report["errors"]
+
 
 def test_checkpoint_smoke_config_forbids_train_and_test_splits():
     payload = json.loads(
@@ -112,6 +137,11 @@ def test_checkpoint_smoke_config_forbids_train_and_test_splits():
         payload["data_split"] = split
         with pytest.raises(ValidationError, match="dev split"):
             CheckpointSmokeConfig.parse_obj(payload)
+
+    payload["data_split"] = "dev"
+    payload["policy_kind"] = "unknown"
+    with pytest.raises(ValidationError, match="sft or grpo"):
+        CheckpointSmokeConfig.parse_obj(payload)
 
 
 def test_fake_checkpoint_runs_inference_gate_and_replay_on_dev(tmp_path):
@@ -156,3 +186,43 @@ def test_fake_checkpoint_runs_inference_gate_and_replay_on_dev(tmp_path):
     assert report["total_tokens"] == 360
     assert (tmp_path / "trajectory.jsonl").exists()
     assert (tmp_path / "report.json").exists()
+
+
+def test_fake_grpo_checkpoint_uses_same_runtime_gate_and_replay(tmp_path):
+    local_config, local_config_path = _write_fake_checkpoint(
+        tmp_path,
+        policy_kind="grpo",
+    )
+    scenario = generate_scenario(
+        ScenarioFamily.resource_negotiation,
+        variant_index=5,
+        seed=1,
+    )
+    policy = GRPOPolicy(
+        local_config,
+        backend=ScriptedLocalBackend(scenario.scripted_calls),
+    )
+    config = CheckpointSmokeConfig(
+        config_id="fake-grpo-checkpoint-smoke",
+        policy_kind="grpo",
+        local_policy_config=str(local_config_path),
+        scenario_manifest=str(
+            REPO_ROOT / "training/manifests/scenario-split-v1.json"
+        ),
+        scenario_id=scenario.scenario_id,
+        max_turns=6,
+        trajectory_output=str(tmp_path / "grpo-trajectory.jsonl"),
+        report_output=str(tmp_path / "grpo-report.json"),
+    )
+
+    report = execute_checkpoint_smoke(
+        config,
+        repo_root=REPO_ROOT,
+        policy=policy,
+    )
+
+    assert report["passed"] is True
+    assert report["policy_kind"] == "grpo"
+    assert report["illegal_commit_count"] == 0
+    assert report["objective_satisfied"] is True
+    assert report["replay_consistent"] is True

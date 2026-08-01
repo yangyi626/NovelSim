@@ -1,0 +1,11 @@
+{
+  "schema_version": "checkpoint_runtime_smoke_config.v1",
+  "config_id": "qwen3-1.7b-sft-dev-smoke-v1",
+  "local_policy_config": "training/configs/local_sft_qwen3_1.7b.json",
+  "scenario_manifest": "training/manifests/scenario-split-v1.json",
+  "scenario_id": "resource_negotiation_v005_s000001",
+  "data_split": "dev",
+  "max_turns": 6,
+  "trajectory_output": "training/outputs/checkpoint-smoke/qwen3-1.7b-sft-dev.jsonl",
+  "report_output": "training/outputs/checkpoint-smoke/qwen3-1.7b-sft-dev-report.json"
+}

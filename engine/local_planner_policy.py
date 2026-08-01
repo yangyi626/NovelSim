@@ -174,7 +174,17 @@ def inspect_adapter_checkpoint(
         content_hash = _adapter_content_hash(adapter_files)
 
     if manifest:
-        if manifest.get("schema_version") != "novelsim_sft_run_manifest.v1":
+        expected_manifest_schema = (
+            "novelsim_sft_run_manifest.v1"
+            if config.policy_kind == "sft"
+            else "novelsim_grpo_run_manifest.v1"
+        )
+        expected_dataset_id = (
+            "novelsim_planner_sft_v1"
+            if config.policy_kind == "sft"
+            else "novelsim_planner_grpo_v1"
+        )
+        if manifest.get("schema_version") != expected_manifest_schema:
             errors.append("run_manifest_schema_mismatch")
         if manifest.get("status") != "completed":
             errors.append("run_manifest_not_completed")
@@ -184,8 +194,14 @@ def inspect_adapter_checkpoint(
         validation = manifest.get("validation", {})
         if validation.get("prompt_version") != config.prompt_version:
             errors.append("run_manifest_prompt_mismatch")
-        if validation.get("dataset_id") != "novelsim_planner_sft_v1":
+        if validation.get("dataset_id") != expected_dataset_id:
             errors.append("run_manifest_dataset_mismatch")
+        if config.policy_kind == "grpo":
+            parent = manifest.get("parent_sft_checkpoint", {})
+            if not parent.get("adapter_content_hash"):
+                errors.append("grpo_parent_adapter_hash_missing")
+            if not parent.get("run_manifest_sha256"):
+                errors.append("grpo_parent_manifest_hash_missing")
         recorded_files = manifest.get("adapter_files", {})
         if not recorded_files:
             errors.append("run_manifest_adapter_hashes_missing")

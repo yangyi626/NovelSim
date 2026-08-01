@@ -53,6 +53,9 @@ data/trajectories/**/dataset-card.md
 data/sft/**/*.jsonl
 data/sft/**/dataset-card.json
 data/sft/**/dataset-card.md
+data/grpo/**/*.jsonl
+data/grpo/**/dataset-card.json
+data/grpo/**/dataset-card.md
 training/outputs/
 checkpoints/
 

@@ -158,7 +158,17 @@ python -m training.train_sft \
   --config training/configs/sft_qwen3_0.6b_smoke.json
 ```
 
-只有 smoke 的加载、token 长度审计、训练、Dev eval、adapter 保存与后续 Runtime 回放均通过，才运行 4B 主训练：
+只有 0.6B smoke 的加载、token 长度审计、训练、Dev eval、adapter 保存与 Runtime 回放均通过，才进入 1.7B reward/debug 档：
+
+```bash
+python -m training.train_sft \
+  --config training/configs/sft_qwen3_1.7b_debug.json
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_qwen3_1.7b.json \
+  --execute
+```
+
+1.7B debug 通过后再运行 4B SFT 主训练：
 
 ```bash
 python -m training.train_sft \
@@ -192,3 +202,85 @@ python -m training.checkpoint_smoke \
 ```
 
 该 smoke 必须实际加载 adapter，在冻结 Dev 场景逐步生成 `PlannerDecision`，经过权威 Runtime Gate，保存可回放 trajectory，并同时满足：无生成错误、Schema 全通过、illegal commit 为 0、目标完成、回放一致。报告和 trajectory 默认写入 Git 忽略目录，不能用单元测试的 fake backend 代替服务器报告。
+
+## GRPO 可重建环境与数据 v1
+
+GRPO 不把某一条专家动作当作唯一答案。`training.build_grpo_dataset` 从 Train/Dev 轨迹为每个决策步保存：
+
+- 与 SFT/Prompted 完全相同的 `novelsim_planner_prompt.v1`；
+- 场景 family、variant、seed 和场景 content hash；
+- 当前步之前的已提交 `WorldEvent` 前缀；
+- 当前 actor、结构化 failure feedback 和起始状态 hash。
+
+每个候选 completion 都由 `NovelSimEnv` 独立 reset 到相同 hash，再解析为 `PlannerDecision` 并经过 `ToolRegistry → FSM → PatchValidator → WorldEvent`。模型输出不能携带 `StatePatch`，被拒绝的动作不改变状态。复现数据：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.build_grpo_dataset `
+  --train-input data\trajectories\novelsim-planner-expert-v1\train.jsonl `
+  --dev-input data\trajectories\novelsim-planner-expert-v1\dev.jsonl `
+  --source-card training\reports\novelsim-planner-expert-v1\dataset-card.json `
+  --output-dir data\grpo\novelsim-planner-v1 `
+  --report-dir training\reports\novelsim-planner-grpo-v1
+```
+
+正式结果为 Train `3,600`、Dev `400` 个唯一环境 prompt；分别去除 `1,080/120` 个相同 prompt+权威初态重复项，保留恢复 feedback `360/40` 个，Train/Dev content hash 重叠为 `0`。Test-ID/Test-OOD 没有读取。
+
+## 结果型 reward 与 hacking audit
+
+混合 reward 使用计划文档冻结的八个分量：目标进度、工具执行、因果落地、角色目标、信息完整性、失败恢复、行动效率和终局结果。Schema、实体、能力/知识、Patch、伪造 evidence/goal、重复动作和真正 no-op 分别记录 penalty 与 failure label。`objective_only` 只返回可验证成功条件比例的增量，用于稀疏奖励对照；它不会因为 Gate 拒绝获得正分。
+
+冻结 Dev 只含两个 ID 世界族，因此正式审计对每族固定一个状态、每状态 7 种 probe，共 14 个：合法参考动作、非法 JSON、未知 aircraft、wait、门禁接受但与目标无关的闲聊、伪造 evidence、伪造 goal；另对重复动作做二次执行检查。复现：
+
+```powershell
+.\.venv\Scripts\python.exe -m training.reward_audit `
+  --grpo-file data\grpo\novelsim-planner-v1\dev.jsonl `
+  --trajectory-file data\trajectories\novelsim-planner-expert-v1\dev.jsonl `
+  --split dev --group-size 4 --max-samples 3 `
+  --output training\reports\novelsim-planner-grpo-v1\reward-audit.json
+```
+
+当前确定性审计 `reward-audit-de0eaeec3593e1dd` 通过 11 项不变量：同组初态一致、格式/未知实体为负、合法参考动作优于 wait、门禁接受但与目标无关的闲聊不获正分、伪造 evidence/goal 不获益、重复动作受罚、objective-only 拒绝不获正分、`illegal_commit_count=0`。这是 reward/Runtime 设计证据，不是模型效果报告。
+
+## 单卡 4090 GRPO
+
+训练入口锁定 TRL `1.8.0` 的 `GRPOTrainer + custom async reward_funcs`；额外数据列保留 `environment_spec`，组大小由 `num_generations=4` 固定。QLoRA 从逐文件 hash 审计通过的 SFT adapter 开始，默认使用 `dr_grpo` 长度归一化、Dev reward 选 checkpoint、Qwen thinking 关闭和 completion 截断 mask。TRL 1.8.0 已不接收 `max_prompt_length` Trainer 参数，因此项目在训练前用真实 tokenizer 对全部 Train/Dev prompt 做独立硬审计，超限即停止，绝不依赖静默截断。
+
+预检不会加载模型；当前因为真实 SFT adapter 尚不存在而应诚实返回 `ready=false`：
+
+```bash
+python -m training.train_grpo \
+  --config training/configs/grpo_qwen3_0.6b_objective_smoke.json \
+  --inspect
+```
+
+SFT checkpoint 和 Runtime smoke 通过后，固定顺序为：
+
+```bash
+# 20-step 稀疏 objective-only 对照
+python -m training.train_grpo \
+  --config training/configs/grpo_qwen3_0.6b_objective_smoke.json
+
+# 50-step 混合 reward smoke
+python -m training.train_grpo \
+  --config training/configs/grpo_qwen3_0.6b_mixed_smoke.json
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_grpo_qwen3_0.6b.json \
+  --execute
+
+# 1.7B reward/debug 主档；先完成对应 SFT 与 checkpoint smoke
+python -m training.train_grpo \
+  --config training/configs/grpo_qwen3_1.7b_mixed_debug.json
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_grpo_qwen3_1.7b.json \
+  --execute
+
+# 4B 仅在 24GB 显存 smoke 稳定后执行；需要 Linux/CUDA vLLM 可选依赖
+python -m pip install -r training/requirements-grpo-vllm.txt
+python -m training.train_grpo \
+  --config training/configs/grpo_qwen3_4b_mixed_qlora.json
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_grpo_qwen3_4b.json \
+  --execute
+```
+
+4B 配置使用单卡 colocate vLLM、`gpu_memory_utilization=0.2` 和 sleep mode。若 OOM，按计划退回 1.7B GRPO 主实验，不反复试参，也不把代码预检或 fake model 当作训练完成。

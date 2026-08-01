@@ -162,6 +162,24 @@ def evaluate_scenario(
     )
 
 
+def scenario_progress(
+    scenario: GeneratedScenario,
+    state: WorldState,
+) -> float:
+    """Return deterministic objective progress in ``[0, 1]``.
+
+    GRPO rewards use the fraction of independently verifiable success
+    conditions instead of comparing an action with one privileged expert
+    action.  This keeps multiple legal solution paths rewardable.
+    """
+
+    conditions = list(scenario.success_conditions)
+    if not conditions:
+        return 1.0
+    matched = sum(_condition_matches(condition, state) for condition in conditions)
+    return round(float(matched) / float(len(conditions)), 6)
+
+
 def scenario_content_hash(value) -> str:
     payload = _plain(value)
     payload.pop("content_hash", None)
@@ -575,4 +593,3 @@ def _plain(value):
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
     return value
-

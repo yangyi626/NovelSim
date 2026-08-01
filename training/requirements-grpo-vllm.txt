@@ -1,0 +1,4 @@
+-r requirements-sft.txt
+# Optional Linux/CUDA acceleration for GRPO colocate mode.  TRL 1.8.0's
+# official optional dependency range is vLLM >=0.16.0, <=0.23.0.
+vllm>=0.16.0,<=0.23.0

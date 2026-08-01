@@ -15,6 +15,7 @@ from engine import (
     AgentExecutionStateMachine,
     GameTrajectory,
     GameTrajectoryRecorder,
+    GRPOPolicy,
     PlannerFeedback,
     SFTPolicy,
     build_game_observation,
@@ -32,6 +33,7 @@ from .scenario_generator import evaluate_scenario, generate_scenario
 class CheckpointSmokeConfig(BaseModel):
     schema_version: str = "checkpoint_runtime_smoke_config.v1"
     config_id: str
+    policy_kind: str = "sft"
     local_policy_config: str
     scenario_manifest: str
     scenario_id: str
@@ -55,6 +57,12 @@ class CheckpointSmokeConfig(BaseModel):
         if values.get("data_split") != "dev":
             raise ValueError("checkpoint smoke must use dev split")
         return values
+
+    @validator("policy_kind")
+    def _known_policy_kind(cls, value):
+        if value not in {"sft", "grpo"}:
+            raise ValueError("checkpoint smoke policy_kind must be sft or grpo")
+        return value
 
 
 class CheckpointTurnAudit(BaseModel):
@@ -117,8 +125,8 @@ def inspect_checkpoint_smoke(
     else:
         try:
             policy_config = load_local_adapter_config(policy_config_path)
-            if policy_config.policy_kind != "sft":
-                errors.append("local_policy_is_not_sft")
+            if policy_config.policy_kind != config.policy_kind:
+                errors.append("local_policy_kind_mismatch")
             checkpoint = inspect_adapter_checkpoint(
                 policy_config,
                 repo_root=root,
@@ -142,6 +150,7 @@ def inspect_checkpoint_smoke(
         "ready": not errors,
         "executes_model": False,
         "data_split": config.data_split,
+        "policy_kind": config.policy_kind,
         "scenario_id": config.scenario_id,
         "scenario_content_hash": entry.content_hash if entry is not None else "",
         "checkpoint": (
@@ -155,7 +164,7 @@ def execute_checkpoint_smoke(
     config: CheckpointSmokeConfig,
     *,
     repo_root=None,
-    policy: Optional[SFTPolicy] = None,
+    policy=None,
 ) -> Dict[str, Any]:
     root = Path(repo_root) if repo_root is not None else _repo_root()
     preflight = inspect_checkpoint_smoke(config, repo_root=root)
@@ -167,7 +176,8 @@ def execute_checkpoint_smoke(
     policy_config = load_local_adapter_config(
         _resolve(root, config.local_policy_config)
     )
-    active_policy = policy or SFTPolicy(policy_config, repo_root=root)
+    policy_class = SFTPolicy if config.policy_kind == "sft" else GRPOPolicy
+    active_policy = policy or policy_class(policy_config, repo_root=root)
     manifest = load_split_manifest(_resolve(root, config.scenario_manifest))
     entry = resolve_checkpoint_smoke_scenario(manifest, config)
     variant_index = int(entry.variant_id.rsplit("_v", 1)[-1])
@@ -194,11 +204,11 @@ def execute_checkpoint_smoke(
         scenario_family=scenario.scenario_family.value,
         variant_id=scenario.variant_id,
         random_seed=scenario.random_seed,
-        policy_id="sft",
+        policy_id=config.policy_kind,
         model_id=policy_config.model_id,
         prompt_version=policy_config.prompt_version,
         code_commit=checkpoint["training_code_commit"],
-        source_type="sft_checkpoint_smoke",
+        source_type="%s_checkpoint_smoke" % config.policy_kind,
         metadata={
             "data_split": "dev",
             "checkpoint_adapter_content_hash": checkpoint[
@@ -287,7 +297,7 @@ def execute_checkpoint_smoke(
             state,
             permissions=CORE_TOOL_PERMISSIONS,
             metadata={
-                "decision_source": "sft_checkpoint",
+                "decision_source": "%s_checkpoint" % config.policy_kind,
                 "prompt_version": policy_config.prompt_version,
             },
         ))
@@ -333,6 +343,7 @@ def execute_checkpoint_smoke(
         "preflight": preflight,
         "scenario_id": scenario.scenario_id,
         "data_split": "dev",
+        "policy_kind": config.policy_kind,
         "model_id": policy_config.model_id,
         "prompt_version": policy_config.prompt_version,
         "decision_count": len(turns),

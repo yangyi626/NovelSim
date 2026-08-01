@@ -163,6 +163,53 @@ def test_checkpoint_inspection_requires_manifest_and_exact_file_hashes(tmp_path)
     assert "adapter_content_hash_mismatch" in tampered.errors
 
 
+def test_grpo_checkpoint_requires_grpo_manifest_and_parent_sft_hashes(tmp_path):
+    adapter = tmp_path / "grpo_adapter"
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text(json.dumps({
+        "base_model_name_or_path": "Qwen/Qwen3-0.6B",
+        "peft_type": "LORA",
+        "task_type": "CAUSAL_LM",
+    }), encoding="utf-8")
+    (adapter / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+    (adapter / "adapter_model.safetensors").write_bytes(b"fake-grpo")
+    manifest_path = tmp_path / "grpo-run-manifest.json"
+    config = _config(
+        policy_kind="grpo",
+        adapter_path=str(adapter),
+        run_manifest_path=str(manifest_path),
+    )
+    evidence = inspect_adapter_checkpoint(config, repo_root=tmp_path)
+    manifest_path.write_text(json.dumps({
+        "schema_version": "novelsim_grpo_run_manifest.v1",
+        "status": "completed",
+        "config": {"model_id": "Qwen/Qwen3-0.6B"},
+        "validation": {
+            "prompt_version": "novelsim_planner_prompt.v1",
+            "dataset_id": "novelsim_planner_grpo_v1",
+        },
+        "parent_sft_checkpoint": {
+            "adapter_content_hash": "parent-adapter-hash",
+            "run_manifest_sha256": "parent-manifest-hash",
+        },
+        "code_commit": "def5678",
+        "adapter_files": evidence.adapter_files,
+        "adapter_content_hash": evidence.adapter_content_hash,
+    }), encoding="utf-8")
+
+    ready = inspect_adapter_checkpoint(config, repo_root=tmp_path)
+    assert ready.ready is True
+    assert ready.dataset_id == "novelsim_planner_grpo_v1"
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["parent_sft_checkpoint"] = {}
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    missing_parent = inspect_adapter_checkpoint(config, repo_root=tmp_path)
+    assert missing_parent.ready is False
+    assert "grpo_parent_adapter_hash_missing" in missing_parent.errors
+    assert "grpo_parent_manifest_hash_missing" in missing_parent.errors
+
+
 @pytest.mark.parametrize(
     "updates,match",
     [

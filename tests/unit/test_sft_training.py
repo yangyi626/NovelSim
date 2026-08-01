@@ -18,12 +18,17 @@ def test_checked_in_qwen3_configs_encode_single_gpu_qlora_contract():
     smoke = load_training_config(
         REPO_ROOT / "training/configs/sft_qwen3_0.6b_smoke.json"
     )
+    debug = load_training_config(
+        REPO_ROOT / "training/configs/sft_qwen3_1.7b_debug.json"
+    )
     main = load_training_config(
         REPO_ROOT / "training/configs/sft_qwen3_4b_qlora.json"
     )
 
     assert smoke.model_id == "Qwen/Qwen3-0.6B"
     assert smoke.max_steps == 100
+    assert debug.model_id == "Qwen/Qwen3-1.7B"
+    assert debug.max_steps == 200
     assert main.model_id == "Qwen/Qwen3-4B-Instruct-2507"
     assert main.max_steps == -1
     assert main.num_train_epochs == 3.0
@@ -88,6 +93,15 @@ def test_formal_smoke_config_validates_dataset_hashes_and_boundaries():
     assert {"test_id", "test_ood"}.issubset(
         report["sealed_splits_not_loaded"]
     )
+
+    debug = validate_training_run(
+        load_training_config(
+            REPO_ROOT / "training/configs/sft_qwen3_1.7b_debug.json"
+        ),
+        repo_root=REPO_ROOT,
+    )
+    assert debug["valid"] is True
+    assert debug["model_id"] == "Qwen/Qwen3-1.7B"
 
 
 def test_training_validation_rejects_file_not_frozen_by_data_card(tmp_path):
