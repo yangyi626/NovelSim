@@ -316,6 +316,7 @@ def collect_prompted_episode(
     decisions: List[PromptedDecisionAudit] = []
     termination = "max_turns"
     fallback_count = 0
+    schedule_index = 0
 
     for turn_index in range(config.max_turns_per_episode):
         if evaluate_scenario(scenario, state) is not None:
@@ -325,7 +326,7 @@ def collect_prompted_episode(
             termination = "budget_exhausted"
             break
         expected_call = scenario.scripted_calls[
-            min(turn_index, len(scenario.scripted_calls) - 1)
+            min(schedule_index, len(scenario.scripted_calls) - 1)
         ]
         actor_id = expected_call.actor_id
         feedback = None
@@ -462,6 +463,11 @@ def collect_prompted_episode(
         state = outcome.new_state
         previous_decision = decision
         previous_failure = outcome.result.failure
+        if outcome.result.success:
+            schedule_index = min(
+                schedule_index + 1,
+                len(scenario.scripted_calls) - 1,
+            )
     else:
         if evaluate_scenario(scenario, state) is not None:
             termination = "objective_satisfied"

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from engine import PromptedLLMPolicy, call_openai_compatible
+from engine import PromptedLLMPolicy, ToolCall, call_openai_compatible
 from training.build_split import load_split_manifest
 from training.prompted_smoke import (
     PromptedSmokeConfig,
@@ -188,6 +188,48 @@ def test_prompted_collection_rejects_sealed_split_before_policy_call():
             config=_config(),
             policy=policy,
         )
+
+
+def test_prompted_actor_schedule_does_not_advance_after_gate_rejection():
+    scenario = generate_scenario(
+        ScenarioFamily.secret_transport,
+        variant_index=0,
+        seed=11,
+    )
+    invalid_share = ToolCall(
+        actor_id="char_guard",
+        tool_name="share_information",
+        arguments={
+            "target_character_id": "missing_character",
+            "fact_id": "fact_regent_plot",
+        },
+    )
+    calls = iter([
+        scenario.scripted_calls[0],
+        scenario.scripted_calls[1],
+        invalid_share,
+        scenario.scripted_calls[2],
+    ])
+    observed_actors = []
+
+    def generator(observation, definitions):
+        observed_actors.append(observation.actor_id)
+        return next(calls)
+
+    _, audit = collect_prompted_episode(
+        scenario,
+        data_split="train",
+        config=_config(
+            max_turns_per_episode=4,
+            max_model_calls=4,
+            max_total_tokens=100000,
+        ),
+        policy=PromptedLLMPolicy(generator, model="fake-request-model"),
+    )
+
+    assert observed_actors == ["char_guard"] * 4
+    assert audit.decisions[2].gate_accepted is False
+    assert audit.decisions[3].gate_accepted is True
 
 
 def test_prompted_token_budget_stops_before_provider_call():

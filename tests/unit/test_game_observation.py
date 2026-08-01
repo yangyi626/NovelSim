@@ -4,6 +4,7 @@ from engine import (
     CORE_TOOL_PERMISSIONS,
     authoritative_state_hash,
     build_game_observation,
+    compact_observation,
     create_core_tool_registry,
 )
 from examples.secret_letter import FACT_PLOT, GUARD, RIVAL, build_snapshot
@@ -32,6 +33,15 @@ def test_observation_is_actor_scoped_read_only_and_deterministic():
     assert first.authoritative_state_hash == authoritative_state_hash(state)
     assert first.world_version == 0
     assert FACT_PLOT not in {belief.fact_id for belief in first.beliefs}
+    assert {fact.fact_id for fact in first.observable_facts} == {FACT_PLOT}
+    compact = compact_observation(first)
+    observe = next(
+        tool for tool in compact["available_tools"]
+        if tool["tool_name"] == "observe"
+    )
+    assert observe["properties"]["fact_id"]["enum"] == [FACT_PLOT]
+    assert "statement" not in compact["observable_facts"][0]
+    assert "truth" not in compact["observable_facts"][0]
     assert RIVAL not in {
         character.character_id for character in first.visible_characters
     }
@@ -74,4 +84,3 @@ def test_observation_rejects_unknown_actor():
             "missing_actor",
             create_core_tool_registry(),
         )
-

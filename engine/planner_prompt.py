@@ -10,7 +10,7 @@ from .game_observation import GameObservation
 from .planner_decision import PlannerIntent
 
 
-PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v2"
+PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v3"
 PLANNER_SYSTEM_PROMPT = """You are the high-level NPC planner in NovelSim.
 Choose exactly one grounded action from available_tools for the observed actor.
 Respect visible entities, rules, constraints, capabilities, affordances, evidence, persona, goals, and feedback.
@@ -66,6 +66,7 @@ def extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
 def compact_observation(observation: GameObservation) -> Dict[str, Any]:
     """Return only actor-visible facts required to ground one tool action."""
 
+    grounded_tools = _compact_available_tools(observation)
     payload: Dict[str, Any] = {
         "world": {
             "package_id": observation.world_package_id,
@@ -113,6 +114,7 @@ def compact_observation(observation: GameObservation) -> Dict[str, Any]:
             for item in observation.visible_locations
         ],
         "beliefs": [item.dict() for item in observation.beliefs],
+        "observable_facts": [item.dict() for item in observation.observable_facts],
         "goals": [item.dict() for item in observation.goals],
         "plans": [item.dict() for item in observation.plans],
         "memories": [item.dict() for item in observation.memories],
@@ -135,7 +137,7 @@ def compact_observation(observation: GameObservation) -> Dict[str, Any]:
                 "null_only_when_intent_is_wait": True,
                 "required_fields": ["actor_id", "tool_name", "arguments"],
                 "actor_id": observation.actor_id,
-                "tool_name_enum": [tool.name for tool in observation.available_tools],
+                "tool_name_enum": [tool["tool_name"] for tool in grounded_tools],
                 "arguments": "JSON object matching the selected available tool schema",
             },
             "optional_top_level_fields": [
@@ -147,10 +149,7 @@ def compact_observation(observation: GameObservation) -> Dict[str, Any]:
                 "reason_summary",
             ],
         },
-        "available_tools": [
-            compact_tool_schema(tool.name, tool.description, tool.parameters)
-            for tool in observation.available_tools
-        ],
+        "available_tools": grounded_tools,
     }
     if observation.feedback is not None:
         payload["feedback"] = _drop_empty(observation.feedback.dict())
@@ -161,6 +160,8 @@ def compact_tool_schema(
     name: str,
     description: str,
     parameters: Dict[str, Any],
+    *,
+    argument_enums: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Any]:
     properties = parameters.get("properties", {})
     compact_properties: Dict[str, Any] = {}
@@ -177,6 +178,8 @@ def compact_tool_schema(
             )
             if key in schema
         }
+        if argument_enums is not None and field_name in argument_enums:
+            kept["enum"] = list(argument_enums[field_name])
         compact_properties[field_name] = kept or {"type": "string"}
     return {
         "tool_name": name,
@@ -184,6 +187,96 @@ def compact_tool_schema(
         "required": list(parameters.get("required", [])),
         "properties": compact_properties,
     }
+
+
+def _compact_available_tools(observation: GameObservation) -> List[Dict[str, Any]]:
+    result: List[Dict[str, Any]] = []
+    for tool in observation.available_tools:
+        enums = _grounded_argument_enums(observation, tool.name)
+        compact = compact_tool_schema(
+            tool.name,
+            tool.description,
+            tool.parameters,
+            argument_enums=enums,
+        )
+        if any(
+            field_name in enums and not enums[field_name]
+            for field_name in compact["required"]
+        ):
+            continue
+        result.append(compact)
+    return result
+
+
+def _grounded_argument_enums(
+    observation: GameObservation,
+    tool_name: str,
+) -> Dict[str, List[str]]:
+    actor_id = observation.actor_id
+    actor_location = observation.actor_location_id
+    co_located_characters = sorted(
+        character.character_id
+        for character in observation.visible_characters
+        if character.character_id != actor_id
+        and character.is_alive
+        and character.location_id == actor_location
+    )
+    owned_items = sorted(
+        item.item_id
+        for item in observation.visible_items
+        if item.owner_id == actor_id and item.accessible and item.quantity > 0
+    )
+    if tool_name == "move_to":
+        return {
+            "destination_id": sorted(
+                location.location_id
+                for location in observation.visible_locations
+                if location.accessible and location.location_id != actor_location
+            )
+        }
+    if tool_name == "talk_to":
+        return {"target_character_id": co_located_characters}
+    if tool_name == "pick_up":
+        return {
+            "item_id": sorted(
+                item.item_id
+                for item in observation.visible_items
+                if item.owner_id is None
+                and item.accessible
+                and item.quantity > 0
+                and item.location_id == actor_location
+            )
+        }
+    if tool_name == "destroy_item":
+        destroyable = {
+            affordance.split(":", 1)[0]
+            for affordance in observation.visible_affordances
+            if affordance.endswith(":destroy_item")
+        }
+        return {"item_id": sorted(set(owned_items) & destroyable)}
+    if tool_name == "give_item":
+        return {
+            "item_id": owned_items,
+            "target_character_id": co_located_characters,
+        }
+    if tool_name == "observe":
+        return {
+            "fact_id": sorted(fact.fact_id for fact in observation.observable_facts)
+        }
+    if tool_name == "share_information":
+        return {
+            "target_character_id": co_located_characters,
+            "fact_id": sorted(belief.fact_id for belief in observation.beliefs),
+        }
+    if tool_name == "propose_alliance":
+        return {
+            "target_character_id": co_located_characters,
+            "goal_key": sorted(goal.goal_id for goal in observation.goals),
+            "shared_fact_id": sorted(
+                belief.fact_id for belief in observation.beliefs
+            ),
+        }
+    return {}
 
 
 def _drop_empty(value: Dict[str, Any]) -> Dict[str, Any]:

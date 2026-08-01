@@ -58,6 +58,14 @@ class ObservedBelief(_ReadOnlyContract):
     evidence_ids: Tuple[str, ...] = ()
 
 
+class ObservableFact(_ReadOnlyContract):
+    """A fact handle the actor may inspect without revealing its truth."""
+
+    fact_id: str
+    location_id: Optional[str] = None
+    item_id: Optional[str] = None
+
+
 class ObservedGoal(_ReadOnlyContract):
     goal_id: str
     description: str
@@ -96,7 +104,7 @@ class PlannerFeedback(_ReadOnlyContract):
 class GameObservation(_ReadOnlyContract):
     """A versioned, serializable and actor-scoped planner input."""
 
-    schema_version: str = "game_observation.v1"
+    schema_version: str = "game_observation.v2"
     observation_id: str
     actor_id: str
     timeline_id: str
@@ -114,6 +122,7 @@ class GameObservation(_ReadOnlyContract):
     visible_items: Tuple[VisibleItem, ...] = ()
     visible_locations: Tuple[VisibleLocation, ...] = ()
     beliefs: Tuple[ObservedBelief, ...] = ()
+    observable_facts: Tuple[ObservableFact, ...] = ()
     goals: Tuple[ObservedGoal, ...] = ()
     plans: Tuple[ObservedPlan, ...] = ()
     memories: Tuple[ObservedMemory, ...] = ()
@@ -246,6 +255,41 @@ def build_game_observation(
         )
         for belief in sorted(actor_beliefs, key=lambda value: value.fact_id)
     )
+    belief_by_fact = {belief.fact_id: belief for belief in actor_beliefs}
+    observable_facts = []
+    for fact in sorted(state.facts.values(), key=lambda value: value.fact_id):
+        if not fact.observable:
+            continue
+        if fact.location_id and fact.location_id != actor_location:
+            continue
+        if fact.item_id:
+            item = state.items.get(fact.item_id)
+            if item is None:
+                continue
+            actor_can_access_item = (
+                item.owner_id == actor_id
+                or (
+                    item.owner_id is None
+                    and item.accessible
+                    and item.quantity > 0
+                    and item.location_id == actor_location
+                )
+            )
+            if not actor_can_access_item:
+                continue
+        existing = belief_by_fact.get(fact.fact_id)
+        if (
+            existing is not None
+            and existing.source_type == "observation"
+            and existing.belief == fact.truth
+            and existing.confidence >= fact.base_confidence
+        ):
+            continue
+        observable_facts.append(ObservableFact(
+            fact_id=fact.fact_id,
+            location_id=fact.location_id,
+            item_id=fact.item_id,
+        ))
 
     goals: List[ObservedGoal] = []
     plans: List[ObservedPlan] = []
@@ -329,6 +373,7 @@ def build_game_observation(
         visible_items=visible_items,
         visible_locations=visible_locations,
         beliefs=beliefs,
+        observable_facts=tuple(observable_facts),
         goals=tuple(goals),
         plans=tuple(plans),
         memories=tuple(memories),

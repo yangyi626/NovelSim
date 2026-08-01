@@ -19,7 +19,7 @@ from .export_trajectories import load_trajectories_jsonl
 from .novelsim_env import NovelSimEnv, NovelSimEnvSpec
 
 
-GRPO_DATASET_ID = "novelsim_planner_grpo_v2"
+GRPO_DATASET_ID = "novelsim_planner_grpo_v3"
 ALLOWED_SPLITS = ("train", "dev")
 SEALED_SPLITS = ("test_id", "test_ood")
 
@@ -337,7 +337,7 @@ def _write_card(card: Dict[str, Any], output: Path) -> None:
         encoding="utf-8",
     )
     lines = [
-        "# NovelSim Planner GRPO Dataset v2",
+        "# NovelSim Planner GRPO Dataset v3",
         "",
         "- Prompt version: `%s`" % card["prompt_version"],
         "- Train prompts: `%s`" % card["splits"]["train"]["sample_count"],

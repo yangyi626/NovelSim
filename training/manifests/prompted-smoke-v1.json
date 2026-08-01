@@ -4,7 +4,7 @@
     "train",
     "dev"
   ],
-  "config_hash": "468de3f1748c5bd39bdcec230da351169da1794feaf38d379087a705b9004d4a",
+  "config_hash": "f7b3b52951027bdf622247f1cdc1605ab6b0ead1dfe7b8d726a6adaec5b6bcfe",
   "config_id": "novelsim_prompted_smoke_v1",
   "estimated_maximum_output_tokens": 12288,
   "executes_provider_calls": false,
@@ -13,7 +13,7 @@
   "maximum_model_calls": 24,
   "maximum_total_tokens": 100000,
   "model_id": "qwen3.7-plus-2026-05-26",
-  "prompt_version": "novelsim_planner_prompt.v2",
+  "prompt_version": "novelsim_planner_prompt.v3",
   "scenario_count": 4,
   "schema_version": "prompted_smoke_plan.v1",
   "sealed_splits_not_selected": [
