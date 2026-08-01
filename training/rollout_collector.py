@@ -37,6 +37,7 @@ async def collect_scripted_trajectory_async(
         source_type="scripted_expert",
         route_id="scripted",
         code_commit=code_commit,
+        stop_on_tool_failure=True,
     )
 
 
@@ -52,6 +53,23 @@ async def collect_heuristic_trajectory_async(
         source_type="safe_heuristic",
         route_id="heuristic",
         code_commit=code_commit,
+        stop_on_tool_failure=True,
+    )
+
+
+async def collect_recovery_trajectory_async(
+    scenario: GeneratedScenario,
+    *,
+    code_commit: str = "",
+) -> GameTrajectory:
+    return await _collect_trajectory_async(
+        scenario,
+        build_controlled_recovery_calls(scenario),
+        policy_id="controlled_recovery",
+        source_type="controlled_recovery",
+        route_id="recovery",
+        code_commit=code_commit,
+        stop_on_tool_failure=False,
     )
 
 
@@ -63,6 +81,7 @@ async def _collect_trajectory_async(
     source_type: str,
     route_id: str,
     code_commit: str,
+    stop_on_tool_failure: bool,
 ) -> GameTrajectory:
     registry = create_core_tool_registry()
     controller = SceneController(
@@ -77,6 +96,7 @@ async def _collect_trajectory_async(
         objective=scenario.objective,
         max_turns=scenario.max_turns,
         random_seed=scenario.random_seed,
+        stop_on_tool_failure=stop_on_tool_failure,
         allow_multi_location=(
             len({
                 scenario.initial_state.characters[character_id].location_id
@@ -116,14 +136,29 @@ async def _collect_trajectory_async(
         },
     )
     current = scenario.initial_state
+    previous_decision = None
+    previous_failure = None
     for outcome in run.outcomes:
         call = outcome.execution.active_call
+        feedback = None
+        if previous_failure is not None and previous_decision is not None:
+            from engine import PlannerFeedback
+
+            feedback = PlannerFeedback(
+                previous_decision_id=previous_decision.decision_id,
+                tool_name=previous_decision.tool_call.tool_name,
+                success=False,
+                failure_code=previous_failure.code.value,
+                summary=previous_failure.message,
+                retryable=previous_failure.retryable,
+            )
         observation = build_game_observation(
             current,
             call.actor_id,
             registry,
             world_package_id=scenario.world_package_id,
             scenario_family=scenario.scenario_family.value,
+            feedback=feedback,
         )
         decision = PlannerDecision.from_tool_call(
             call,
@@ -132,6 +167,8 @@ async def _collect_trajectory_async(
         )
         recorder.record(observation, decision, outcome)
         current = outcome.new_state
+        previous_decision = decision
+        previous_failure = outcome.result.failure
     return recorder.finish(
         ending_id=run.summary.ending_id or run.summary.status.value,
         objective_satisfied=run.summary.objective_satisfied,
@@ -164,6 +201,19 @@ def collect_heuristic_trajectory(
     )
 
 
+def collect_recovery_trajectory(
+    scenario: GeneratedScenario,
+    *,
+    code_commit: str = "",
+) -> GameTrajectory:
+    return asyncio.run(
+        collect_recovery_trajectory_async(
+            scenario,
+            code_commit=code_commit,
+        )
+    )
+
+
 def collect_scripted_trajectories(
     scenarios: Iterable[GeneratedScenario],
     *,
@@ -190,8 +240,9 @@ def collect_expert_trajectories(
     code_commit: str = "",
     include_scripted: bool = True,
     include_heuristic: bool = True,
+    include_recovery: bool = False,
 ) -> List[GameTrajectory]:
-    if not include_scripted and not include_heuristic:
+    if not include_scripted and not include_heuristic and not include_recovery:
         raise ValueError("at least one expert policy must be enabled")
     trajectories: List[GameTrajectory] = []
     for scenario in scenarios:
@@ -202,6 +253,11 @@ def collect_expert_trajectories(
             ))
         if include_heuristic:
             trajectories.append(collect_heuristic_trajectory(
+                scenario,
+                code_commit=code_commit,
+            ))
+        if include_recovery:
+            trajectories.append(collect_recovery_trajectory(
                 scenario,
                 code_commit=code_commit,
             ))
@@ -312,6 +368,50 @@ def build_safe_heuristic_calls(
             {"target_character_id": patient, "item_id": medicine},
         ),
     ]
+
+
+def build_controlled_recovery_calls(
+    scenario: GeneratedScenario,
+) -> List:
+    """Prepend one auditable rejected proposal, then recover legally."""
+
+    variant = int(scenario.variant_id.rsplit("v", 1)[-1])
+    prefix = "recovery_%s_%03d_%06d" % (
+        scenario.scenario_family.value,
+        variant,
+        scenario.random_seed,
+    )
+    if scenario.scenario_family == ScenarioFamily.secret_transport:
+        invalid = _tool_call(
+            prefix,
+            0,
+            "char_guard",
+            "move_to",
+            {"destination_id": "aircraft"},
+        )
+    elif scenario.scenario_family == ScenarioFamily.resource_negotiation:
+        invalid = _tool_call(
+            prefix,
+            0,
+            "char_quartermaster",
+            "give_item",
+            {
+                "target_character_id": "char_settlement_leader",
+                "item_id": "item_relief_resource",
+            },
+        )
+    else:
+        invalid = _tool_call(
+            prefix,
+            0,
+            "char_rescuer",
+            "give_item",
+            {
+                "target_character_id": "char_patient",
+                "item_id": "item_rescue_medicine",
+            },
+        )
+    return [invalid] + build_safe_heuristic_calls(scenario)
 
 
 def _tool_call(prefix, index, actor_id, tool_name, arguments):

@@ -16,6 +16,7 @@ from training.filter_trajectories import filter_trajectories
 from training.collect_dataset import collect_manifest_dataset, write_dataset
 from training.rollout_collector import (
     collect_heuristic_trajectory,
+    collect_recovery_trajectory,
     collect_scripted_trajectory,
 )
 from training.scenario_generator import (
@@ -105,6 +106,31 @@ def test_safe_heuristic_routes_are_legal_and_semantically_distinct():
     } == {"scripted_expert", "safe_heuristic"}
 
 
+def test_controlled_recovery_records_rejection_feedback_then_succeeds():
+    trajectories = [
+        collect_recovery_trajectory(
+            generate_scenario(family, variant_index=0, seed=11)
+        )
+        for family in ScenarioFamily
+    ]
+
+    assert [len(item.steps) for item in trajectories] == [6, 4, 5]
+    assert all(item.objective_satisfied for item in trajectories)
+    assert all(item.steps[0].failure.illegal_proposal for item in trajectories)
+    assert all(not item.steps[0].failure.illegal_commit for item in trajectories)
+    assert all(item.steps[0].committed_event is None for item in trajectories)
+    assert all(
+        item.steps[0].previous_state_hash == item.steps[0].next_state_hash
+        for item in trajectories
+    )
+    assert all(
+        item.steps[1].observation.feedback is not None
+        and item.steps[1].observation.feedback.failure_code
+        for item in trajectories
+    )
+    assert all(replay_game_trajectory(item).consistent for item in trajectories)
+
+
 def test_family_aware_split_has_no_variant_or_content_leakage(tmp_path):
     scenarios = generate_scenario_grid(variants_per_family=10)
     manifest = build_split_manifest(scenarios)
@@ -174,16 +200,25 @@ def test_dataset_collector_packages_each_split_and_seals_test_data(tmp_path):
         write_parquet=False,
     )
 
-    assert card["overall"]["episode_count"] == 18
-    assert card["overall"]["step_count"] == 69
+    assert card["overall"]["episode_count"] == 27
+    assert card["overall"]["step_count"] == 114
     assert card["overall"]["illegal_commit_count"] == 0
+    assert card["overall"]["illegal_proposal_count"] == 9
     assert card["episode_source_distribution"] == {
+        "controlled_recovery": 9,
         "safe_heuristic": 9,
         "scripted_expert": 9,
     }
     assert card["step_source_distribution"] == {
+        "controlled_recovery": 45,
         "safe_heuristic": 36,
         "scripted_expert": 33,
+    }
+    assert card["controlled_recovery"] == {
+        "episode_count": 9,
+        "episode_rate": 0.333333,
+        "required_minimum_rate": 0.2,
+        "meets_requirement": True,
     }
     assert card["per_split"]["train"]["sealed_for_training"] is False
     assert card["per_split"]["dev"]["sealed_for_training"] is False

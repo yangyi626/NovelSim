@@ -17,6 +17,7 @@ from .export_trajectories import (
     write_trajectories_jsonl,
 )
 from .filter_trajectories import filter_trajectories
+from .filter_trajectories import TrajectoryFilterConfig
 from .rollout_collector import collect_expert_trajectories
 from .scenario_generator import generate_scenario
 
@@ -43,6 +44,7 @@ def collect_manifest_dataset(
         collected = collect_expert_trajectories(
             [scenario],
             code_commit=code_commit,
+            include_recovery=True,
         )
         trajectories.extend(
             trajectory.copy(
@@ -57,7 +59,10 @@ def collect_manifest_dataset(
             )
             for trajectory in collected
         )
-    filtered = filter_trajectories(trajectories)
+    filtered = filter_trajectories(
+        trajectories,
+        TrajectoryFilterConfig(max_illegal_proposals=1),
+    )
     if filtered.rejected:
         raise ValueError(
             "dataset contains rejected trajectories: %s"
@@ -137,6 +142,22 @@ def write_dataset(
         "step_source_distribution": source_step_distribution,
         "episode_family_distribution": family_distribution,
         "step_family_distribution": family_step_distribution,
+        "controlled_recovery": {
+            "episode_count": source_distribution.get(
+                "controlled_recovery",
+                0,
+            ),
+            "episode_rate": round(
+                source_distribution.get("controlled_recovery", 0)
+                / overall["episode_count"],
+                6,
+            ) if overall["episode_count"] else 0.0,
+            "required_minimum_rate": 0.2,
+            "meets_requirement": (
+                source_distribution.get("controlled_recovery", 0)
+                / overall["episode_count"] >= 0.2
+            ) if overall["episode_count"] else False,
+        },
         "files": files,
         "training_boundary": {
             "allowed_splits": ["train"],
