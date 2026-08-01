@@ -1,0 +1,82 @@
+{
+  "dataset_id": "novelsim_planner_grpo_v5",
+  "environment_contract": {
+    "authoritative_mutation_path": "ToolRegistry->FSM->PatchValidator->WorldEvent",
+    "group_initial_state_hash_required_equal": true,
+    "one_decision_per_prompt": true,
+    "planner_state_patch_forbidden": true,
+    "reset_source": "scenario parameters plus committed event prefix"
+  },
+  "files": {
+    "dev.jsonl": {
+      "bytes": 4413139,
+      "path": "data\\grpo\\novelsim-planner-v5\\dev.jsonl",
+      "sha256": "a3a9e24923165750d29fc25dd1e6fe4c4e1920530875cdb3cf938ac30f518f91"
+    },
+    "train.jsonl": {
+      "bytes": 39726600,
+      "path": "data\\grpo\\novelsim-planner-v5\\train.jsonl",
+      "sha256": "8f4aec255765cca44e74f96af6c16bd64c420fc78def559006665e1cf13853bb"
+    }
+  },
+  "format": "conversational_prompt_with_environment_spec",
+  "leakage_audit": {
+    "passed": true,
+    "train_dev_content_hash_overlap": 0
+  },
+  "prompt_version": "novelsim_planner_prompt.v4",
+  "schema_version": "novelsim_grpo_dataset_card.v1",
+  "source_dataset_card": {
+    "bytes": 5169,
+    "path": "training\\reports\\novelsim-planner-expert-v4\\dataset-card.json",
+    "sha256": "0f7e4dd7bad3c48c29dc3e4636ee322c5cc5f4032d027e67becfe0261462d60f"
+  },
+  "source_files": {
+    "dev.jsonl": {
+      "bytes": 8856630,
+      "path": "data\\trajectories\\novelsim-planner-expert-v4\\dev.jsonl",
+      "sha256": "92b70bffe7d18776c367ba2991bc3d95eaa904594cb22c30e8ab45144f713c10"
+    },
+    "train.jsonl": {
+      "bytes": 79712723,
+      "path": "data\\trajectories\\novelsim-planner-expert-v4\\train.jsonl",
+      "sha256": "20023a951c89f8978475c00cfd915a1ec112763fdf584784fef47d50f24a69e7"
+    }
+  },
+  "splits": {
+    "dev": {
+      "excluded": {
+        "duplicate_content_hash": 120
+      },
+      "family_distribution": {
+        "resource_negotiation": 140,
+        "secret_transport": 260
+      },
+      "recovery_context_count": 40,
+      "sample_count": 400,
+      "unique_content_hash_count": 400,
+      "unique_starting_state_hash_count": 260
+    },
+    "train": {
+      "excluded": {
+        "duplicate_content_hash": 1080
+      },
+      "family_distribution": {
+        "resource_negotiation": 1260,
+        "secret_transport": 2340
+      },
+      "recovery_context_count": 360,
+      "sample_count": 3600,
+      "unique_content_hash_count": 3600,
+      "unique_starting_state_hash_count": 2340
+    }
+  },
+  "training_boundary": {
+    "checkpoint_selection_split": "dev",
+    "optimization_split": "train",
+    "sealed_splits_not_loaded": [
+      "test_id",
+      "test_ood"
+    ]
+  }
+}
