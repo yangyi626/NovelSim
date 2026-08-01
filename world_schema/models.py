@@ -601,6 +601,67 @@ class AgentGoal(AllowExtra):
     evolution: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class PlanConditionKind(str, Enum):
+    """权威 Runtime 可判定的计划步骤完成条件。"""
+
+    item_owner = "item_owner"
+    character_at = "character_at"
+    belief_known = "belief_known"
+    information_propagated = "information_propagated"
+    alliance_formed = "alliance_formed"
+    tool_committed = "tool_committed"
+
+
+class PlanStepCondition(BaseModel):
+    """一个计划步骤的确定性完成条件。
+
+    条件只引用权威状态或已通过门禁的 ToolCall。它不是交给模型填写的
+    ``StatePatch``，而是世界作者声明的 GOAP/HTN 式成功谓词。
+    """
+
+    kind: PlanConditionKind
+    item_id: Optional[str] = None
+    character_id: Optional[str] = None
+    location_id: Optional[str] = None
+    fact_id: Optional[str] = None
+    source_character_id: Optional[str] = None
+    target_character_id: Optional[str] = None
+    member_ids: List[str] = Field(default_factory=list)
+    goal_key: Optional[str] = None
+    min_confidence: float = Field(0.0, ge=0.0, le=1.0)
+    actor_id: Optional[str] = None
+    tool_name: Optional[str] = None
+    argument_equals: Dict[str, Any] = Field(default_factory=dict)
+
+    @root_validator
+    def validate_required_fields(cls, values):
+        kind = values.get("kind")
+        required = {
+            PlanConditionKind.item_owner: ("item_id", "character_id"),
+            PlanConditionKind.character_at: ("character_id", "location_id"),
+            PlanConditionKind.belief_known: ("character_id", "fact_id"),
+            PlanConditionKind.information_propagated: (
+                "source_character_id",
+                "target_character_id",
+                "fact_id",
+            ),
+            PlanConditionKind.tool_committed: ("tool_name",),
+        }.get(kind, ())
+        missing = [name for name in required if not values.get(name)]
+        if kind == PlanConditionKind.alliance_formed and len(
+            values.get("member_ids") or []
+        ) < 2:
+            missing.append("member_ids>=2")
+        if missing:
+            raise ValueError(
+                "%s requires %s" % (kind.value, ", ".join(missing))
+            )
+        return values
+
+    class Config:
+        extra = "forbid"
+
+
 class AgentPlan(AllowExtra):
     """角色当前的计划 (简化为有序步骤)。对应 plan 第八节 "当前计划 Plan"。
 
@@ -610,8 +671,17 @@ class AgentPlan(AllowExtra):
     plan_id: str
     goal_id: str
     steps: List[str] = Field(default_factory=list)  # 人话步骤，如 ["先示弱","寻机陷害"]
+    step_conditions: List[PlanStepCondition] = Field(default_factory=list)
     current_step: int = 0  # 指向 steps 索引
     status: str = "active"  # active / paused / completed / abandoned
+
+    @root_validator
+    def conditions_align_with_steps(cls, values):
+        steps = values.get("steps") or []
+        conditions = values.get("step_conditions") or []
+        if conditions and len(conditions) != len(steps):
+            raise ValueError("step_conditions must align one-to-one with steps")
+        return values
 
 
 class CharacterPsyche(AllowExtra):

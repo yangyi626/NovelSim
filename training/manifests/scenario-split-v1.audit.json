@@ -25,7 +25,7 @@
   },
   "entry_count": 720,
   "issues": [],
-  "manifest_id": "split_0b3fb988497f14b6",
+  "manifest_id": "split_dfcfc4a51f55a8cd",
   "passed": true,
   "rule_overlap": {
     "dev__adversarial": 0,

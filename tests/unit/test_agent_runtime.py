@@ -4,6 +4,15 @@ import asyncio
 
 from pydantic import BaseModel
 
+from examples.secret_letter import (
+    ALLY,
+    FACT_PLOT,
+    GOAL_PROTECT,
+    GUARD,
+    LETTER,
+    STEWARD,
+    build_snapshot,
+)
 from engine import (
     CORE_TOOL_PERMISSIONS,
     AgentExecutionState,
@@ -16,8 +25,10 @@ from engine import (
     ToolFailureCode,
     ToolRegistry,
     TraceSpanStatus,
+    build_game_observation,
     commit_event,
     create_core_tool_registry,
+    replay_events,
 )
 from world_schema import (
     Belief,
@@ -190,6 +201,125 @@ def test_success_trace_contains_complete_state_machine_chain():
         if span.state == AgentExecutionState.retrieve_memory.value
     )
     assert memory_span.details["memory_ids"] == ["memory_1"]
+
+
+def test_authoritative_tool_effects_advance_cross_actor_plans_atomically():
+    initial = build_snapshot()
+    state = initial
+    events = []
+    registry = create_core_tool_registry()
+    machine = AgentExecutionStateMachine(registry)
+
+    calls = [
+        ToolCall(
+            actor_id=GUARD,
+            tool_name="pick_up",
+            arguments={"item_id": LETTER},
+        ),
+        ToolCall(
+            actor_id=GUARD,
+            tool_name="observe",
+            arguments={"fact_id": FACT_PLOT},
+        ),
+        ToolCall(
+            actor_id=GUARD,
+            tool_name="share_information",
+            arguments={
+                "target_character_id": STEWARD,
+                "fact_id": FACT_PLOT,
+            },
+        ),
+        ToolCall(
+            actor_id=STEWARD,
+            tool_name="share_information",
+            arguments={
+                "target_character_id": ALLY,
+                "fact_id": FACT_PLOT,
+            },
+        ),
+        ToolCall(
+            actor_id=STEWARD,
+            tool_name="propose_alliance",
+            arguments={
+                "target_character_id": ALLY,
+                "goal_key": GOAL_PROTECT,
+                "shared_fact_id": FACT_PLOT,
+            },
+        ),
+    ]
+
+    for index, call in enumerate(calls):
+        outcome = _run(
+            machine,
+            call,
+            state,
+            permissions=CORE_TOOL_PERMISSIONS,
+        )
+        assert outcome.result.success is True
+        assert outcome.event is not None
+        assert any(
+            operation.op == OperationKind.advance_plan
+            for operation in outcome.event.patch.operations
+        )
+        state = outcome.new_state
+        events.append(outcome.event)
+
+        if index == 0:
+            guard_plan = state.character_psyches[GUARD].plans[0]
+            assert guard_plan.current_step == 1
+            observation = build_game_observation(
+                state,
+                GUARD,
+                registry,
+                world_package_id="secret_letter_test",
+                scenario_family="secret_transport",
+            )
+            assert observation.plans[0].current_step_text == "核验内容"
+        elif index == 2:
+            assert state.character_psyches[GUARD].plans[0].status == "completed"
+            assert state.character_psyches[STEWARD].plans[0].current_step == 1
+
+    steward_plan = state.character_psyches[STEWARD].plans[0]
+    assert steward_plan.current_step == 3
+    assert steward_plan.status == "completed"
+    assert replay_events(initial, events).dict() == state.dict()
+
+
+def test_failed_or_irrelevant_tools_do_not_advance_plan():
+    initial = build_snapshot()
+    machine = AgentExecutionStateMachine(create_core_tool_registry())
+
+    failed = _run(
+        machine,
+        ToolCall(
+            actor_id=GUARD,
+            tool_name="pick_up",
+            arguments={"item_id": "missing_letter"},
+        ),
+        initial,
+        permissions=CORE_TOOL_PERMISSIONS,
+    )
+    assert failed.result.success is False
+    assert failed.new_state.character_psyches[GUARD].plans[0].current_step == 0
+
+    irrelevant = _run(
+        machine,
+        ToolCall(
+            actor_id=GUARD,
+            tool_name="talk_to",
+            arguments={
+                "target_character_id": STEWARD,
+                "message": "继续值守。",
+                "tone": "平静",
+            },
+        ),
+        initial,
+        permissions=CORE_TOOL_PERMISSIONS,
+    )
+    assert irrelevant.result.success is True
+    assert irrelevant.event.patch.operations == []
+    assert irrelevant.new_state.character_psyches[GUARD].plans[0].current_step == 0
+    assert irrelevant.new_state.character_psyches[STEWARD].plans[0].current_step == 0
 
 
 class _NoArguments(BaseModel):

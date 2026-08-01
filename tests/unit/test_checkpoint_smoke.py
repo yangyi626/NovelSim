@@ -41,7 +41,7 @@ class ScriptedLocalBackend:
             }),
             usage=PlannerUsage(
                 model_id="Qwen/Qwen3-0.6B",
-                prompt_version="novelsim_planner_prompt.v3",
+                prompt_version="novelsim_planner_prompt.v4",
                 prompt_tokens=100,
                 completion_tokens=20,
                 total_tokens=120,
@@ -80,11 +80,11 @@ def _write_fake_checkpoint(tmp_path, *, policy_kind="sft"):
         "status": "completed",
         "config": {"model_id": "Qwen/Qwen3-0.6B"},
         "validation": {
-            "prompt_version": "novelsim_planner_prompt.v3",
+            "prompt_version": "novelsim_planner_prompt.v4",
             "dataset_id": (
-                "novelsim_planner_sft_v3"
+                "novelsim_planner_sft_v4"
                 if policy_kind == "sft"
-                else "novelsim_planner_grpo_v3"
+                else "novelsim_planner_grpo_v4"
             ),
         },
         "parent_sft_checkpoint": (

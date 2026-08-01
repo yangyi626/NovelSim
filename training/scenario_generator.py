@@ -21,6 +21,8 @@ from world_schema import (
     CharacterRelation,
     Item,
     Location,
+    PlanConditionKind,
+    PlanStepCondition,
     RelationDimensions,
     WorldConcept,
     WorldConstraint,
@@ -63,7 +65,7 @@ class GeneratedScenario(BaseModel):
     scenario_family: ScenarioFamily
     variant_id: str
     random_seed: int
-    template_version: str = "scenario_generator.v1"
+    template_version: str = "scenario_generator.v2"
     source_type: str = "original_parameterized_generator"
     content_origin: str = "original_for_novelsim_v2"
     license_spdx: str = "CC-BY-4.0"
@@ -324,6 +326,24 @@ def _resource_negotiation(variant: int, seed: int) -> Dict[str, Any]:
                     plan_id="negotiate_delivery",
                     goal_id="deliver_relief",
                     steps=["取得物资", "说明条件", "完成交付"],
+                    step_conditions=[
+                        PlanStepCondition(
+                            kind=PlanConditionKind.item_owner,
+                            item_id=item_id,
+                            character_id=actor,
+                        ),
+                        PlanStepCondition(
+                            kind=PlanConditionKind.tool_committed,
+                            actor_id=actor,
+                            tool_name="talk_to",
+                            argument_equals={"target_character_id": target},
+                        ),
+                        PlanStepCondition(
+                            kind=PlanConditionKind.item_owner,
+                            item_id=item_id,
+                            character_id=target,
+                        ),
+                    ],
                 )],
             ),
             target: CharacterPsyche(
@@ -442,6 +462,23 @@ def _rescue_escort(variant: int, seed: int) -> Dict[str, Any]:
                     plan_id="rescue_delivery",
                     goal_id="deliver_medicine",
                     steps=["取得药物", "前往医务所", "交给伤员"],
+                    step_conditions=[
+                        PlanStepCondition(
+                            kind=PlanConditionKind.item_owner,
+                            item_id=medicine,
+                            character_id=actor,
+                        ),
+                        PlanStepCondition(
+                            kind=PlanConditionKind.character_at,
+                            character_id=actor,
+                            location_id=infirmary,
+                        ),
+                        PlanStepCondition(
+                            kind=PlanConditionKind.item_owner,
+                            item_id=medicine,
+                            character_id=patient,
+                        ),
+                    ],
                 )],
             ),
             patient: CharacterPsyche(

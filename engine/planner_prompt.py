@@ -10,13 +10,15 @@ from .game_observation import GameObservation
 from .planner_decision import PlannerIntent
 
 
-PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v3"
+PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v4"
 PLANNER_SYSTEM_PROMPT = """You are the high-level NPC planner in NovelSim.
 Choose exactly one grounded action from available_tools for the observed actor.
 Respect visible entities, rules, constraints, capabilities, affordances, evidence, persona, goals, and feedback.
+Prioritize the current active plan step and choose an action that makes measurable progress. Do not repeat an action whose intended state change is already visible.
 Return exactly one PlannerDecision JSON object and no other text.
 The top-level intent MUST be one value from output_contract.intent_enum; a tool name is never an intent.
 For an executable action, tool_call MUST contain exactly actor_id, tool_name, and arguments. Copy tool_name from available_tools[].tool_name and use its required argument keys.
+If reason_summary is present, keep it concise and within 300 characters.
 Never invent facts, entities, tools, world mutations, StatePatch, or operations. The authoritative runtime validates and commits all effects.
 If no action is grounded, return intent="wait" with tool_call=null."""
 
@@ -148,6 +150,7 @@ def compact_observation(observation: GameObservation) -> Dict[str, Any]:
                 "confidence",
                 "reason_summary",
             ],
+            "reason_summary_max_chars": 300,
         },
         "available_tools": grounded_tools,
     }

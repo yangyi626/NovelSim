@@ -180,9 +180,9 @@ def inspect_adapter_checkpoint(
             else "novelsim_grpo_run_manifest.v1"
         )
         expected_dataset_id = (
-            "novelsim_planner_sft_v3"
+            "novelsim_planner_sft_v4"
             if config.policy_kind == "sft"
-            else "novelsim_planner_grpo_v3"
+            else "novelsim_planner_grpo_v4"
         )
         if manifest.get("schema_version") != expected_manifest_schema:
             errors.append("run_manifest_schema_mismatch")

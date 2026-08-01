@@ -4,16 +4,16 @@
     "train",
     "dev"
   ],
-  "config_hash": "f7b3b52951027bdf622247f1cdc1605ab6b0ead1dfe7b8d726a6adaec5b6bcfe",
+  "config_hash": "90280b9a788c733ba8538e7075ac8601db75a9583eede1ac5494f806579991cb",
   "config_id": "novelsim_prompted_smoke_v1",
   "estimated_maximum_output_tokens": 12288,
   "executes_provider_calls": false,
-  "manifest_hash": "0b3fb988497f14b6a115177e5f1750eed8a2cac6f08b98c116790dd7d1cb43f1",
-  "manifest_id": "split_0b3fb988497f14b6",
+  "manifest_hash": "dfcfc4a51f55a8cd2d803969b4dc2625bcce41d36bca35c7257fa5a87c106cf5",
+  "manifest_id": "split_dfcfc4a51f55a8cd",
   "maximum_model_calls": 24,
   "maximum_total_tokens": 100000,
   "model_id": "qwen3.7-plus-2026-05-26",
-  "prompt_version": "novelsim_planner_prompt.v3",
+  "prompt_version": "novelsim_planner_prompt.v4",
   "scenario_count": 4,
   "schema_version": "prompted_smoke_plan.v1",
   "sealed_splits_not_selected": [
@@ -23,7 +23,7 @@
   ],
   "selected_scenarios": [
     {
-      "content_hash": "1b2431c3153b9496d0dd606c3f931b6275f07edd1b8e329dcab310a3b806d750",
+      "content_hash": "5c641639dd34d215dacadc42f5e3e2444ab619908ab574e838cf7fe21f49047f",
       "data_split": "train",
       "random_seed": 1,
       "scenario_family": "resource_negotiation",
@@ -32,7 +32,7 @@
       "world_package_id": "resource_negotiation_v000_s000001"
     },
     {
-      "content_hash": "c510f5fd14ca1bf12deeddead02e208af2e14bcba0eb5fe8e27288824f62e9ba",
+      "content_hash": "2a329133829ad51fabdd82fe633183b461faf747981543cef62a22d167475f16",
       "data_split": "train",
       "random_seed": 1,
       "scenario_family": "secret_transport",
@@ -41,7 +41,7 @@
       "world_package_id": "secret_transport_v001_s000001"
     },
     {
-      "content_hash": "8813ef08b2ebb741d2e84d482baca88ed2d279738726926ffb6d26218ace0716",
+      "content_hash": "13e73197fba939b6686b39bc39b6d6a65abbe2ed65f89b6c5a5bdca779e66757",
       "data_split": "dev",
       "random_seed": 1,
       "scenario_family": "resource_negotiation",
@@ -50,7 +50,7 @@
       "world_package_id": "resource_negotiation_v005_s000001"
     },
     {
-      "content_hash": "389fca3e62581c9ee52e4c703efca6961d3327fc5d8371792c02ebc1396937a6",
+      "content_hash": "c1298f0956dfe9e5def98c867a197b4829e9ef8dc729c85aeee6b2d0a1135df6",
       "data_split": "dev",
       "random_seed": 1,
       "scenario_family": "secret_transport",

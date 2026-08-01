@@ -45,8 +45,9 @@ from .agent_trace import (
     TraceStage,
 )
 from .event import CommitError, commit_event
-from .patch import PatchError
-from .patch_validator import validate_tool_patch
+from .patch import PatchError, apply_patch
+from .patch_validator import validate_patch, validate_tool_patch
+from .plan_progress import derive_plan_progress_operations
 from .persistence import PersistenceError, VersionConflict
 from world_schema import CausalEvidence
 
@@ -358,6 +359,39 @@ class AgentExecutionStateMachine:
                             },
                         )
                     )
+
+                projected_state = apply_patch(state, candidate.patch)
+                plan_operations = derive_plan_progress_operations(
+                    state,
+                    projected_state,
+                    actor_id=active_call.actor_id,
+                    tool_name=active_call.tool_name,
+                    arguments=prepared.arguments.dict(),
+                )
+                if plan_operations:
+                    candidate.patch.operations.extend(plan_operations)
+                    augmented_check = validate_patch(state, candidate.patch)
+                    if not augmented_check.valid:
+                        raise ToolExecutionError(
+                            ToolFailure(
+                                code=ToolFailureCode.patch_rejected,
+                                message=(
+                                    "runtime plan progress rejected: "
+                                    f"{augmented_check.why()}"
+                                ),
+                                stage=AgentExecutionState.observe_result.value,
+                                details={
+                                    "violations": [
+                                        {
+                                            "op_index": item.op_index,
+                                            "rule_id": item.rule_id,
+                                            "message": item.message,
+                                        }
+                                        for item in augmented_check.violations
+                                    ]
+                                },
+                            )
+                        )
 
                 event, new_state = commit_event(
                     state,

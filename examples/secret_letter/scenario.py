@@ -31,6 +31,8 @@ from world_schema import (
     EntityAffordance,
     Item,
     Location,
+    PlanConditionKind,
+    PlanStepCondition,
     RelationDimensions,
     WorldFact,
     WorldState,
@@ -172,6 +174,23 @@ def build_snapshot() -> WorldState:
                         plan_id="guard_verify_letter",
                         goal_id=GOAL_PROTECT,
                         steps=["取得密信", "核验内容", "报告管家"],
+                        step_conditions=[
+                            PlanStepCondition(
+                                kind=PlanConditionKind.item_owner,
+                                item_id=LETTER,
+                                character_id=GUARD,
+                            ),
+                            PlanStepCondition(
+                                kind=PlanConditionKind.belief_known,
+                                character_id=GUARD,
+                                fact_id=FACT_PLOT,
+                            ),
+                            PlanStepCondition(
+                                kind=PlanConditionKind.belief_known,
+                                character_id=STEWARD,
+                                fact_id=FACT_PLOT,
+                            ),
+                        ],
                     )
                 ],
                 recent_perceptions=["午夜前门房出现一封来历不明的密信。"],
@@ -187,6 +206,23 @@ def build_snapshot() -> WorldState:
                         plan_id="steward_build_defense",
                         goal_id=GOAL_PROTECT,
                         steps=["核对守卫证词", "通知盟友", "建立防卫联盟"],
+                        step_conditions=[
+                            PlanStepCondition(
+                                kind=PlanConditionKind.belief_known,
+                                character_id=STEWARD,
+                                fact_id=FACT_PLOT,
+                            ),
+                            PlanStepCondition(
+                                kind=PlanConditionKind.belief_known,
+                                character_id=ALLY,
+                                fact_id=FACT_PLOT,
+                            ),
+                            PlanStepCondition(
+                                kind=PlanConditionKind.alliance_formed,
+                                member_ids=[STEWARD, ALLY],
+                                goal_key=GOAL_PROTECT,
+                            ),
+                        ],
                     )
                 ],
                 recent_perceptions=["摄政王近期频繁试探庄园守备。"],
