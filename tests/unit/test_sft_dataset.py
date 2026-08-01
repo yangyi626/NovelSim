@@ -86,6 +86,9 @@ def test_sft_completion_is_normalized_and_prompt_is_actor_scoped():
     assert "observation_id" not in observation
     assert "initial_state" not in observation
     assert "available_tools" in observation
+    assert observation["output_contract"]["actor_id"] == decision["actor_id"]
+    assert "interact" in observation["output_contract"]["intent_enum"]
+    assert all("tool_name" in tool for tool in observation["available_tools"])
     assert "title" not in json.dumps(observation["available_tools"])
     assert [item.dict() for item in sample.prompt] == planner_prompt_messages(
         trajectory.steps[0].observation

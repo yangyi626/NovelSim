@@ -288,6 +288,7 @@ def test_prompted_openai_call_uses_shared_prompt_and_bounded_options(monkeypatch
     assert captured["messages"] == planner_prompt_messages(observation)
     assert captured["max_tokens"] == 256
     assert captured["enable_thinking"] is False
+    assert captured["response_format"] == {"type": "json_object"}
     assert captured["temperature"] == 0.1
     assert captured["request_timeout"] == 7.0
     assert collector.summary().total_tokens == 60

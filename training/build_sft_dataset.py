@@ -31,7 +31,7 @@ from .export_trajectories import load_trajectories_jsonl
 
 
 SFT_SCHEMA_VERSION = "novelsim_planner_sft_sample.v1"
-SFT_DATASET_ID = "novelsim_planner_sft_v1"
+SFT_DATASET_ID = "novelsim_planner_sft_v2"
 PROMPT_VERSION = PLANNER_PROMPT_VERSION
 ALLOWED_SPLITS = ("train", "dev")
 SEALED_SPLITS = ("test_id", "test_ood", "adversarial")
@@ -470,7 +470,7 @@ def _write_card(card: Dict[str, Any], output: Path) -> None:
         encoding="utf-8",
     )
     lines = [
-        "# NovelSim Planner SFT Dataset v1",
+        "# NovelSim Planner SFT Dataset v2",
         "",
         "- Format: conversational prompt-completion",
         "- Loss: completion only",

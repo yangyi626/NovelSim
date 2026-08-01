@@ -167,6 +167,7 @@ class PromptedLLMPolicy:
             messages=messages,
             temperature=self.temperature,
             request_timeout=self.request_timeout_seconds,
+            response_format={"type": "json_object"},
             **chat_generation_options(
                 model,
                 max_tokens=self.max_tokens,

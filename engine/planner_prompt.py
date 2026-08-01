@@ -7,14 +7,18 @@ import re
 from typing import Any, Dict, List, Optional
 
 from .game_observation import GameObservation
+from .planner_decision import PlannerIntent
 
 
-PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v1"
+PLANNER_PROMPT_VERSION = "novelsim_planner_prompt.v2"
 PLANNER_SYSTEM_PROMPT = """You are the high-level NPC planner in NovelSim.
 Choose exactly one grounded action from available_tools for the observed actor.
 Respect visible entities, rules, constraints, capabilities, affordances, evidence, persona, goals, and feedback.
-Return one PlannerDecision JSON object only. Never invent facts, entities, tools, world mutations, StatePatch, or operations. The authoritative runtime validates and commits all effects.
-If no action is grounded, return intent=wait with tool_call=null."""
+Return exactly one PlannerDecision JSON object and no other text.
+The top-level intent MUST be one value from output_contract.intent_enum; a tool name is never an intent.
+For an executable action, tool_call MUST contain exactly actor_id, tool_name, and arguments. Copy tool_name from available_tools[].tool_name and use its required argument keys.
+Never invent facts, entities, tools, world mutations, StatePatch, or operations. The authoritative runtime validates and commits all effects.
+If no action is grounded, return intent="wait" with tool_call=null."""
 
 
 def planner_prompt_messages(observation: GameObservation) -> List[Dict[str, str]]:
@@ -121,6 +125,28 @@ def compact_observation(observation: GameObservation) -> Dict[str, Any]:
         },
         "capability_ids": list(observation.capability_ids),
         "visible_affordances": list(observation.visible_affordances),
+        "output_contract": {
+            "schema_version": "planner_decision.v1",
+            "format": "one JSON object only",
+            "required_top_level_fields": ["actor_id", "intent", "tool_call"],
+            "actor_id": observation.actor_id,
+            "intent_enum": [intent.value for intent in PlannerIntent],
+            "tool_call_contract": {
+                "null_only_when_intent_is_wait": True,
+                "required_fields": ["actor_id", "tool_name", "arguments"],
+                "actor_id": observation.actor_id,
+                "tool_name_enum": [tool.name for tool in observation.available_tools],
+                "arguments": "JSON object matching the selected available tool schema",
+            },
+            "optional_top_level_fields": [
+                "goal_id",
+                "evidence_ids",
+                "predicted_preconditions",
+                "predicted_effects",
+                "confidence",
+                "reason_summary",
+            ],
+        },
         "available_tools": [
             compact_tool_schema(tool.name, tool.description, tool.parameters)
             for tool in observation.available_tools
@@ -153,7 +179,7 @@ def compact_tool_schema(
         }
         compact_properties[field_name] = kept or {"type": "string"}
     return {
-        "name": name,
+        "tool_name": name,
         "description": description,
         "required": list(parameters.get("required", [])),
         "properties": compact_properties,
