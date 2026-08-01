@@ -20,6 +20,7 @@ dev = [
     "pytest>=7.4",
     "httpx>=0.24,<0.28",
     "python-multipart>=0.0.9,<1",
+    "pyarrow>=14,<18",
 ]
 production = [
     "psycopg2-binary>=2.9,<3",
@@ -28,9 +29,13 @@ qdrant = [
     # 1.11.3 是支持本项目 Python 3.8 运行时的最后版本线。
     "qdrant-client==1.11.3",
 ]
+training = [
+    # 训练环境独立于 Python 3.8 游戏 Runtime；Parquet 用于批量切片与审计。
+    "pyarrow>=14,<18",
+]
 
 [tool.setuptools]
-packages = ["world_schema", "engine", "compiler", "web", "evaluation"]
+packages = ["world_schema", "engine", "compiler", "web", "evaluation", "training"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

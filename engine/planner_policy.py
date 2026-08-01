@@ -303,6 +303,7 @@ class PlannerPolicySceneSelector:
         self.actor_selector = actor_selector
         self.world_package_id = world_package_id
         self.scenario_family = scenario_family
+        self.observations: List[GameObservation] = []
         self.decisions: List[PlannerDecision] = []
 
     def __call__(
@@ -327,6 +328,7 @@ class PlannerPolicySceneSelector:
             if self.registry.get(name) is not None
         )
         decision = self.router.decide(observation, definitions)
+        self.observations.append(observation)
         self.decisions.append(decision)
         return decision.tool_call
 
