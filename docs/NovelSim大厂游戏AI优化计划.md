@@ -3,7 +3,7 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 设计已经完成，实施从 Phase 1A“统一 Planner 合同”开始，不提前训练。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1A“统一 Planner 合同”已完成，下一步只推进 Phase 1B“Trajectory 与失败归因”，不提前训练。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 
 ---
@@ -47,8 +47,8 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **0%，尚未开始** | 尚无 `PlannerPolicy`、`GameObservation`、`PlannerDecision`、`GameTrajectory`、场景族、split manifest、训练脚本或 checkpoint |
-| 当前唯一主线 | **Phase 1A** | 在不修改 Runtime 权威规则的前提下，让 Scripted / Prompt / ReAct 通过配置切换并复用同一 Policy 合同 |
+| V2 代码实施 | **Phase 1A 已完成** | 已实现 `PlannerPolicy`、`GameObservation`、`PlannerDecision`、Scripted / Prompt / ReAct adapter、配置路由和 SceneSelector；尚无 `GameTrajectory`、场景族、split manifest、训练脚本或 checkpoint |
+| 当前唯一主线 | **Phase 1B** | 实现可重放 `GameTrajectory`、`RewardBreakdown` 与确定性 failure attribution，独立记录 illegal proposal / illegal commit |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
 
@@ -634,7 +634,7 @@ Cognitive Integrity
 
 ### Phase 1：Policy 与 Trajectory 合同（3–4 天）
 
-> 状态：**下一阶段，尚未开始**。先完成 Phase 1A，再开始 Phase 1B；本阶段不运行 SFT/GRPO。
+> 状态：**进行中**。Phase 1A 已完成；Phase 1B 尚未开始。本阶段不运行 SFT/GRPO。
 
 建议新增：
 
@@ -650,6 +650,8 @@ tests/unit/test_game_trajectory.py
 ```
 
 #### Phase 1A：统一 Planner 合同（优先）
+
+> 状态：**已完成（2026-08-01）**。新增 14 项测试，三种 Policy 在相同密信场景中共享同一 SceneController、ToolRegistry、FSM 与 Gate；加入错误/超时 scripted fallback，并验证非法 aircraft 目标不会提交事件或改变状态。全量 Python 回归为 `347 passed, 15 deselected`。
 
 任务：
 
@@ -667,6 +669,8 @@ Phase 1A 验收：
 - 原有 Python 回归不下降，并新增 Policy 合同、序列化、超时和 fallback 单测。
 
 #### Phase 1B：Trajectory 与失败归因
+
+> 状态：**下一阶段，尚未开始**。
 
 任务：
 
@@ -926,9 +930,9 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **从 `main@8f36928` 创建 `codex/trainable-planner-v2`，完成 `GameObservation + PlannerDecision + PlannerPolicy` 及 Scripted / Prompt / ReAct adapter。**
-2. **通过 Phase 1A 回归后实现 `GameTrajectory + deterministic verifier`，从现有 benchmark/Trace 导出第一版可重放 JSONL。**
-3. **在生成任何大规模数据前实现三个参数化 `scenario_family`，冻结 Train/Dev/Test-ID/Test-OOD manifest 并运行 hash/leakage audit。**
+1. **在已完成的 Phase 1A 合同上实现 `GameTrajectory + RewardBreakdown + FailureAttribution`，从现有 benchmark/Trace 导出第一版可重放 JSONL。**
+2. **让同一 episode 的 observation、decision、ToolResult、committed event、state hash 和 reward 可完整串联与确定性重放。**
+3. **Phase 1B 回归通过后实现三个参数化 `scenario_family`，冻结 Train/Dev/Test-ID/Test-OOD manifest 并运行 hash/leakage audit。**
 
 第一项完成前不写训练脚本；第二项完成前不开始 SFT；第三项完成前不批量采集数据。
 
