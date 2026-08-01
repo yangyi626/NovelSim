@@ -3,7 +3,7 @@
 > 版本：V2.1（执行版）
 > 更新日期：2026-08-01
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
-> 当前决策：V1 求职版保持冻结；V2 Phase 1、确定性数据主干、SFT 数据合同与单卡 QLoRA 入口已落地；PromptedLLM 的 Train/Dev 限量采集代码和零费用计划已冻结，下一步执行真实 Prompted smoke 与服务器 0.6B SFT smoke。
+> 当前决策：V1 求职版保持冻结；V2 Phase 1、确定性数据、SFT/Prompted 数据与执行代码、本地 Adapter Policy 和 Dev Runtime smoke 验收器均已落地；下一步仍是执行真实 Prompted smoke 与服务器 0.6B SFT smoke，不能以 fake backend 测试代替真实报告。
 > Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
 > V2 开发分支：`codex/trainable-planner-v2`；正式数据采集代码基线：`f6f9f20`。
 
@@ -48,7 +48,7 @@ Unity / Python 权威游戏世界
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
 | V2 方案设计 | **100% 已完成** | 架构、数据、SFT/GRPO、OOD 评测、4090 算力路线与交付门槛已确定 |
-| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成，Phase 3 数据/代码就绪** | 2,160 episode / 9,120 step 已生成；SFT Train/Dev 为 `3,060/340` 个唯一样本、跨 split hash 重叠 0；PromptedLLM 实跑与训练 checkpoint 尚未完成 |
+| V2 代码实施 | **Phase 1 完成，Phase 2 接近完成，Phase 3 训练前代码就绪** | SFT/GRPO Adapter Policy、逐文件 checkpoint hash 校验和 Dev inference→Gate→replay smoke 已实现；PromptedLLM 实跑与训练 checkpoint 尚未完成 |
 | 当前唯一主线 | **执行两个真实 smoke** | Prompted 代码已就绪但尚无真实 API 报告；0.6B 代码已就绪但尚无 checkpoint。两者通过前不声称模型提升、不启动 4B |
 
 进度口径：V1 与 V2 分开报告。不能把 V1 已完成的工程闭环计入 V2 的训练完成度，也不能在正式 OOD 报告生成前写“训练带来提升”。
@@ -70,22 +70,22 @@ Unity / Python 权威游戏世界
 | 工程质量 | Python `333 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7` | 作为回归基线 |
 | 主观评测边界 | 6 题真人/Judge 一致 `5/6`，Cohen's κ `0.667`，样本小不外推 | V2 扩大样本并继续谨慎表述 |
 
-### 1.2 当前最影响竞争力的五个缺口
+### 1.2 原始五个缺口与当前剩余证据
 
-1. **没有可训练的 Planner 主线。**
-   当前存在 Prompt/LLM 决策和确定性执行，但没有统一的 `PlannerPolicy` 接口、训练数据导出器、SFT/GRPO checkpoint 和策略对比。
+1. **仍没有真实训练 checkpoint 与策略对比结果。**
+   `PlannerPolicy`、轨迹导出、SFT 数据、QLoRA 入口和 Adapter Runtime 已实现；剩余缺口是服务器生成的 SFT/GRPO checkpoint，以及对 Prompt/ReAct 的真实对比证据。
 
 2. **评测集规模不足以证明泛化。**
    当前 9 条确定性 case、20 条真实 LLM case 和 6 条 Pairwise 样本能够证明闭环可运行，但不能证明模型学会了跨世界规划。
 
-3. **单一剧情容易被理解为 Demo 特判。**
-   “密信”竖切片很适合演示，但需要参数化世界族和未见 `scenario_family` 才能排除记忆答案、Prompt 特化和规则硬编码。
+3. **参数化世界已建立，但未见世界模型结果仍为空。**
+   三个原创世界族和 family-level Test-OOD 已冻结；在 SFT/GRPO checkpoint 完成并保持 Test-OOD 封存之前，还不能证明跨世界泛化。
 
 4. **尚未把个人后训练经历落到游戏运行时。**
    简历中已经有 SFT、GRPO、OPD-lite、trajectory rollout 和 failure attribution；NovelSim 仍缺一条把这些经历统一起来的可公开证据链。
 
-5. **Planner 质量与 Runtime 安全尚未分开报告。**
-   “模型提出非法动作”和“非法动作真的写入世界”是两个指标。V2 必须同时证明模型越来越少提出非法动作，以及门禁始终保证非法提交为 0。
+5. **指标合同已经分开，训练模型的真实数字尚缺。**
+   数据和 smoke 报告已独立统计 illegal proposal 与 illegal commit；仍需用真实 Prompt/SFT/GRPO rollout 证明模型提议质量变化，同时验证 Runtime 非法提交始终为 0。
 
 ---
 
@@ -717,7 +717,7 @@ training/audit_leakage.py
 
 ### Phase 3：SFT Planner（4–6 天）
 
-> 状态：**进行中，数据与训练代码已就绪，服务器训练未开始**。正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；内容 hash 不包含 split/source 元数据，Train/Dev 重叠 0，Test-ID/Test-OOD 未读取。Qwen3-0.6B/4B 的 QLoRA 配置与 `--validate-only` 已通过；尚无 checkpoint，不能宣称模型提升。
+> 状态：**进行中，数据、训练、本地推理与 Runtime smoke 代码已就绪，服务器训练未开始**。正式 Train/Dev 源步骤为 `4,680/520`，剔除 illegal proposal `360/40` 和相同 prompt-completion 语义重复 `1,260/140` 后，得到 TRL conversational prompt-completion 唯一样本 `3,060/340` 条，并完整保留恢复反馈 `360/40` 条；内容 hash 不包含 split/source 元数据，Train/Dev 重叠 0，Test-ID/Test-OOD 未读取。Qwen3-0.6B/4B QLoRA 配置、逐文件 adapter hash 校验、`SFTPolicy/GRPOPolicy` 与 Dev inference→Gate→replay 验收器均已通过 fake checkpoint 自动化测试；真实预检仍因 adapter/run manifest 不存在而 `ready=false`，因此尚无 checkpoint、不能宣称模型提升。
 
 任务：
 

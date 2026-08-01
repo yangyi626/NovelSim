@@ -98,6 +98,7 @@ from .planner_prompt import (
     PLANNER_SYSTEM_PROMPT,
     compact_observation,
     compact_tool_schema,
+    extract_json_object,
     planner_prompt_messages,
 )
 from .game_trajectory import (
@@ -128,6 +129,19 @@ from .planner_policy import (
     ScriptedPolicy,
     coerce_planner_decision,
     tool_definitions_from_observation,
+)
+from .local_planner_policy import (
+    AdapterCheckpointEvidence,
+    AdapterPlannerPolicy,
+    GRPOPolicy,
+    LocalAdapterConfig,
+    LocalGeneration,
+    LocalPlannerBackend,
+    PlannerDecisionWithUsage,
+    SFTPolicy,
+    TransformersPeftBackend,
+    inspect_adapter_checkpoint,
+    load_local_adapter_config,
 )
 from .embeddings import (
     CachedMemoryEmbedder,
@@ -298,6 +312,7 @@ __all__ = [
     "PLANNER_SYSTEM_PROMPT",
     "compact_observation",
     "compact_tool_schema",
+    "extract_json_object",
     "planner_prompt_messages",
     "FailureAttribution",
     "FailureCategory",
@@ -324,6 +339,17 @@ __all__ = [
     "ScriptedPolicy",
     "coerce_planner_decision",
     "tool_definitions_from_observation",
+    "AdapterCheckpointEvidence",
+    "AdapterPlannerPolicy",
+    "GRPOPolicy",
+    "LocalAdapterConfig",
+    "LocalGeneration",
+    "LocalPlannerBackend",
+    "PlannerDecisionWithUsage",
+    "SFTPolicy",
+    "TransformersPeftBackend",
+    "inspect_adapter_checkpoint",
+    "load_local_adapter_config",
     "EmbeddingError",
     "CachedMemoryEmbedder",
     "MemoryEmbedder",

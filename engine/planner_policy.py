@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from contextvars import copy_context
 from enum import Enum
@@ -21,6 +20,7 @@ from .llm_telemetry import call_openai_compatible, chat_generation_options
 from .planner_decision import PlannerDecision, PlannerIntent
 from .planner_prompt import (
     PLANNER_PROMPT_VERSION,
+    extract_json_object,
     planner_prompt_messages,
 )
 from world_schema import WorldState
@@ -49,6 +49,8 @@ class PlannerPolicyKind(str, Enum):
     scripted = "scripted"
     prompt = "prompt"
     react = "react"
+    sft = "sft"
+    grpo = "grpo"
 
 
 class PlannerPolicyConfig(BaseModel):
@@ -172,7 +174,7 @@ class PromptedLLMPolicy:
             ),
         )
         raw = response.choices[0].message.content.strip()
-        parsed = _extract_json(raw)
+        parsed = extract_json_object(raw)
         if parsed is None:
             raise PlannerPolicyError("planner response is not a JSON object")
         return parsed
@@ -395,28 +397,3 @@ def _validate_policy_result(
         raise PlannerPolicyError("policy must return PlannerDecision")
     if decision.actor_id != observation.actor_id:
         raise PlannerPolicyError("policy changed observation actor_id")
-
-
-def _extract_json(raw: str) -> Optional[Dict[str, Any]]:
-    if not raw:
-        return None
-    try:
-        value = json.loads(raw)
-        return value if isinstance(value, dict) else None
-    except json.JSONDecodeError:
-        pass
-    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
-    if match:
-        try:
-            value = json.loads(match.group(1))
-            return value if isinstance(value, dict) else None
-        except json.JSONDecodeError:
-            pass
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if match:
-        try:
-            value = json.loads(match.group(0))
-            return value if isinstance(value, dict) else None
-        except json.JSONDecodeError:
-            pass
-    return None

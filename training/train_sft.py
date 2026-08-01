@@ -363,6 +363,9 @@ def run_training(
     trainer.save_metrics("train", metrics)
     trainer.save_state()
 
+    adapter_files = _directory_file_records(final_dir)
+    adapter_content_hash = _canonical_hash(adapter_files)
+
     manifest = {
         "schema_version": "novelsim_sft_run_manifest.v1",
         "status": "completed",
@@ -377,6 +380,8 @@ def run_training(
         "code_commit": _git_commit(root),
         "metrics": metrics,
         "final_adapter": str(final_dir),
+        "adapter_files": adapter_files,
+        "adapter_content_hash": adapter_content_hash,
     }
     (output_dir / "run-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
@@ -488,6 +493,28 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _directory_file_records(path: Path) -> Dict[str, Dict[str, Any]]:
+    records: Dict[str, Dict[str, Any]] = {}
+    for item in sorted(path.rglob("*")):
+        if not item.is_file():
+            continue
+        records[item.relative_to(path).as_posix()] = {
+            "bytes": item.stat().st_size,
+            "sha256": _sha256(item),
+        }
+    return records
+
+
+def _canonical_hash(value: Any) -> str:
+    canonical = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _git_commit(root: Path) -> str:

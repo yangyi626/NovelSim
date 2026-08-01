@@ -166,3 +166,29 @@ python -m training.train_sft \
 ```
 
 两份配置固定使用 4-bit NF4、double quant、bf16、gradient checkpointing、micro batch `1`、`all-linear` LoRA 和 completion-only loss。训练入口会在模型加载后对全部 3,400 个唯一样本做 tokenizer 长度审计；任何样本超过 `max_length=2048` 都会停止，而不是静默截断 prompt 或 completion。训练产物保存在 `training/outputs/` 并由 Git 忽略，`run-manifest.json` 记录数据哈希、config、commit、GPU/CUDA、包版本、token 长度和指标。
+
+### Adapter 加载与 Runtime smoke
+
+`SFTPolicy`/`GRPOPolicy` 使用同一 `AdapterPlannerPolicy`：懒加载 Transformers + PEFT，不会让 Python 3.8 游戏 Runtime 在 import 时依赖 CUDA 包。加载前必须同时通过：
+
+- run manifest 为完成态，模型、Prompt 版本和 SFT 数据集一致；
+- `adapter_config.json` 的 base model、LoRA 和 `CAUSAL_LM` 类型一致；
+- tokenizer、adapter 权重存在；
+- adapter 目录中每个文件的 SHA-256 与训练结束时写入 run manifest 的清单一致。
+
+本地无 checkpoint 时可做零模型预检；当前预期结果是 `ready=false`，并明确报告 `run_manifest_missing` 和 `adapter_directory_missing`：
+
+```bash
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_qwen3_0.6b.json
+```
+
+服务器完成 0.6B 训练后，用同一配置显式执行 Dev-only smoke：
+
+```bash
+python -m training.checkpoint_smoke \
+  --config training/configs/checkpoint_smoke_qwen3_0.6b.json \
+  --execute
+```
+
+该 smoke 必须实际加载 adapter，在冻结 Dev 场景逐步生成 `PlannerDecision`，经过权威 Runtime Gate，保存可回放 trajectory，并同时满足：无生成错误、Schema 全通过、illegal commit 为 0、目标完成、回放一致。报告和 trajectory 默认写入 Git 忽略目录，不能用单元测试的 fake backend 代替服务器报告。

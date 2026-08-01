@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from .game_observation import GameObservation
 
@@ -29,6 +30,33 @@ def planner_prompt_messages(observation: GameObservation) -> List[Dict[str, str]
             ),
         },
     ]
+
+
+def extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
+    """Parse a planner JSON object from plain or fenced model output."""
+
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        pass
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    if fenced:
+        try:
+            value = json.loads(fenced.group(1))
+            return value if isinstance(value, dict) else None
+        except json.JSONDecodeError:
+            pass
+    candidate = re.search(r"\{.*\}", raw, re.DOTALL)
+    if candidate:
+        try:
+            value = json.loads(candidate.group(0))
+            return value if isinstance(value, dict) else None
+        except json.JSONDecodeError:
+            pass
+    return None
 
 
 def compact_observation(observation: GameObservation) -> Dict[str, Any]:
