@@ -1,0 +1,189 @@
+{
+  "audit_id": "reward-audit-2da5300259eb30b7",
+  "errors": [],
+  "group_reset_equal_count": 2,
+  "illegal_commit_count": 0,
+  "invariant_results": {
+    "fabricated_evidence_not_rewarded": true,
+    "fabricated_goal_not_rewarded": true,
+    "group_members_share_initial_hash": true,
+    "illegal_commit_always_zero": true,
+    "invalid_schema_is_negative": true,
+    "irrelevant_legal_action_not_rewarded": true,
+    "irrelevant_legal_probe_gate_accepted": true,
+    "objective_only_rejection_cannot_gain": true,
+    "reference_beats_wait": true,
+    "repeated_action_is_penalized": true,
+    "unknown_entity_is_negative": true
+  },
+  "passed": true,
+  "probe_count": 14,
+  "probes": [
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "none",
+      "mixed_reward": 0.3,
+      "objective_only_reward": 0.0,
+      "probe": "reference",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": true,
+      "mixed_failure_label": "invalid_schema",
+      "mixed_reward": -0.5,
+      "objective_only_reward": 0.0,
+      "probe": "invalid_schema",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": true,
+      "mixed_failure_label": "unknown_entity",
+      "mixed_reward": -0.8,
+      "objective_only_reward": 0.0,
+      "probe": "unknown_entity",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "no_progress",
+      "mixed_reward": -0.05,
+      "objective_only_reward": 0.0,
+      "probe": "wait",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "objective_abandonment",
+      "mixed_reward": -0.05,
+      "objective_only_reward": 0.0,
+      "probe": "irrelevant_legal",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "evidence_mismatch",
+      "mixed_reward": -0.0,
+      "objective_only_reward": 0.0,
+      "probe": "fabricated_evidence",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "persona_goal_conflict",
+      "mixed_reward": -0.0,
+      "objective_only_reward": 0.0,
+      "probe": "fabricated_goal",
+      "sample_id": "grpo_ffa4373f550b4ee0b288e7d1",
+      "scenario_family": "resource_negotiation"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "none",
+      "mixed_reward": 0.3,
+      "objective_only_reward": 0.0,
+      "probe": "reference",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": true,
+      "mixed_failure_label": "invalid_schema",
+      "mixed_reward": -0.5,
+      "objective_only_reward": 0.0,
+      "probe": "invalid_schema",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": true,
+      "mixed_failure_label": "unknown_entity",
+      "mixed_reward": -0.8,
+      "objective_only_reward": 0.0,
+      "probe": "unknown_entity",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": false,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "no_progress",
+      "mixed_reward": -0.05,
+      "objective_only_reward": 0.0,
+      "probe": "wait",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "objective_abandonment",
+      "mixed_reward": -0.05,
+      "objective_only_reward": 0.0,
+      "probe": "irrelevant_legal",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "evidence_mismatch",
+      "mixed_reward": -0.0,
+      "objective_only_reward": 0.0,
+      "probe": "fabricated_evidence",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    },
+    {
+      "gate_accepted": true,
+      "illegal_commit": false,
+      "illegal_proposal": false,
+      "mixed_failure_label": "persona_goal_conflict",
+      "mixed_reward": -0.0,
+      "objective_only_reward": 0.0,
+      "probe": "fabricated_goal",
+      "sample_id": "grpo_c339e774f8f38ba4738d3788",
+      "scenario_family": "secret_transport"
+    }
+  ],
+  "reward_ranges": {
+    "mixed": {
+      "max": 0.3,
+      "min": -0.8
+    },
+    "objective_only": {
+      "max": 0.0,
+      "min": 0.0
+    }
+  },
+  "sample_count": 2,
+  "schema_version": "novelsim_reward_audit.v2"
+}

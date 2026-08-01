@@ -1,0 +1,131 @@
+{
+  "dataset_id": "novelsim_planner_sft_v3",
+  "files": {
+    "dev.jsonl": {
+      "bytes": 2142263,
+      "path": "data\\sft\\novelsim-planner-v3\\dev.jsonl",
+      "sha256": "29465f70fe7e774b9757e0e538a243b1db731af7449799fcc55e4e897bf6a0d8"
+    },
+    "train.jsonl": {
+      "bytes": 19286846,
+      "path": "data\\sft\\novelsim-planner-v3\\train.jsonl",
+      "sha256": "4b97ec2c369c0ab223a329af1a226d89c3ad77590c11f77758d90820447aa2d3"
+    }
+  },
+  "format": "conversational_prompt_completion",
+  "leakage_audit": {
+    "passed": true,
+    "train_dev_content_hash_overlap": 0
+  },
+  "loss_scope": "completion_only",
+  "prompt_version": "novelsim_planner_prompt.v3",
+  "schema_version": "novelsim_sft_dataset_card.v1",
+  "source_dataset_card": {
+    "code_commits": [
+      "e276e18af8453fe08eae481e073a873654af9457"
+    ],
+    "dataset_id": "novelsim_planner_expert_v2",
+    "manifest_hash": "0b3fb988497f14b6a115177e5f1750eed8a2cac6f08b98c116790dd7d1cb43f1",
+    "manifest_id": "split_0b3fb988497f14b6",
+    "path": "training\\reports\\novelsim-planner-expert-v2\\dataset-card.json",
+    "sha256": "7051a0d4c0841947d2dc5b49b316e3e3a72dcb160c3068efd43ee637a08fb908"
+  },
+  "source_files": {
+    "dev.jsonl": {
+      "bytes": 8157441,
+      "path": "data\\trajectories\\novelsim-planner-expert-v2\\dev.jsonl",
+      "sha256": "34ccb9dd5c07d2d9bd5b69817d14213c909e1740e9fd66a7c8ac4c22d6a196ff"
+    },
+    "train.jsonl": {
+      "bytes": 73420439,
+      "path": "data\\trajectories\\novelsim-planner-expert-v2\\train.jsonl",
+      "sha256": "c35e5fc18d3779ddb84ad8eccfca8feec1ae432fd2f1a696440db04f499fdca3"
+    }
+  },
+  "splits": {
+    "dev": {
+      "completion_chars": {
+        "max": 378,
+        "min": 287,
+        "p50": 345,
+        "p95": 378
+      },
+      "excluded_step_count": 180,
+      "excluded_step_distribution": {
+        "duplicate_content_hash": 140,
+        "illegal_proposal": 40
+      },
+      "family_distribution": {
+        "resource_negotiation": 100,
+        "secret_transport": 240
+      },
+      "prompt_chars": {
+        "max": 5611,
+        "min": 3429,
+        "p50": 4621,
+        "p95": 5611
+      },
+      "recovery_context_count": 40,
+      "sample_count": 340,
+      "source_distribution": {
+        "controlled_recovery": 80,
+        "safe_heuristic": 100,
+        "scripted_expert": 160
+      },
+      "source_episode_count": 120,
+      "source_step_count": 520,
+      "unique_content_hash_count": 340
+    },
+    "train": {
+      "completion_chars": {
+        "max": 378,
+        "min": 287,
+        "p50": 345,
+        "p95": 378
+      },
+      "excluded_step_count": 1620,
+      "excluded_step_distribution": {
+        "duplicate_content_hash": 1260,
+        "illegal_proposal": 360
+      },
+      "family_distribution": {
+        "resource_negotiation": 900,
+        "secret_transport": 2160
+      },
+      "prompt_chars": {
+        "max": 5611,
+        "min": 3429,
+        "p50": 4621,
+        "p95": 5611
+      },
+      "recovery_context_count": 360,
+      "sample_count": 3060,
+      "source_distribution": {
+        "controlled_recovery": 720,
+        "safe_heuristic": 900,
+        "scripted_expert": 1440
+      },
+      "source_episode_count": 1080,
+      "source_step_count": 4680,
+      "unique_content_hash_count": 3060
+    }
+  },
+  "target_filter": {
+    "deduplicates_by_prompt_completion_hash": true,
+    "excludes_collection_policy_provenance_from_target": true,
+    "excludes_illegal_proposals": true,
+    "preserves_feedback_on_subsequent_recovery_actions": true,
+    "requires_committed_event": true,
+    "requires_objective_satisfied_episode": true,
+    "requires_successful_tool_result": true
+  },
+  "training_boundary": {
+    "checkpoint_selection_split": "dev",
+    "optimization_split": "train",
+    "sealed_splits_not_loaded": [
+      "test_id",
+      "test_ood",
+      "adversarial"
+    ]
+  }
+}
