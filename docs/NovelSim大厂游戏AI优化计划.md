@@ -4,8 +4,8 @@
 > 更新日期：2026-08-02
 > 目标岗位：大厂游戏 AI / 游戏 Agent / LLM Agent / 智能 NPC 算法实习与校招
 > 当前决策：V1 求职版保持冻结；V2 Phase 1/2、权威计划推进、Expert v4、SFT/GRPO v5、真实 Prompted smoke、本地 Adapter Policy、Dev Runtime smoke 与 reward-hacking 审计器均已落地；下一步是服务器单卡 4090 上执行 0.6B SFT smoke，不能以 fake backend、API 大模型或确定性 reward 审计代替本地训练 checkpoint。
-> Git 基线：`main` / `8f36928`，已与 `origin/main` 同步。
-> V2 开发分支：`codex/trainable-planner-v2`；权威评估代码基线：`00b97cf`；Expert v4 / SFT v5 / GRPO v5 数据报告提交：`7ac00cc`。
+> Git 基线：V2 已快进合并到 `main`；正式训练与发布只允许从干净且匹配 handoff commit 的 `main` 执行。
+> 历史开发分支：`codex/trainable-planner-v2`；权威评估代码基线：`00b97cf`；Expert v4 / SFT v5 / GRPO v5 数据报告提交：`7ac00cc`；4090 交付流水线基线：`9ac7a6c`。
 
 ---
 
@@ -959,7 +959,7 @@ NovelSim V2
 
 ## 16. 现在立即执行的前三项
 
-1. **把 `codex/trainable-planner-v2`、SFT v5 Train/Dev 数据及数据卡同步到服务器，使用 `sft_qwen3_0.6b_smoke.json` 完成真实 tokenizer 全量审计与 100-step QLoRA pipeline smoke。**
+1. **把 `main`、SFT v5 Train/Dev 数据及数据卡同步到服务器，使用 `server_sft_qwen3_0.6b_smoke.json` 完成精确 commit 校验、真实 tokenizer 全量审计与 100-step QLoRA pipeline smoke。**
 2. **对 0.6B adapter 运行冻结 Dev 的 `checkpoint_smoke_qwen3_0.6b.json --execute`，验收实际加载、Schema、Gate、目标完成、非法提交和确定性回放，并提交 run manifest/model card；不上传大权重到 Git。**
 3. **只有 0.6B SFT 闭环通过后，才运行 1.7B debug 与 4B SFT 主实验；SFT 主 checkpoint 固定后，再按 objective-only 20-step → mixed 50-step → GRPO Runtime smoke 的顺序进入强化学习。**
 

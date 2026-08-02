@@ -1,7 +1,7 @@
 {
   "schema_version": "novelsim_server_sft_pipeline_config.v1",
   "handoff_id": "novelsim-qwen3-0.6b-sft-smoke-v5",
-  "required_git_branch": "codex/trainable-planner-v2",
+  "required_git_branch": "main",
   "sft_config": "training/configs/sft_qwen3_0.6b_smoke.json",
   "checkpoint_smoke_config": "training/configs/checkpoint_smoke_qwen3_0.6b.json",
   "requirements_file": "training/requirements-sft.txt",

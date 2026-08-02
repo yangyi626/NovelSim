@@ -151,8 +151,8 @@ SFT 数据只读取正式轨迹的 `train.jsonl` 和 `dev.jsonl`，命令行没�
 将 `tmp/server-handoff/novelsim-qwen3-0.6b-sft-smoke-v5.tar.gz` 传到服务器。服务器必须先检出归档 manifest 记录的精确 commit，再安装；相同文件会复用，任何同路径不同哈希文件都会被拒绝覆盖。安装成功会写入 handoff receipt，真实训练入口缺少该 receipt 时会在加载 CUDA 模型前停止：
 
 ```bash
-git fetch origin codex/trainable-planner-v2
-git checkout codex/trainable-planner-v2
+git fetch origin main
+git checkout main
 git pull --ff-only
 python3.11 -m venv .venv-sft
 source .venv-sft/bin/activate
