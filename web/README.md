@@ -95,6 +95,7 @@ cd web/frontend && npm run dev
 - **中栏·世界事件流**：每回合一张卡片，展示玩家输入、旁白、对白、系统提示和 NPC 自主反应。
 - **右栏·世界检查器**：在状态、规则判定、场景三个标签页之间切换；非法行动会自动打开规则判定并显示拒绝码、原因和未提交状态提示。
 - **底部输入框**：自然语言描述你想做的事，Ctrl+Enter 发送；内置正常行动与“开飞机”非法行动演示输入。
+- **一键演示**：顶栏可直接运行非法规则拦截、合法状态提交和多 Agent 信息传播三条本地确定性案例；均不需要 API Key。
 - **NPC 自主反应开关**：默认开启——夜清清/林管家会在你行动后自主反应（更烧 token 但体验完整）。
 - **自动续玩**：浏览器保存当前会话 ID，刷新页面或重启后端后会恢复同一世界状态。
 - **存档管理**：可新建多条世界线，并对存档进行改名、载入、导出、导入和删除。
@@ -145,6 +146,7 @@ cd web/frontend && npm run dev
 - `POST /api/creator/compiler/jobs` 创建全书编译任务；`GET /api/creator/compiler/jobs` 查询进度。
 - `GET /api/creator/compiler/jobs/<id>` 查看逐章状态和快照；`POST .../actions` 执行暂停、继续或取消。
 - `POST /api/auth/login`、`GET /api/auth/me` 提供创作者 Bearer 身份；`GET /api/creator/audit` 查询审核审计。
+- `POST /api/demo/runs` 运行 `invalid_airplane`、`valid_intervention` 或 `multi_agent` 求职演示，返回标准可恢复会话与结构化证据。
 - 核心 API 已冻结为 `1.0.0`；机器可读清单在 `contracts/api-v1.json`，运行时可查询 `GET /api/meta/contract`。
 - 恢复会话时会重建玩家输入、旁白、对白、系统提示和 NPC 反应卡片。
 
@@ -177,6 +179,7 @@ web/
     │   ├── CharacterProfiles.vue # 左栏角色状态卡
     │   ├── StoryFeed.vue   # 中栏剧情与规则拒绝事件流
     │   ├── InspectorPanel.vue # 右栏状态/规则/场景标签页
+    │   ├── DemoLauncher.vue # 三条无需 API Key 的一键演示
     │   ├── SaveManager.vue # 多世界线存档管理
     │   ├── StatePanel.vue  # 右栏世界状态子面板
     │   └── TurnInput.vue   # 底部输入与演示用例
@@ -186,6 +189,8 @@ web/
 迁移映射、复用边界和验收证据见
 [`docs/BookWorld前端迁移.md`](../docs/BookWorld前端迁移.md)。第三方归属说明见
 [`web/frontend/THIRD_PARTY_NOTICES.md`](frontend/THIRD_PARTY_NOTICES.md)。
+一键演示的 API、证据口径和录屏顺序见
+[`docs/一键演示模式.md`](../docs/一键演示模式.md)。
 
 ## 边界
 

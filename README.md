@@ -174,6 +174,7 @@ Pull Request 和 `main` 推送会由 `.github/workflows/ci.yml` 自动执行无�
 | [`docs/核心API契约v1.md`](docs/核心API契约v1.md) | 已冻结的核心 API v1 契约 |
 | [`docs/Unity3D竖切片.md`](docs/Unity3D竖切片.md) | Unity 工程、第三人称交互、API 闭环与验收边界 |
 | [`docs/BookWorld前端迁移.md`](docs/BookWorld前端迁移.md) | BookWorld 风格三栏 Web Demo、复用边界和非法行动验收 |
+| [`docs/一键演示模式.md`](docs/一键演示模式.md) | 无需 API Key 的规则、合法提交与多 Agent 三条演示链路 |
 | [`docs/Unity角色建模参考.md`](docs/Unity角色建模参考.md) | 公开建模调研、原创三视图、女主与守卫规格 |
 | [`docs/编译任务与全书编译D.md`](docs/编译任务与全书编译D.md) | SQLite 编译任务、断点续跑和全书编译 |
 | [`docs/反思与语义记忆.md`](docs/反思与语义记忆.md) | 反思记忆、证据链和语义一致性 |

@@ -7,6 +7,7 @@ import {
   listSaves,
   renameSave,
   resumeSession,
+  runDemoCase,
   startSession,
   submitTurn,
 } from './api.js'
@@ -17,6 +18,7 @@ import TurnInput from './components/TurnInput.vue'
 import WorldMap from './components/WorldMap.vue'
 import CharacterProfiles from './components/CharacterProfiles.vue'
 import InspectorPanel from './components/InspectorPanel.vue'
+import DemoLauncher from './components/DemoLauncher.vue'
 
 // ---- 全局响应式状态 ----
 const sessionId = ref('')
@@ -29,6 +31,8 @@ const turns = ref([])            // 回合历史卡片
 const loading = ref(false)       // 推演中
 const bootError = ref('')        // 启动错误
 const saveManagerOpen = ref(false)
+const demoLauncherOpen = ref(false)
+const activeDemo = ref(null)
 const saves = ref([])
 const creatorMode = ref(window.location.hash === '#/creator')
 const SESSION_STORAGE_KEY = 'ai-transmigration-session-id'
@@ -62,6 +66,7 @@ function applySession(data, { resumed = false } = {}) {
   worldMeta.value = data.world_meta
   currentSaveName.value = data.save?.name || '华容巷世界线'
   currentPackageId.value = data.save?.world_package_id || 'huarong_lane'
+  activeDemo.value = data.demo || null
   localStorage.setItem(SESSION_STORAGE_KEY, data.session_id)
   turns.value = resumed
     ? (data.turns?.length ? data.turns : [{
@@ -208,6 +213,19 @@ async function playPackage(packageId) {
   await startNewSession(packageId)
 }
 
+async function runDemoCaseHandler(caseId) {
+  loading.value = true
+  bootError.value = ''
+  const data = await runDemoCase(caseId)
+  loading.value = false
+  if (data.status === 'error' || data.status === 'invalid') {
+    bootError.value = data.error || '演示运行失败'
+    return
+  }
+  applySession(data, { resumed: true })
+  demoLauncherOpen.value = false
+}
+
 // ---- 提交一回合 ----
 async function submitTurnHandler(text, useNpcAgents) {
   if (!sessionId.value || !text.trim() || loading.value) return
@@ -268,6 +286,7 @@ onMounted(() => {
           <i></i>{{ runtimeStatus.label }}
         </span>
         <span v-if="state" class="version-tag">{{ currentSaveName }} · v{{ state.version }}</span>
+        <button class="header-btn demo-btn" @click="demoLauncherOpen = true" :disabled="loading">一键演示</button>
         <button class="header-btn" @click="openCreator" :disabled="loading">世界创作台</button>
         <button class="header-btn" @click="openSaveManager" :disabled="loading">世界线存档</button>
         <button class="header-btn primary" @click="startNewSession(currentPackageId)" :disabled="loading">重新开局</button>
@@ -315,6 +334,19 @@ onMounted(() => {
             <strong>{{ state?.locations?.[state?.current_scene_id]?.display_name || state?.current_scene_id || '加载中' }}</strong>
           </div>
         </div>
+        <div v-if="activeDemo" class="demo-evidence-banner">
+          <div>
+            <span class="eyebrow">NO API KEY SHOWCASE</span>
+            <strong>{{ activeDemo.title }}</strong>
+            <p>{{ activeDemo.description }}</p>
+          </div>
+          <div class="demo-metrics">
+            <span><b>v{{ activeDemo.evidence?.world_version ?? 0 }}</b>世界版本</span>
+            <span><b>{{ activeDemo.evidence?.tool_calls ?? 0 }}</b>工具调用</span>
+            <span><b>{{ activeDemo.evidence?.propagation_count ?? 0 }}</b>传播记录</span>
+            <span><b>{{ activeDemo.evidence?.alliance_count ?? 0 }}</b>联盟</span>
+          </div>
+        </div>
         <StoryFeed :turns="turns" :loading="loading" :default-actor="defaultActor" :state="state" />
         <TurnInput :loading="loading" @submit="submitTurnHandler" />
       </section>
@@ -341,6 +373,12 @@ onMounted(() => {
       @export="exportSaveHandler"
       @import="importSaveHandler"
       @refresh="refreshSaves"
+    />
+    <DemoLauncher
+      :open="demoLauncherOpen"
+      :loading="loading"
+      @close="demoLauncherOpen = false"
+      @run="runDemoCaseHandler"
     />
   </div>
 </template>
@@ -434,6 +472,11 @@ onMounted(() => {
   background: rgba(201, 169, 106, 0.13);
   color: var(--accent);
 }
+.header-btn.demo-btn {
+  border-color: rgba(122, 162, 201, 0.5);
+  background: rgba(122, 162, 201, 0.1);
+  color: var(--player);
+}
 .version-tag {
   color: var(--text-faint);
   font-size: 11px;
@@ -500,6 +543,20 @@ onMounted(() => {
   background: rgba(36, 30, 24, 0.64);
 }
 .story-toolbar h1 { font-size: 16px; }
+.demo-evidence-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(122, 162, 201, 0.25);
+  background: linear-gradient(90deg, rgba(122, 162, 201, 0.12), rgba(44, 36, 28, 0.7));
+}
+.demo-evidence-banner strong { display: block; color: var(--player); font-size: 12px; }
+.demo-evidence-banner p { margin-top: 2px; color: var(--text-faint); font-size: 10px; }
+.demo-metrics { display: flex; flex: 0 0 auto; gap: 12px; }
+.demo-metrics span { color: var(--text-faint); font-size: 9px; text-align: center; }
+.demo-metrics b { display: block; color: var(--text); font: 700 13px/1.3 ui-monospace, monospace; }
 .scene-now {
   display: flex;
   align-items: baseline;

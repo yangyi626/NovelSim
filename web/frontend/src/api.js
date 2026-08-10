@@ -237,6 +237,15 @@ export async function submitTurn(sessionId, text, useNpcAgents) {
   return parseResponse(resp)
 }
 
+export async function runDemoCase(caseId) {
+  const resp = await fetch('/api/demo/runs', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ case_id: caseId }),
+  })
+  return parseResponse(resp)
+}
+
 export async function bootstrapAdmin(username, password) {
   const resp = await fetch('/api/auth/bootstrap', {
     method: 'POST',

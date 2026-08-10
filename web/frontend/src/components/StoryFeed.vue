@@ -43,6 +43,27 @@ function statusBadge(turn) {
 function npcNames(turn) {
   return (turn.npc_reactions || []).map(charName)
 }
+
+function isToolInput(turn) {
+  return typeof turn.player_input === 'string' && turn.player_input.startsWith('tool:')
+}
+
+const TOOL_NAMES = {
+  pick_up: '取得物品',
+  observe: '观察事实',
+  share_information: '传播信息',
+  propose_alliance: '提出结盟',
+  destroy_item: '销毁物品',
+  move_to: '移动',
+}
+
+function toolName(name) {
+  return TOOL_NAMES[name] || name
+}
+
+function toolArguments(args) {
+  return Object.entries(args || {}).map(([key, value]) => `${key}=${value}`).join(' · ')
+}
 </script>
 
 <template>
@@ -59,13 +80,27 @@ function npcNames(turn) {
 
     <template v-for="(turn, i) in turns" :key="i">
       <!-- 玩家输入 -->
-      <div v-if="turn.player_input" class="player-input">
+      <div v-if="turn.player_input && !isToolInput(turn)" class="player-input">
         <span class="pi-label">你说</span>
         <span class="pi-text">{{ turn.player_input }}</span>
       </div>
 
+      <!-- 确定性 Agent 工具轨迹 -->
+      <div v-else-if="turn.tool_call" class="tool-trace-card">
+        <span class="tool-sequence">{{ String(Math.ceil(i / 2)).padStart(2, '0') }}</span>
+        <div class="tool-body">
+          <div class="tool-head">
+            <strong>{{ charName(turn.tool_call.actor_id) }}</strong>
+            <span>调用 {{ toolName(turn.tool_call.tool_name) }}</span>
+            <em>COMMITTED</em>
+          </div>
+          <code>{{ toolArguments(turn.tool_call.arguments) }}</code>
+          <small v-if="turn.trace_id">trace {{ turn.trace_id.slice(0, 10) }}</small>
+        </div>
+      </div>
+
       <!-- 回合产物卡片 -->
-      <div v-else class="turn-card" :class="{ 'turn-error': ['error','rejected','parse_failed','propose_failed','narrate_failed'].includes(turn.status) }">
+      <div v-else-if="!turn.player_input" class="turn-card" :class="{ 'turn-error': ['error','rejected','parse_failed','propose_failed','narrate_failed'].includes(turn.status) }">
         <!-- 状态徽章 (非 committed) -->
         <div v-if="statusBadge(turn)" class="status-badge" :class="statusBadge(turn).cls">
           {{ statusBadge(turn).text }}
@@ -157,6 +192,27 @@ function npcNames(turn) {
   border-left: 2px solid var(--player);
   padding-left: 10px;
 }
+
+.tool-trace-card {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 8px 12px;
+  padding: 9px 11px;
+  border: 1px solid rgba(122, 162, 201, 0.2);
+  border-radius: 5px;
+  background: rgba(122, 162, 201, 0.055);
+}
+.tool-sequence {
+  color: var(--text-faint);
+  font: 10px/1.7 ui-monospace, monospace;
+}
+.tool-body { min-width: 0; flex: 1; }
+.tool-head { display: flex; align-items: center; gap: 6px; }
+.tool-head strong { color: var(--player); font-size: 12px; }
+.tool-head span { color: var(--text-dim); font-size: 11px; }
+.tool-head em { margin-left: auto; color: var(--system); font: 8px/1.4 ui-monospace, monospace; font-style: normal; }
+.tool-body code { display: block; margin-top: 3px; color: var(--text-faint); font-size: 9px; overflow-wrap: anywhere; }
+.tool-body small { display: block; margin-top: 2px; color: var(--border); font: 8px/1.3 ui-monospace, monospace; }
 
 /* 回合卡片 */
 .turn-card {

@@ -187,6 +187,10 @@ class SecretLetterRunRequest(BaseModel):
     save_name: str = ""
 
 
+class DemoRunRequest(BaseModel):
+    case_id: str = "invalid_airplane"
+
+
 class RenameSaveRequest(BaseModel):
     name: str
 
@@ -939,6 +943,180 @@ async def api_run_secret_letter_scene(req: SecretLetterRunRequest):
             run.state.version
         ),
     }
+
+
+DEMO_CASES = {
+    "invalid_airplane": {
+        "title": "非法行动 · 世界规则拦截",
+        "description": "验证不存在的现代交通工具不会被写入古代世界。",
+        "player_input": "夜轻歌开飞机离开华容巷",
+        "expected": "WORLD_CONCEPT_UNAVAILABLE，世界版本保持 v0",
+    },
+    "valid_intervention": {
+        "title": "合法行动 · 权威状态提交",
+        "description": "玩家取得并销毁密信，所有工具调用经校验后原子提交。",
+        "player_input": "我抢先取得密信并将它销毁",
+        "expected": "合法工具链提交，密信被销毁且世界版本递增",
+        "route": PLAYER_ROUTE_DESTROY,
+    },
+    "multi_agent": {
+        "title": "多 Agent · 信息传播与结盟",
+        "description": "无玩家干预，守卫、管家和盟友依据有限认知自主协作。",
+        "player_input": "观察 NPC 如何处理门房出现的密信",
+        "expected": "证据逐跳传播，并在共同事实与信任阈值满足后结盟",
+        "route": "none",
+    },
+}
+
+
+def _demo_scene_turn(case_id: str, scene_payload: Dict[str, Any]) -> dict:
+    """把确定性场景运行结果投影成 StoryFeed 可恢复的单回合。"""
+
+    summary = scene_payload["summary"]
+    state = scene_payload["state"]
+    tool_sequence = list(summary.get("tool_sequence") or [])
+    npc_reactions = list(dict.fromkeys(
+        step.get("actor_id")
+        for step in (summary.get("steps") or [])
+        if step.get("actor_id")
+        and step.get("actor_id") != scene_payload["default_actor"]
+    ))
+    hints = [
+        f"确定性工具链: {' → '.join(tool_sequence) or '无提交动作'}",
+        f"权威世界版本: v{summary.get('initial_version', 0)} → v{summary.get('final_version', 0)}",
+        f"信息传播记录: {len(state.get('propagation_history') or [])} 条",
+        f"已形成联盟: {len(state.get('alliances') or {})} 个",
+    ]
+    if summary.get("ending_reason"):
+        hints.append(f"结束原因: {summary['ending_reason']}")
+    ending_narration = {
+        "letter_destroyed": "玩家成功取得并销毁密信，原定的信息传播链被中断。",
+        "player_intercepted": "玩家截获密信并改变了守卫的原定行动路线。",
+        "truth_exposed": "密信内容被公开，相关角色获得了可追溯的事实证据。",
+        "defenders_allied": "守卫发现密信后逐跳传递证据，管家与盟友最终形成防卫联盟。",
+    }.get(scene_payload["ending"], scene_payload["ending"])
+    return {
+        "status": "committed",
+        "error": "",
+        "rule_reason": "",
+        "rejection_code": "",
+        "rejection_message": "",
+        "rejection_details": {},
+        "action": {
+            "type": "deterministic_showcase",
+            "actor": scene_payload["default_actor"],
+            "targets": [],
+            "goal": DEMO_CASES[case_id]["expected"],
+            "visibility": "overt",
+        },
+        "narrative": {
+            "narration": ending_narration,
+            "dialogues": [],
+            "system_hints": hints,
+        },
+        "npc_reactions": npc_reactions if case_id == "multi_agent" else [],
+    }
+
+
+def _demo_metadata(case_id: str, payload: Dict[str, Any]) -> dict:
+    config = DEMO_CASES[case_id]
+    state = payload["state"]
+    summary = payload.get("summary") or {}
+    return {
+        "case_id": case_id,
+        "title": config["title"],
+        "description": config["description"],
+        "player_input": config["player_input"],
+        "expected": config["expected"],
+        "requires_api_key": False,
+        "evidence": {
+            "world_version": state.get("version", 0),
+            "tool_calls": len(summary.get("tool_sequence") or []),
+            "propagation_count": len(state.get("propagation_history") or []),
+            "alliance_count": len(state.get("alliances") or {}),
+            "objective_satisfied": summary.get("objective_satisfied"),
+        },
+    }
+
+
+@app.post("/api/demo/runs")
+async def api_run_demo(req: DemoRunRequest):
+    """运行无需 API Key 的求职演示，并返回标准会话载荷。"""
+
+    case_id = req.case_id.strip().lower()
+    if case_id not in DEMO_CASES:
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": f"未知演示案例: {case_id}",
+                "available_cases": sorted(DEMO_CASES),
+            },
+            status_code=422,
+        )
+
+    if case_id == "invalid_airplane":
+        started = api_start(
+            StartRequest(
+                package_id="huarong_lane",
+                save_name="Demo·非法飞机规则拦截",
+            )
+        )
+        if not isinstance(started, dict) or started.get("status") == "error":
+            return started
+        session_id = started["session_id"]
+        turn = api_turn(
+            TurnRequest(
+                session_id=session_id,
+                text=DEMO_CASES[case_id]["player_input"],
+                use_npc_agents=False,
+            )
+        )
+        if not isinstance(turn, dict) or turn.get("status") != "rejected":
+            return JSONResponse(
+                {
+                    "status": "error",
+                    "error": "非法行动演示未被规则引擎拒绝",
+                    "session_id": session_id,
+                },
+                status_code=500,
+            )
+        payload = serialize_session(session_id, resumed=False)
+        payload["demo"] = _demo_metadata(case_id, payload)
+        return payload
+
+    scene_payload = await api_run_secret_letter_scene(
+        SecretLetterRunRequest(
+            mode=SceneMode.free.value,
+            route=DEMO_CASES[case_id]["route"],
+            save_name=f"Demo·{DEMO_CASES[case_id]['title']}",
+        )
+    )
+    if not isinstance(scene_payload, dict):
+        return scene_payload
+    if scene_payload.get("status") != "completed":
+        return JSONResponse(scene_payload, status_code=500)
+
+    turn_payload = _demo_scene_turn(case_id, scene_payload)
+    try:
+        SESSIONS.append_turn(
+            scene_payload["session_id"],
+            expected_version=scene_payload["state"]["version"],
+            player_input=DEMO_CASES[case_id]["player_input"],
+            turn_payload=turn_payload,
+        )
+    except (PersistenceError, SessionNotFound, VersionConflict) as exc:
+        return JSONResponse(
+            {
+                "status": "error",
+                "error": f"保存演示回合失败: {exc}",
+                "session_id": scene_payload["session_id"],
+            },
+            status_code=500,
+        )
+
+    payload = serialize_session(scene_payload["session_id"], resumed=False)
+    payload["demo"] = _demo_metadata(case_id, scene_payload)
+    return payload
 
 
 @app.get("/api/session")
