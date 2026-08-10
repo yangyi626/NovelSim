@@ -88,9 +88,13 @@ cd web/frontend && npm run dev
 
 ## 界面说明
 
-- **左栏·剧情流**：每回合一张卡片（旁白 / 对白 / 系统提示 / NPC 自主反应徽章）。
-- **右栏·世界状态**：时间场景、在场角色（含 NPC 情绪/目标/计划）、关系数值条。
-- **底部输入框**：自然语言描述你想做的事，Ctrl+Enter 发送。
+试玩页采用 BookWorld 风格的三栏世界控制台，但继续使用 NovelSim 自己的 Vue 3
+组件、FastAPI API 和服务器权威世界引擎：
+
+- **左栏·世界地图与角色档案**：展示地点层级、当前场景、角色位置、身份、情绪与目标。
+- **中栏·世界事件流**：每回合一张卡片，展示玩家输入、旁白、对白、系统提示和 NPC 自主反应。
+- **右栏·世界检查器**：在状态、规则判定、场景三个标签页之间切换；非法行动会自动打开规则判定并显示拒绝码、原因和未提交状态提示。
+- **底部输入框**：自然语言描述你想做的事，Ctrl+Enter 发送；内置正常行动与“开飞机”非法行动演示输入。
 - **NPC 自主反应开关**：默认开启——夜清清/林管家会在你行动后自主反应（更烧 token 但体验完整）。
 - **自动续玩**：浏览器保存当前会话 ID，刷新页面或重启后端后会恢复同一世界状态。
 - **存档管理**：可新建多条世界线，并对存档进行改名、载入、导出、导入和删除。
@@ -165,16 +169,23 @@ web/
 ├── run.py              # 启动脚本
 ├── static/             # 前端构建产物 (gitignore)
 └── frontend/           # Vue 3 + Vite 源码
-    ├── src/App.vue     # 三栏布局根组件
+    ├── src/App.vue     # BookWorld 风格三栏世界控制台
     ├── src/components/
     │   ├── CreatorStudio.vue # 世界包创作者后台
     │   ├── CompilationJobs.vue # 全书编译任务进度页
-    │   ├── StoryFeed.vue   # 左栏剧情流
+    │   ├── WorldMap.vue    # 左栏地点层级与角色位置
+    │   ├── CharacterProfiles.vue # 左栏角色状态卡
+    │   ├── StoryFeed.vue   # 中栏剧情与规则拒绝事件流
+    │   ├── InspectorPanel.vue # 右栏状态/规则/场景标签页
     │   ├── SaveManager.vue # 多世界线存档管理
-    │   ├── StatePanel.vue  # 右栏世界状态
-    │   └── TurnInput.vue   # 底部输入
+    │   ├── StatePanel.vue  # 右栏世界状态子面板
+    │   └── TurnInput.vue   # 底部输入与演示用例
     └── vite.config.js  # outDir=../static, dev 代理 /api
 ```
+
+迁移映射、复用边界和验收证据见
+[`docs/BookWorld前端迁移.md`](../docs/BookWorld前端迁移.md)。第三方归属说明见
+[`web/frontend/THIRD_PARTY_NOTICES.md`](frontend/THIRD_PARTY_NOTICES.md)。
 
 ## 边界
 

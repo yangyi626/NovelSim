@@ -73,6 +73,17 @@ function npcNames(turn) {
         </div>
         <div v-if="turn.error && turn.status === 'error'" class="error-text">{{ turn.error }}</div>
 
+        <div v-if="turn.status === 'rejected' && (turn.rejection_code || turn.rejection_message)" class="rejection-trace">
+          <span v-if="turn.rejection_code" class="trace-code">{{ turn.rejection_code }}</span>
+          <p>{{ turn.rejection_message || turn.rule_reason }}</p>
+          <div v-if="Object.keys(turn.rejection_details || {}).length" class="trace-details">
+            <span v-for="(value, key) in turn.rejection_details" :key="key">
+              <b>{{ key }}</b>{{ Array.isArray(value) ? value.join('、') : value }}
+            </span>
+          </div>
+          <small>本次行动未写入权威世界状态</small>
+        </div>
+
         <!-- 旁白 -->
         <p v-if="turn.narrative?.narration" class="narration">{{ turn.narrative.narration }}</p>
 
@@ -93,6 +104,7 @@ function npcNames(turn) {
           <span class="npc-badge">⚡ NPC 自主行动</span>
           <span v-for="name in npcNames(turn)" :key="name" class="npc-name">{{ name }}</span>
         </div>
+        <div v-if="turn.memory_warning" class="memory-warning">{{ turn.memory_warning }}</div>
       </div>
     </template>
 
@@ -172,6 +184,28 @@ function npcNames(turn) {
   font-size: 14px;
   margin-top: 4px;
 }
+.rejection-trace {
+  margin: 9px 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+  background: rgba(201, 90, 90, 0.08);
+}
+.trace-code {
+  display: inline-block;
+  margin-bottom: 5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(201, 90, 90, 0.16);
+  color: var(--danger);
+  font: 10px/1.5 ui-monospace, monospace;
+}
+.rejection-trace p { color: var(--text-dim); font-size: 13px; }
+.trace-details { display: grid; gap: 3px; margin-top: 6px; }
+.trace-details span { color: var(--text-dim); font-size: 11px; overflow-wrap: anywhere; }
+.trace-details b { margin-right: 6px; color: var(--text-faint); font-weight: 500; }
+.rejection-trace small { display: block; margin-top: 7px; color: var(--system); font-size: 10px; }
+.memory-warning { margin-top: 8px; color: var(--warn); font-size: 11px; }
 
 .narration {
   margin-bottom: 12px;

@@ -8,6 +8,10 @@ const emit = defineEmits(['submit'])
 
 const text = ref('')
 const useNpcAgents = ref(true)  // 默认开启 NPC 自主反应
+const demoPrompts = [
+  '我冷冷地命令夜清清当众解释陷害我的证据',
+  '夜轻歌开飞机离开华容巷',
+]
 
 function send() {
   if (!text.value.trim()) return
@@ -24,11 +28,21 @@ function onEnter(e) {
 
 <template>
   <div class="input-bar">
+    <div class="demo-prompts">
+      <span>DEMO INPUT</span>
+      <button
+        v-for="prompt in demoPrompts"
+        :key="prompt"
+        type="button"
+        :disabled="loading"
+        @click="text = prompt"
+      >{{ prompt }}</button>
+    </div>
     <div class="input-row">
       <textarea
         v-model="text"
         class="input"
-        placeholder="你想做什么？（Ctrl+Enter 发送，例如：我冷冷地命令夜清清把外衫脱下来）"
+        placeholder="输入玩家行动；系统会先解析意图，再经过世界规则校验（Ctrl+Enter 发送）"
         :disabled="loading"
         rows="2"
         @keydown="onEnter"
@@ -54,6 +68,29 @@ function onEnter(e) {
   background: var(--bg-panel);
   flex-shrink: 0;
 }
+.demo-prompts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+}
+.demo-prompts > span {
+  flex: 0 0 auto;
+  color: var(--accent-dim);
+  font: 9px/1.2 ui-monospace, monospace;
+  letter-spacing: 1px;
+}
+.demo-prompts button {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.demo-prompts button:hover:not(:disabled) { border-color: var(--accent-dim); color: var(--accent); }
 .input-row {
   display: flex;
   gap: 10px;

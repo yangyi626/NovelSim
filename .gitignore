@@ -61,6 +61,7 @@ training/outputs/
 checkpoints/
 
 # Web 前端：node_modules / 构建产物 (源码纳入版本控制)
+bookworld/
 web/frontend/node_modules/
 web/frontend/dist/
 web/static/
