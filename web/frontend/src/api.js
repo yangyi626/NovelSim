@@ -244,6 +244,56 @@ export async function getJointPlans(sessionId) {
   return parseResponse(resp)
 }
 
+export async function generateJointPlan(sessionId, goal, actorIds, autoApprove = false) {
+  const resp = await fetch('/api/joint-plans/generate', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      session_id: sessionId,
+      goal,
+      actor_ids: actorIds,
+      auto_approve: autoApprove,
+    }),
+  })
+  return parseResponse(resp)
+}
+
+export async function updateJointPlan(sessionId, planId, plan) {
+  const resp = await fetch(`/api/joint-plans/${encodeURIComponent(planId)}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ session_id: sessionId, plan }),
+  })
+  return parseResponse(resp)
+}
+
+export async function approveJointPlan(sessionId, planId) {
+  const resp = await fetch(`/api/joint-plans/${encodeURIComponent(planId)}/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  return parseResponse(resp)
+}
+
+export async function executeJointPlan(
+  sessionId,
+  planId,
+  { runToCompletion = false, autoReplan = true, maxTicks = 12 } = {},
+) {
+  const resp = await fetch(`/api/joint-plans/${encodeURIComponent(planId)}/execute`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      session_id: sessionId,
+      run_to_completion: runToCompletion,
+      auto_replan: autoReplan,
+      max_ticks: maxTicks,
+    }),
+  })
+  return parseResponse(resp)
+}
+
 export async function runDemoCase(caseId) {
   const resp = await fetch('/api/demo/runs', {
     method: 'POST',

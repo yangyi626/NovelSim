@@ -39,6 +39,10 @@
     "/api/state": ["GET"],
     "/api/events": ["GET"],
     "/api/joint-plans": ["GET"],
+    "/api/joint-plans/generate": ["POST"],
+    "/api/joint-plans/{plan_id}": ["PUT"],
+    "/api/joint-plans/{plan_id}/approve": ["POST"],
+    "/api/joint-plans/{plan_id}/execute": ["POST"],
     "/api/presentation-snapshot": ["GET"],
     "/api/presentation-events": ["GET"]
   },
@@ -46,6 +50,7 @@
     "WorldState 与 WorldEvent 是运行时权威事实",
     "正常 /api/turn 响应始终携带当前权威 WorldState；拒绝回合不提交事件且版本不变",
     "LLM 只能提出 Action、StatePatch 与表现文本",
+    "Web 联合计划必须经过 draft -> approved 才能进入受限工具执行器；编辑规划不得直接提交 WorldState",
     "编译任务由 SQLite 队列与独立 Worker 执行",
     "Qdrant 是可重建派生索引",
     "发布必须经过 approved -> published 权限转换",

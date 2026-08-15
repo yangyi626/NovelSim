@@ -1,5 +1,6 @@
 """FastAPI 会话流程与持久化存储的轻量集成测试。"""
 
+import asyncio
 import importlib
 import json
 
@@ -53,6 +54,47 @@ class _RejectingPipeline:
         return TurnResult(
             status="rejected",
             error="WORLD_CONCEPT_UNAVAILABLE",
+        )
+
+
+class _FakeNarrativePlanner:
+    def __init__(self):
+        self.call_traces = []
+
+    def generate(
+        self,
+        state,
+        actor_ids,
+        *,
+        beat_goal,
+        goal_id,
+        permissions_by_actor,
+        metadata,
+    ):
+        actor_id = actor_ids[0]
+        return JointPlan(
+            goal_id=goal_id,
+            base_world_version=state.version,
+            actor_chains={
+                actor_id: ActorActionChain(
+                    actor_id=actor_id,
+                    steps=[
+                        ActionStep(
+                            step_id="web_talk",
+                            tool_call=ToolCall(
+                                actor_id=actor_id,
+                                tool_name="talk_to",
+                                arguments={
+                                    "target_character_id": QINGQING,
+                                    "message": "我会查清真相。",
+                                    "tone": "冷静",
+                                },
+                            ),
+                        )
+                    ],
+                )
+            },
+            metadata={**metadata, "beat_goal": beat_goal},
         )
 
 
@@ -165,6 +207,100 @@ def test_joint_plan_endpoint_exposes_action_chain_and_wait_state(
     chain = payload["plans"][0]["actor_chains"][0]
     assert chain["blocked_reason"] == "wait_state:character_at"
     assert chain["steps"][0]["status"] == "blocked"
+
+
+def test_web_joint_plan_requires_editable_draft_approval_before_execution(
+    tmp_path,
+    monkeypatch,
+):
+    store = SQLiteWorldStore(tmp_path / "web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", store)
+    monkeypatch.setattr(
+        web_app,
+        "PLAN_PLANNER_FACTORY",
+        lambda _package_id: _FakeNarrativePlanner(),
+    )
+    started = web_app.api_start()
+    sid = started["session_id"]
+
+    generated = web_app.api_generate_joint_plan(
+        web_app.JointPlanGenerateRequest(
+            session_id=sid,
+            goal="让夜轻歌质问夜清清",
+            actor_ids=[NIGHT],
+        )
+    )
+    plan_id = generated["plan"]["plan_id"]
+    assert generated["plan"]["status"] == "draft"
+    assert generated["plan"]["editable"] is True
+    assert store.get_state(sid).version == 0
+
+    blocked = asyncio.run(
+        web_app.api_execute_joint_plan(
+            plan_id,
+            web_app.JointPlanExecuteRequest(session_id=sid),
+        )
+    )
+    assert blocked.status_code == 409
+    assert store.get_state(sid).version == 0
+
+    edited_payload = generated["plan"]["raw_plan"]
+    edited_payload["actor_chains"][NIGHT]["steps"][0]["tool_call"][
+        "arguments"
+    ]["message"] = "你隐瞒了什么？"
+    edited = web_app.api_update_joint_plan(
+        plan_id,
+        web_app.JointPlanUpdateRequest(
+            session_id=sid,
+            plan=edited_payload,
+        ),
+    )
+    assert edited["plan"]["raw_plan"]["actor_chains"][NIGHT]["steps"][0][
+        "tool_call"
+    ]["arguments"]["message"] == "你隐瞒了什么？"
+
+    approved = web_app.api_approve_joint_plan(
+        plan_id,
+        web_app.JointPlanControlRequest(session_id=sid),
+    )
+    assert approved["plan"]["status"] == "approved"
+
+    executed = asyncio.run(
+        web_app.api_execute_joint_plan(
+            plan_id,
+            web_app.JointPlanExecuteRequest(
+                session_id=sid,
+                run_to_completion=True,
+            ),
+        )
+    )
+    assert executed["status"] == "ok"
+    assert executed["plan"]["status"] == "completed"
+    assert executed["state"]["version"] == 1
+    assert executed["events"][0]["event_type"] == "tool.talk_to"
+    assert store.list_turns(sid)[0].result["narrative"]["narration"]
+
+
+def test_web_joint_plan_auto_approval_is_explicit(tmp_path, monkeypatch):
+    store = SQLiteWorldStore(tmp_path / "web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", store)
+    monkeypatch.setattr(
+        web_app,
+        "PLAN_PLANNER_FACTORY",
+        lambda _package_id: _FakeNarrativePlanner(),
+    )
+    started = web_app.api_start()
+    generated = web_app.api_generate_joint_plan(
+        web_app.JointPlanGenerateRequest(
+            session_id=started["session_id"],
+            goal="自动推动一次剧情",
+            actor_ids=[NIGHT],
+            auto_approve=True,
+        )
+    )
+
+    assert generated["auto_approved"] is True
+    assert generated["plan"]["status"] == "approved"
 
 
 def test_web_turn_retrieves_and_persists_character_memory(

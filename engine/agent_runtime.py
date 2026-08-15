@@ -716,6 +716,13 @@ async def _commit_to_store(
                 "status": "committed",
                 "tool_call": call.dict(),
                 "trace_id": trace_id,
+                "narrative": {
+                    "narration": event.summary,
+                    "dialogues": [],
+                    "system_hints": [
+                        "联合计划中的受限工具已通过规则校验并提交。"
+                    ],
+                },
             },
         ),
     )

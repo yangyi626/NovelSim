@@ -176,6 +176,8 @@ class PlanDependency(_StrictModel):
 
 
 class PlanRuntimeStatus(str, Enum):
+    draft = "draft"
+    approved = "approved"
     active = "active"
     completed = "completed"
     stale = "stale"

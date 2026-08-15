@@ -32,6 +32,7 @@ import re
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -40,7 +41,13 @@ from pydantic import BaseModel, Field
 
 from world_schema import WorldState
 from engine import (
+    CORE_TOOL_PERMISSIONS,
+    JointPlan,
+    JointPlanExecutor,
+    NarrativePlannerError,
+    PlanRuntimeStatus,
     PersistenceError,
+    RealLLMNarrativePlanner,
     ReflectionSemanticJudge,
     SessionNotFound,
     TurnPipeline,
@@ -50,12 +57,15 @@ from engine import (
     WorldPackageNotFound,
     WorldPackageStore,
     WorldPackageValidationError,
+    create_core_tool_registry,
+    create_plan_runtime,
     create_world_store,
     cursor_after_world_version,
     filter_compatible_memories,
     project_presentation_commands,
     record_event_memory,
     reflect_character_memories,
+    validate_joint_plan,
 )
 from compiler import (
     EXTRACTOR_PROMPT_VERSION,
@@ -165,6 +175,22 @@ _CURRENT_ACTOR: ContextVar[AuthUser] = ContextVar(
 # TurnPipeline 全局单例 (构造不触发 key 检查，懒加载各 LLM 组件)
 PIPELINE = TurnPipeline()
 
+# Web 规划闭环复用与评测相同的受限工具和联合计划执行器。LLM 只生成
+# JointPlan/ToolCall，状态写入仍由 ToolRegistry + AgentExecutionStateMachine 完成。
+PLAN_TOOL_REGISTRY = create_core_tool_registry()
+PLAN_EXECUTOR = JointPlanExecutor(PLAN_TOOL_REGISTRY)
+
+
+def _create_web_narrative_planner(world_package_id: str):
+    return RealLLMNarrativePlanner(
+        PLAN_TOOL_REGISTRY,
+        world_package_id=world_package_id,
+        scenario_family="web_world_simulation",
+    )
+
+
+PLAN_PLANNER_FACTORY = _create_web_narrative_planner
+
 
 # ---------------------------------------------------------------------------
 # 请求/响应模型
@@ -180,6 +206,30 @@ class TurnRequest(BaseModel):
     session_id: str
     text: str
     use_npc_agents: bool = True
+
+
+class JointPlanGenerateRequest(BaseModel):
+    session_id: str
+    goal: str = "依据角色目标、已知事实和世界规则，推动下一段合理剧情。"
+    actor_ids: List[str] = Field(default_factory=list)
+    max_replans: int = Field(2, ge=0, le=5)
+    auto_approve: bool = False
+
+
+class JointPlanUpdateRequest(BaseModel):
+    session_id: str
+    plan: Dict[str, Any]
+
+
+class JointPlanControlRequest(BaseModel):
+    session_id: str
+
+
+class JointPlanExecuteRequest(BaseModel):
+    session_id: str
+    run_to_completion: bool = False
+    max_ticks: int = Field(12, ge=1, le=50)
+    auto_replan: bool = True
 
 
 class SecretLetterRunRequest(BaseModel):
@@ -507,6 +557,132 @@ def serialize_session(session_id: str, *, resumed: bool = True) -> dict:
         "turns": serialize_history(history),
         "resumed": resumed,
     }
+
+
+def _joint_plan_store_supported() -> bool:
+    return all(
+        callable(getattr(SESSIONS, name, None))
+        for name in (
+            "save_joint_plan_runtime",
+            "get_joint_plan_runtime",
+            "list_joint_plan_runtimes",
+        )
+    )
+
+
+def _planning_permissions(actor_ids: List[str]) -> Dict[str, set]:
+    return {
+        actor_id: set(CORE_TOOL_PERMISSIONS)
+        for actor_id in actor_ids
+    }
+
+
+def _select_planning_actors(
+    state: WorldState,
+    default_actor_id: str,
+    requested_actor_ids: List[str],
+) -> List[str]:
+    requested = list(
+        dict.fromkeys(
+            actor_id.strip()
+            for actor_id in requested_actor_ids
+            if actor_id.strip()
+        )
+    )
+    if requested:
+        missing = [actor_id for actor_id in requested if actor_id not in state.characters]
+        if missing:
+            raise ValueError("规划角色不存在: " + "、".join(missing))
+        dead = [
+            actor_id
+            for actor_id in requested
+            if not state.characters[actor_id].is_alive
+        ]
+        if dead:
+            raise ValueError("死亡角色不能参与规划: " + "、".join(dead))
+        return requested[:4]
+
+    candidates = [
+        character.character_id
+        for character in state.characters.values()
+        if character.is_alive
+        and (
+            not state.current_scene_id
+            or character.location_id == state.current_scene_id
+        )
+    ]
+    if not candidates:
+        candidates = [
+            character.character_id
+            for character in state.characters.values()
+            if character.is_alive
+        ]
+    candidates.sort(
+        key=lambda actor_id: (
+            actor_id != default_actor_id,
+            not bool(
+                state.character_psyches.get(actor_id)
+                and state.character_psyches[actor_id].goals
+            ),
+            actor_id,
+        )
+    )
+    if not candidates:
+        raise ValueError("当前世界没有可参与规划的存活角色")
+    return candidates[:3]
+
+
+def _serialize_joint_plan(plan, runtime) -> Dict[str, Any]:
+    actor_chains = []
+    for actor_id, chain in plan.actor_chains.items():
+        pointer = runtime.actor_step_pointers.get(actor_id, 0)
+        steps = []
+        completed = set(runtime.completed_steps.get(actor_id, []))
+        for index, step in enumerate(chain.steps):
+            if step.step_id in completed:
+                step_status = "completed"
+            elif index == pointer and actor_id in runtime.blocked_reasons:
+                step_status = "blocked"
+            elif index == pointer:
+                step_status = "ready"
+            else:
+                step_status = "pending"
+            payload = step.dict()
+            payload["status"] = step_status
+            steps.append(payload)
+        actor_chains.append(
+            {
+                "actor_id": actor_id,
+                "current_step": pointer,
+                "blocked_reason": runtime.blocked_reasons.get(actor_id, ""),
+                "steps": steps,
+            }
+        )
+    return {
+        "plan_id": plan.plan_id,
+        "goal_id": plan.goal_id,
+        "goal": str(plan.metadata.get("beat_goal") or plan.goal_id),
+        "revision": plan.revision,
+        "base_world_version": plan.base_world_version,
+        "observed_world_version": runtime.observed_world_version,
+        "status": runtime.status.value,
+        "replan_count": runtime.replan_count,
+        "max_replans": runtime.max_replans,
+        "stale_reasons": list(runtime.stale_reasons),
+        "deadlock_cycle": list(runtime.deadlock_cycle),
+        "actor_chains": actor_chains,
+        "raw_plan": plan.dict(),
+        "editable": runtime.status == PlanRuntimeStatus.draft,
+    }
+
+
+def _load_joint_plan(session_id: str, plan_id: str):
+    if not _joint_plan_store_supported():
+        raise PersistenceError("当前存储后端不支持联合计划运行时")
+    pair = SESSIONS.get_joint_plan_runtime(session_id, plan_id)
+    if pair is None:
+        raise SessionNotFound(f"联合计划不存在: {plan_id}")
+    return pair
 
 
 def serialize_presentation_snapshot(state: WorldState) -> dict:
@@ -1820,6 +1996,339 @@ def api_events(session: str = ""):
     }
 
 
+@app.post("/api/joint-plans/generate")
+def api_generate_joint_plan(req: JointPlanGenerateRequest):
+    """Ask the configured real LLM for an editable, non-executable draft."""
+
+    if not _joint_plan_store_supported():
+        return JSONResponse(
+            {"status": "unsupported", "error": "当前存储后端不支持联合计划"},
+            status_code=501,
+        )
+    try:
+        metadata = SESSIONS.get_metadata(req.session_id)
+        state = SESSIONS.get_state(req.session_id)
+        if metadata is None or state is None:
+            raise SessionNotFound("会话不存在")
+        existing = SESSIONS.list_joint_plan_runtimes(req.session_id)
+        if existing and existing[0][1].status in {
+            PlanRuntimeStatus.draft,
+            PlanRuntimeStatus.approved,
+            PlanRuntimeStatus.active,
+            PlanRuntimeStatus.stale,
+            PlanRuntimeStatus.deadlocked,
+        }:
+            return JSONResponse(
+                {
+                    "status": "conflict",
+                    "error": "当前仍有未结束规划，请先编辑、执行或处理该规划。",
+                    "plan": _serialize_joint_plan(*existing[0]),
+                },
+                status_code=409,
+            )
+        goal = (req.goal or "").strip()
+        if not goal:
+            return JSONResponse(
+                {"status": "error", "error": "剧情推进目标不能为空"},
+                status_code=400,
+            )
+        actor_ids = _select_planning_actors(
+            state,
+            metadata.default_actor_id,
+            req.actor_ids,
+        )
+        permissions = _planning_permissions(actor_ids)
+        planner = PLAN_PLANNER_FACTORY(metadata.world_package_id)
+        plan = planner.generate(
+            state,
+            actor_ids,
+            beat_goal=goal,
+            goal_id="web_beat_" + uuid4().hex[:12],
+            permissions_by_actor=permissions,
+            metadata={"source": "web_planning_approval"},
+        )
+        runtime = create_plan_runtime(plan, max_replans=req.max_replans)
+        runtime.status = (
+            PlanRuntimeStatus.approved
+            if req.auto_approve
+            else PlanRuntimeStatus.draft
+        )
+        SESSIONS.save_joint_plan_runtime(req.session_id, plan, runtime)
+        return {
+            "status": "ok",
+            "plan": _serialize_joint_plan(plan, runtime),
+            "planner_traces": [item.dict() for item in planner.call_traces],
+            "auto_approved": req.auto_approve,
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (ValueError, NarrativePlannerError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"规划生成失败: {exc}"},
+            status_code=422,
+        )
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"规划保存失败: {exc}"},
+            status_code=500,
+        )
+    except Exception as exc:  # noqa: BLE001 - provider/network boundary
+        return JSONResponse(
+            {
+                "status": "error",
+                "error": f"真实 LLM 规划异常: {type(exc).__name__}: {exc}",
+            },
+            status_code=502,
+        )
+
+
+@app.put("/api/joint-plans/{plan_id}")
+def api_update_joint_plan(plan_id: str, req: JointPlanUpdateRequest):
+    """Replace an unapproved draft after full Schema and tool validation."""
+
+    try:
+        current_plan, current_runtime = _load_joint_plan(req.session_id, plan_id)
+        state = SESSIONS.get_state(req.session_id)
+        if state is None:
+            raise SessionNotFound("会话不存在")
+        if current_runtime.status != PlanRuntimeStatus.draft:
+            return JSONResponse(
+                {"status": "conflict", "error": "只有待审批草案可以修改"},
+                status_code=409,
+            )
+        payload = dict(req.plan or {})
+        if payload.get("plan_id") not in {None, "", plan_id}:
+            raise ValueError("不能修改 plan_id")
+        payload["plan_id"] = plan_id
+        payload["base_world_version"] = current_plan.base_world_version
+        edited = JointPlan.parse_obj(payload)
+        permissions = _planning_permissions(list(edited.actor_chains))
+        validate_joint_plan(
+            edited,
+            state,
+            PLAN_TOOL_REGISTRY,
+            permissions_by_actor=permissions,
+            enforce_shared_scope=False,
+        )
+        runtime = create_plan_runtime(
+            edited,
+            max_replans=current_runtime.max_replans,
+        )
+        runtime.status = PlanRuntimeStatus.draft
+        SESSIONS.save_joint_plan_runtime(req.session_id, edited, runtime)
+        return {"status": "ok", "plan": _serialize_joint_plan(edited, runtime)}
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (ValueError, PersistenceError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"规划修改失败: {exc}"},
+            status_code=422,
+        )
+
+
+@app.post("/api/joint-plans/{plan_id}/approve")
+def api_approve_joint_plan(plan_id: str, req: JointPlanControlRequest):
+    """Freeze a reviewed draft against the current authoritative version."""
+
+    try:
+        plan, runtime = _load_joint_plan(req.session_id, plan_id)
+        state = SESSIONS.get_state(req.session_id)
+        if state is None:
+            raise SessionNotFound("会话不存在")
+        if runtime.status != PlanRuntimeStatus.draft:
+            return JSONResponse(
+                {"status": "conflict", "error": "该规划不处于待审批状态"},
+                status_code=409,
+            )
+        if state.version != plan.base_world_version:
+            return JSONResponse(
+                {
+                    "status": "conflict",
+                    "error": (
+                        "世界状态已变化，请重新生成规划："
+                        f"plan=v{plan.base_world_version}, world=v{state.version}"
+                    ),
+                },
+                status_code=409,
+            )
+        validate_joint_plan(
+            plan,
+            state,
+            PLAN_TOOL_REGISTRY,
+            permissions_by_actor=_planning_permissions(list(plan.actor_chains)),
+            enforce_shared_scope=False,
+        )
+        runtime.status = PlanRuntimeStatus.approved
+        SESSIONS.save_joint_plan_runtime(req.session_id, plan, runtime)
+        return {"status": "ok", "plan": _serialize_joint_plan(plan, runtime)}
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (ValueError, PersistenceError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"规划审批失败: {exc}"},
+            status_code=422,
+        )
+
+
+@app.post("/api/joint-plans/{plan_id}/execute")
+async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
+    """Execute one guarded tick or the approved plan to a terminal/block state."""
+
+    try:
+        plan, runtime = _load_joint_plan(req.session_id, plan_id)
+        state = SESSIONS.get_state(req.session_id)
+        metadata = SESSIONS.get_metadata(req.session_id)
+        if state is None or metadata is None:
+            raise SessionNotFound("会话不存在")
+        if runtime.status == PlanRuntimeStatus.draft:
+            return JSONResponse(
+                {"status": "conflict", "error": "规划尚未批准，不能执行"},
+                status_code=409,
+            )
+        if runtime.status == PlanRuntimeStatus.aborted:
+            return JSONResponse(
+                {"status": "conflict", "error": "规划已终止，请生成新规划"},
+                status_code=409,
+            )
+        if runtime.status == PlanRuntimeStatus.completed:
+            return {
+                "status": "ok",
+                "plan": _serialize_joint_plan(plan, runtime),
+                "state": state_to_dict(state),
+                "ticks": 0,
+                "events": [],
+            }
+
+        permissions = _planning_permissions(list(plan.actor_chains))
+        planner = (
+            PLAN_PLANNER_FACTORY(metadata.world_package_id)
+            if req.auto_replan
+            else None
+        )
+        beat_goal = str(plan.metadata.get("beat_goal") or plan.goal_id)
+
+        def replan_callback(request, latest_state):
+            if planner is None:
+                return None
+            return planner.replan(
+                request,
+                latest_state,
+                beat_goal=beat_goal,
+                permissions_by_actor=_planning_permissions(
+                    list(request.affected_actor_ids)
+                ),
+            )
+
+        all_events = []
+        outcomes = []
+        ticks = 0
+        tick_limit = req.max_ticks if req.run_to_completion else 1
+        for _ in range(tick_limit):
+            before = (
+                state.version,
+                dict(runtime.actor_step_pointers),
+                runtime.status.value,
+                runtime.replan_count,
+            )
+            result = await PLAN_EXECUTOR.tick(
+                plan,
+                runtime,
+                state,
+                permissions_by_actor=permissions,
+                replan=replan_callback if req.auto_replan else None,
+                store=SESSIONS,
+                session_id=req.session_id,
+            )
+            ticks += 1
+            plan, runtime, state = result.plan, result.runtime, result.state
+            all_events.extend(result.events)
+            outcomes.extend(
+                {
+                    "tool_name": item.result.tool_name,
+                    "success": item.result.success,
+                    "failure": (
+                        item.result.failure.dict()
+                        if item.result.failure is not None
+                        else None
+                    ),
+                    "event_id": item.result.committed_event_id,
+                    "world_version": item.result.world_version,
+                }
+                for item in result.outcomes
+            )
+            after = (
+                state.version,
+                dict(runtime.actor_step_pointers),
+                runtime.status.value,
+                runtime.replan_count,
+            )
+            if runtime.status in {
+                PlanRuntimeStatus.completed,
+                PlanRuntimeStatus.aborted,
+                PlanRuntimeStatus.stale,
+                PlanRuntimeStatus.deadlocked,
+            }:
+                break
+            if not req.run_to_completion or (before == after and not result.replanned):
+                break
+
+        memory_warning = ""
+        for event in all_events:
+            try:
+                record_event_memory(
+                    SESSIONS,
+                    req.session_id,
+                    state,
+                    event,
+                    player_input=f"联合规划：{beat_goal}",
+                    narration=event.summary,
+                )
+            except PersistenceError as exc:
+                memory_warning = f"长期记忆沉淀待重建: {exc}"
+                break
+        return {
+            "status": "ok",
+            "plan": _serialize_joint_plan(plan, runtime),
+            "state": state_to_dict(state),
+            "ticks": ticks,
+            "events": [event.dict() for event in all_events],
+            "outcomes": outcomes,
+            "planner_traces": (
+                [item.dict() for item in planner.call_traces]
+                if planner is not None
+                else []
+            ),
+            "memory_warning": memory_warning,
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (ValueError, PersistenceError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"规划执行失败: {exc}"},
+            status_code=422,
+        )
+    except Exception as exc:  # noqa: BLE001 - tool/provider boundary
+        return JSONResponse(
+            {
+                "status": "error",
+                "error": f"规划执行异常: {type(exc).__name__}: {exc}",
+            },
+            status_code=500,
+        )
+
+
 @app.get("/api/joint-plans")
 def api_joint_plans(session: str = ""):
     """Expose persisted action chains and synchronization state for Web UI."""
@@ -1849,47 +2358,7 @@ def api_joint_plans(session: str = ""):
             {"status": "error", "error": f"读取联合计划失败: {exc}"},
             status_code=500,
         )
-    plans = []
-    for plan, runtime in stored:
-        actor_chains = []
-        for actor_id, chain in plan.actor_chains.items():
-            pointer = runtime.actor_step_pointers.get(actor_id, 0)
-            steps = []
-            completed = set(runtime.completed_steps.get(actor_id, []))
-            for index, step in enumerate(chain.steps):
-                if step.step_id in completed:
-                    step_status = "completed"
-                elif index == pointer and actor_id in runtime.blocked_reasons:
-                    step_status = "blocked"
-                elif index == pointer:
-                    step_status = "ready"
-                else:
-                    step_status = "pending"
-                payload = step.dict()
-                payload["status"] = step_status
-                steps.append(payload)
-            actor_chains.append(
-                {
-                    "actor_id": actor_id,
-                    "current_step": pointer,
-                    "blocked_reason": runtime.blocked_reasons.get(actor_id, ""),
-                    "steps": steps,
-                }
-            )
-        plans.append(
-            {
-                "plan_id": plan.plan_id,
-                "goal_id": plan.goal_id,
-                "revision": plan.revision,
-                "base_world_version": plan.base_world_version,
-                "observed_world_version": runtime.observed_world_version,
-                "status": runtime.status.value,
-                "replan_count": runtime.replan_count,
-                "stale_reasons": list(runtime.stale_reasons),
-                "deadlock_cycle": list(runtime.deadlock_cycle),
-                "actor_chains": actor_chains,
-            }
-        )
+    plans = [_serialize_joint_plan(plan, runtime) for plan, runtime in stored]
     return {
         "status": "ok",
         "session_id": session,

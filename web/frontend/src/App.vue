@@ -1,8 +1,11 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import {
+  approveJointPlan,
   deleteSave,
+  executeJointPlan,
   exportSave,
+  generateJointPlan,
   getJointPlans,
   importSave,
   listSaves,
@@ -11,6 +14,7 @@ import {
   runDemoCase,
   startSession,
   submitTurn,
+  updateJointPlan,
 } from './api.js'
 import StoryFeed from './components/StoryFeed.vue'
 import CreatorStudio from './components/CreatorStudio.vue'
@@ -36,6 +40,10 @@ const demoLauncherOpen = ref(false)
 const activeDemo = ref(null)
 const saves = ref([])
 const jointPlans = ref([])
+const planBusy = ref(false)
+const planError = ref('')
+const autoRunning = ref(false)
+let autoRunToken = 0
 const creatorMode = ref(window.location.hash === '#/creator')
 const SESSION_STORAGE_KEY = 'ai-transmigration-session-id'
 
@@ -88,6 +96,108 @@ async function refreshJointPlans() {
   }
   const data = await getJointPlans(sessionId.value)
   jointPlans.value = data.status === 'ok' ? (data.plans || []) : []
+}
+
+async function refreshWorldAfterPlan() {
+  const data = await resumeSession(sessionId.value)
+  if (data.status === 'error') {
+    planError.value = data.error
+    return false
+  }
+  applySession(data, { resumed: true })
+  await refreshJointPlans()
+  return true
+}
+
+async function generatePlanHandler({ goal, actorIds }, { autoApprove = false } = {}) {
+  if (!sessionId.value || planBusy.value) return null
+  planBusy.value = true
+  planError.value = ''
+  const data = await generateJointPlan(
+    sessionId.value,
+    goal,
+    actorIds,
+    autoApprove,
+  )
+  planBusy.value = false
+  if (data.status !== 'ok') {
+    planError.value = data.error || '规划生成失败'
+    await refreshJointPlans()
+    return null
+  }
+  await refreshJointPlans()
+  return data.plan
+}
+
+async function savePlanHandler({ planId, plan }) {
+  if (planBusy.value) return
+  planBusy.value = true
+  planError.value = ''
+  const data = await updateJointPlan(sessionId.value, planId, plan)
+  planBusy.value = false
+  if (data.status !== 'ok') planError.value = data.error || '保存规划失败'
+  await refreshJointPlans()
+}
+
+async function approvePlanHandler(planId) {
+  if (planBusy.value) return
+  planBusy.value = true
+  planError.value = ''
+  const data = await approveJointPlan(sessionId.value, planId)
+  planBusy.value = false
+  if (data.status !== 'ok') planError.value = data.error || '规划审批失败'
+  await refreshJointPlans()
+}
+
+async function executePlanHandler({ planId, complete }) {
+  if (planBusy.value) return null
+  planBusy.value = true
+  planError.value = ''
+  const data = await executeJointPlan(sessionId.value, planId, {
+    runToCompletion: complete,
+    autoReplan: true,
+    maxTicks: 25,
+  })
+  planBusy.value = false
+  if (data.status !== 'ok') {
+    planError.value = data.error || '规划执行失败'
+    await refreshJointPlans()
+    return null
+  }
+  await refreshWorldAfterPlan()
+  if (data.memory_warning) planError.value = data.memory_warning
+  return data.plan
+}
+
+async function toggleAutoHandler({ enabled, goal, actorIds, cycles }) {
+  if (!enabled) {
+    autoRunning.value = false
+    autoRunToken += 1
+    return
+  }
+  if (autoRunning.value || planBusy.value) return
+  const current = jointPlans.value[0]
+  if (current && !['completed', 'aborted'].includes(current.status)) {
+    planError.value = '请先处理当前未结束规划，再启动 Auto。'
+    return
+  }
+  autoRunning.value = true
+  planError.value = ''
+  const token = ++autoRunToken
+  for (let index = 0; index < cycles; index += 1) {
+    if (!autoRunning.value || token !== autoRunToken) break
+    const plan = await generatePlanHandler(
+      { goal, actorIds },
+      { autoApprove: true },
+    )
+    if (!plan || !autoRunning.value || token !== autoRunToken) break
+    const result = await executePlanHandler({ planId: plan.plan_id, complete: true })
+    if (!result || result.status !== 'completed') {
+      planError.value = planError.value || 'Auto 在阻塞或失败状态停止，请检查计划。'
+      break
+    }
+  }
+  if (token === autoRunToken) autoRunning.value = false
 }
 
 // ---- 启动与恢复会话 ----
@@ -371,6 +481,14 @@ onMounted(() => {
           :latest-turn="latestDecision"
           :world-meta="worldMeta"
           :joint-plans="jointPlans"
+          :plan-busy="planBusy"
+          :plan-error="planError"
+          :auto-running="autoRunning"
+          @generate-plan="generatePlanHandler"
+          @save-plan="savePlanHandler"
+          @approve-plan="approvePlanHandler"
+          @execute-plan="executePlanHandler"
+          @toggle-auto="toggleAutoHandler"
         />
       </aside>
     </main>
