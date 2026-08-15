@@ -7,6 +7,7 @@
     POST /api/turn        -> 跑一回合，返回 TurnResult 序列化
     GET  /api/state       -> 查询持久化世界状态
     GET  /api/events      -> 查询持久化事件日志
+    GET  /api/joint-plans -> 查询联合计划、等待与纠错状态
     GET  /api/saves       -> 列出全部存档
     PATCH/DELETE /api/saves/{id} -> 改名/删除存档
     GET  /api/saves/{id}/export  -> 下载完整存档备份
@@ -1816,6 +1817,84 @@ def api_events(session: str = ""):
         "session_id": session,
         "state_version": metadata.state_version,
         "events": [event.dict() for event in events],
+    }
+
+
+@app.get("/api/joint-plans")
+def api_joint_plans(session: str = ""):
+    """Expose persisted action chains and synchronization state for Web UI."""
+
+    if not session:
+        return JSONResponse(
+            {"status": "error", "error": "请提供 ?session=<id>"},
+            status_code=400,
+        )
+    try:
+        metadata = SESSIONS.get_metadata(session)
+        if metadata is None:
+            return JSONResponse(
+                {"status": "error", "error": "会话不存在"},
+                status_code=404,
+            )
+        loader = getattr(SESSIONS, "list_joint_plan_runtimes", None)
+        if not callable(loader):
+            return {
+                "status": "unsupported",
+                "session_id": session,
+                "plans": [],
+            }
+        stored = loader(session)
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取联合计划失败: {exc}"},
+            status_code=500,
+        )
+    plans = []
+    for plan, runtime in stored:
+        actor_chains = []
+        for actor_id, chain in plan.actor_chains.items():
+            pointer = runtime.actor_step_pointers.get(actor_id, 0)
+            steps = []
+            completed = set(runtime.completed_steps.get(actor_id, []))
+            for index, step in enumerate(chain.steps):
+                if step.step_id in completed:
+                    step_status = "completed"
+                elif index == pointer and actor_id in runtime.blocked_reasons:
+                    step_status = "blocked"
+                elif index == pointer:
+                    step_status = "ready"
+                else:
+                    step_status = "pending"
+                payload = step.dict()
+                payload["status"] = step_status
+                steps.append(payload)
+            actor_chains.append(
+                {
+                    "actor_id": actor_id,
+                    "current_step": pointer,
+                    "blocked_reason": runtime.blocked_reasons.get(actor_id, ""),
+                    "steps": steps,
+                }
+            )
+        plans.append(
+            {
+                "plan_id": plan.plan_id,
+                "goal_id": plan.goal_id,
+                "revision": plan.revision,
+                "base_world_version": plan.base_world_version,
+                "observed_world_version": runtime.observed_world_version,
+                "status": runtime.status.value,
+                "replan_count": runtime.replan_count,
+                "stale_reasons": list(runtime.stale_reasons),
+                "deadlock_cycle": list(runtime.deadlock_cycle),
+                "actor_chains": actor_chains,
+            }
+        )
+    return {
+        "status": "ok",
+        "session_id": session,
+        "state_version": metadata.state_version,
+        "plans": plans,
     }
 
 

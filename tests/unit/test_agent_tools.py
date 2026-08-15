@@ -129,11 +129,13 @@ def test_registry_exports_strict_function_tool_json_schemas():
     assert registry.names() == [
         "destroy_item",
         "give_item",
+        "invoke_ability",
         "move_to",
         "observe",
         "pick_up",
         "propose_alliance",
         "share_information",
+        "take_item",
         "talk_to",
     ]
     exported = registry.function_tools()

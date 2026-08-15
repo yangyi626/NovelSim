@@ -237,6 +237,13 @@ export async function submitTurn(sessionId, text, useNpcAgents) {
   return parseResponse(resp)
 }
 
+export async function getJointPlans(sessionId) {
+  const resp = await fetch(`/api/joint-plans?session=${encodeURIComponent(sessionId)}`, {
+    headers: authHeaders({ json: false }),
+  })
+  return parseResponse(resp)
+}
+
 export async function runDemoCase(caseId) {
   const resp = await fetch('/api/demo/runs', {
     method: 'POST',

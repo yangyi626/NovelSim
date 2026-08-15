@@ -38,6 +38,7 @@
     "/api/creator/audit": ["GET"],
     "/api/state": ["GET"],
     "/api/events": ["GET"],
+    "/api/joint-plans": ["GET"],
     "/api/presentation-snapshot": ["GET"],
     "/api/presentation-events": ["GET"]
   },

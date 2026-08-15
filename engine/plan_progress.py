@@ -90,7 +90,8 @@ def _completed_by_transition(
     )
 
 
-def _condition_holds(condition: PlanStepCondition, state: WorldState) -> bool:
+def condition_holds(condition: PlanStepCondition, state: WorldState) -> bool:
+    """Evaluate one authoritative plan predicate without mutating the world."""
     if condition.kind == PlanConditionKind.item_owner:
         item = state.items.get(condition.item_id or "")
         return item is not None and item.owner_id == condition.character_id
@@ -133,3 +134,7 @@ def _condition_holds(condition: PlanStepCondition, state: WorldState) -> bool:
         )
 
     return False
+
+
+# Backwards-compatible private alias for the transition-only helper above.
+_condition_holds = condition_holds

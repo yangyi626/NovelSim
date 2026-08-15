@@ -199,6 +199,23 @@ class SQLiteWorldStore:
                     ON character_memories(
                         session_id, character_id, world_version
                     );
+
+                CREATE TABLE IF NOT EXISTS joint_plan_runtime (
+                    session_id TEXT NOT NULL,
+                    plan_id TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    runtime_json TEXT NOT NULL,
+                    observed_world_version INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (session_id, plan_id),
+                    FOREIGN KEY (session_id)
+                        REFERENCES world_sessions(session_id)
+                        ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_joint_plan_runtime_active
+                    ON joint_plan_runtime(session_id, updated_at DESC);
                 """
             )
             # 兼容第一版 SQLite 数据库：原 world_sessions 没有存档名。
@@ -368,6 +385,134 @@ class SQLiteWorldStore:
             return WorldState.parse_raw(row["state_json"])
         except Exception as exc:
             raise PersistenceError(f"会话状态损坏: {session_id}") from exc
+
+    def save_joint_plan_runtime(
+        self,
+        session_id: str,
+        plan: Any,
+        runtime: Any,
+    ) -> None:
+        """Persist an executable plan and its synchronization pointers.
+
+        The authoritative world and the plan runtime deliberately remain
+        separate records.  Recovery reconciles action ``call_id`` values with
+        the append-only event log before dispatch, so a crash between the two
+        commits cannot execute an already committed action twice.
+        """
+
+        if runtime.plan_id != plan.plan_id:
+            raise PersistenceError("计划与运行时 plan_id 不一致")
+        now = self._now()
+        try:
+            plan_json = plan.json(ensure_ascii=False)
+            runtime_json = runtime.json(ensure_ascii=False)
+            with self._connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                session = conn.execute(
+                    "SELECT state_version FROM world_sessions WHERE session_id = ?",
+                    (session_id,),
+                ).fetchone()
+                if session is None:
+                    raise SessionNotFound(f"会话不存在: {session_id}")
+                if int(runtime.observed_world_version) > int(session["state_version"]):
+                    raise VersionConflict(
+                        "计划运行时版本不能领先于权威世界: "
+                        f"runtime={runtime.observed_world_version}, "
+                        f"world={session['state_version']}"
+                    )
+                conn.execute(
+                    """
+                    INSERT INTO joint_plan_runtime (
+                        session_id, plan_id, plan_json, runtime_json,
+                        observed_world_version, status, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (session_id, plan_id) DO UPDATE SET
+                        plan_json = excluded.plan_json,
+                        runtime_json = excluded.runtime_json,
+                        observed_world_version = excluded.observed_world_version,
+                        status = excluded.status,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        session_id,
+                        plan.plan_id,
+                        plan_json,
+                        runtime_json,
+                        int(runtime.observed_world_version),
+                        runtime.status.value,
+                        now,
+                    ),
+                )
+        except (SessionNotFound, VersionConflict):
+            raise
+        except Exception as exc:
+            raise PersistenceError("保存联合计划运行时失败") from exc
+
+    def get_joint_plan_runtime(
+        self,
+        session_id: str,
+        plan_id: Optional[str] = None,
+    ) -> Optional[Tuple[Any, Any]]:
+        """Load one plan/runtime pair, defaulting to the most recent one."""
+
+        from .joint_plan import JointPlan, PlanRuntimeState
+
+        with self._connect() as conn:
+            if plan_id is None:
+                row = conn.execute(
+                    """
+                    SELECT plan_json, runtime_json
+                    FROM joint_plan_runtime
+                    WHERE session_id = ?
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                    """,
+                    (session_id,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT plan_json, runtime_json
+                    FROM joint_plan_runtime
+                    WHERE session_id = ? AND plan_id = ?
+                    """,
+                    (session_id, plan_id),
+                ).fetchone()
+        if row is None:
+            return None
+        try:
+            return (
+                JointPlan.parse_raw(row["plan_json"]),
+                PlanRuntimeState.parse_raw(row["runtime_json"]),
+            )
+        except Exception as exc:
+            raise PersistenceError("联合计划运行时数据损坏") from exc
+
+    def list_joint_plan_runtimes(self, session_id: str) -> List[Tuple[Any, Any]]:
+        """List saved plan revisions in newest-first order."""
+
+        from .joint_plan import JointPlan, PlanRuntimeState
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT plan_json, runtime_json
+                FROM joint_plan_runtime
+                WHERE session_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (session_id,),
+            ).fetchall()
+        try:
+            return [
+                (
+                    JointPlan.parse_raw(row["plan_json"]),
+                    PlanRuntimeState.parse_raw(row["runtime_json"]),
+                )
+                for row in rows
+            ]
+        except Exception as exc:
+            raise PersistenceError("联合计划运行时数据损坏") from exc
 
     def get_metadata(self, session_id: str) -> Optional[SessionMetadata]:
         with self._connect() as conn:

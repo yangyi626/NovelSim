@@ -92,6 +92,11 @@ class AvailableTool(_ReadOnlyContract):
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
+class AvailableAbility(_ReadOnlyContract):
+    ability_id: str
+    description: str = ""
+
+
 class PlannerFeedback(_ReadOnlyContract):
     previous_decision_id: Optional[str] = None
     tool_name: Optional[str] = None
@@ -132,6 +137,7 @@ class GameObservation(_ReadOnlyContract):
     available_concept_ids: Tuple[str, ...] = ()
     unavailable_concept_ids: Tuple[str, ...] = ()
     capability_ids: Tuple[str, ...] = ()
+    available_abilities: Tuple[AvailableAbility, ...] = ()
     visible_affordances: Tuple[str, ...] = ()
     available_tools: Tuple[AvailableTool, ...] = ()
     feedback: Optional[PlannerFeedback] = None
@@ -214,6 +220,11 @@ def build_game_observation(
         )
         for item in sorted(state.items.values(), key=lambda value: value.item_id)
         if item.owner_id == actor_id
+        or (
+            item.owner_id in visible_character_ids
+            and item.accessible
+            and item.quantity > 0
+        )
         or (
             item.owner_id is None
             and actor_location is not None
@@ -329,6 +340,26 @@ def build_game_observation(
                 )
             )
 
+    ability_specs = state.flags.get("runtime.ability_specs", {})
+    enabled_capabilities = {
+        capability.capability_id
+        for capability in state.character_capabilities.get(actor_id, [])
+        if capability.enabled
+    }
+    ready_ids = set(ready_ability_ids(state, actor_id))
+    available_abilities = tuple(
+        AvailableAbility(
+            ability_id=ability_id,
+            description=str(spec.get("summary") or ""),
+        )
+        for ability_id, spec in sorted(
+            ability_specs.items() if isinstance(ability_specs, dict) else []
+        )
+        if ability_id in enabled_capabilities
+        and isinstance(spec, dict)
+        and str(spec.get("owner_id") or "") == actor_id
+        and ability_id in ready_ids
+    )
     available_tools = tuple(
         AvailableTool(
             name=name,
@@ -337,6 +368,7 @@ def build_game_observation(
         )
         for name in registry.names()
         if registry.get(name) is not None
+        and (name != "invoke_ability" or available_abilities)
     )
     visible_entity_ids = visible_character_ids | {
         item.item_id for item in visible_items
@@ -397,10 +429,64 @@ def build_game_observation(
             for capability in state.character_capabilities.get(actor_id, [])
             if capability.enabled
         )),
+        available_abilities=available_abilities,
         visible_affordances=tuple(visible_affordances),
         available_tools=available_tools,
         feedback=feedback,
         metadata=dict(metadata or {}),
+    )
+
+
+def _ability_ready(state: WorldState, actor_id: str, spec: Dict[str, Any]) -> bool:
+    actor = state.characters.get(actor_id)
+    target = state.characters.get(str(spec.get("target_character_id") or ""))
+    if actor is None or target is None or not target.is_alive:
+        return False
+    move_actor = bool(spec.get("move_actor", True))
+    move_target = bool(spec.get("move_target", True))
+    destination_id = str(spec.get("destination_id") or "")
+    if (move_actor or move_target) and destination_id not in state.locations:
+        return False
+    completion_flag = str(spec.get("completion_flag") or "")
+    if completion_flag and state.flags.get(completion_flag):
+        return False
+    required_flags = spec.get("required_flags", {})
+    if not isinstance(required_flags, dict) or any(
+        state.flags.get(str(key)) != value
+        for key, value in required_flags.items()
+    ):
+        return False
+    actor_sources = {str(value) for value in spec.get("actor_source_locations", [])}
+    target_sources = {
+        str(value) for value in spec.get("target_source_locations", [])
+    }
+    if actor_sources and actor.location_id not in actor_sources:
+        return False
+    if target_sources and target.location_id not in target_sources:
+        return False
+    if spec.get("requires_co_location") and actor.location_id != target.location_id:
+        return False
+    return True
+
+
+def ready_ability_ids(state: WorldState, actor_id: str) -> Tuple[str, ...]:
+    """Return enabled world abilities whose deterministic gates currently pass."""
+
+    enabled = {
+        capability.capability_id
+        for capability in state.character_capabilities.get(actor_id, [])
+        if capability.enabled
+    }
+    specs = state.flags.get("runtime.ability_specs", {})
+    if not isinstance(specs, dict):
+        return ()
+    return tuple(
+        ability_id
+        for ability_id, spec in sorted(specs.items())
+        if ability_id in enabled
+        and isinstance(spec, dict)
+        and str(spec.get("owner_id") or "") == actor_id
+        and _ability_ready(state, actor_id, spec)
     )
 
 

@@ -189,6 +189,15 @@ class GiveItemArguments(StrictArguments):
     target_character_id: NonEmptyId
 
 
+class TakeItemArguments(StrictArguments):
+    item_id: NonEmptyId
+    target_character_id: NonEmptyId
+
+
+class InvokeAbilityArguments(StrictArguments):
+    ability_id: NonEmptyId
+
+
 class DestroyItemArguments(StrictArguments):
     item_id: NonEmptyId
 
@@ -501,6 +510,29 @@ def _move_to(context: ToolContext, raw: BaseModel) -> ToolCandidate:
             stage="execute_tool",
             details={"location_id": location_id},
         )
+    current_location = context.state.locations.get(actor.location_id or "")
+    if (
+        current_location is not None
+        and bool(getattr(current_location, "blocks_ordinary_exit", False))
+        and actor.location_id != location_id
+    ):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"ordinary movement cannot exit location: {actor.location_id}",
+            stage="execute_tool",
+            details={"location_id": actor.location_id},
+        )
+    required_flag = str(getattr(location, "requires_flag", "") or "")
+    if required_flag and not context.state.flags.get(required_flag):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"location entry condition is not satisfied: {location_id}",
+            stage="execute_tool",
+            details={
+                "location_id": location_id,
+                "required_flag": required_flag,
+            },
+        )
     missing_tags = sorted(
         set(location.requires_permission) - set(actor.identity_tags)
     )
@@ -537,7 +569,7 @@ def _move_to(context: ToolContext, raw: BaseModel) -> ToolCandidate:
             "location_id": location_id,
         },
         summary=f"{context.actor_id} moved to {location_id}",
-        target_ids=[destination_id],
+        target_ids=list(dict.fromkeys([destination_id, location_id])),
         presentation_events=[
             PresentationEvent(
                 event_type="navigate",
@@ -563,7 +595,11 @@ def _talk_to(context: ToolContext, raw: BaseModel) -> ToolCandidate:
             "tone": args.tone,
         },
         summary=f"{context.actor_id} talked to {target.character_id}",
-        target_ids=[target.character_id],
+        target_ids=[
+            value
+            for value in [target.character_id, context.state.characters[context.actor_id].location_id]
+            if value
+        ],
         presentation_events=[
             PresentationEvent(
                 event_type="dialogue",
@@ -860,6 +896,285 @@ def _give_item(context: ToolContext, raw: BaseModel) -> ToolCandidate:
     )
 
 
+def _take_item(context: ToolContext, raw: BaseModel) -> ToolCandidate:
+    """Transfer an explicitly transferable item from a co-located character.
+
+    This models game actions such as confiscating or forcibly taking an item.
+    The model cannot choose the resulting patch: ownership, co-location and the
+    entity affordance are checked deterministically before one fixed transfer
+    operation is proposed.
+    """
+
+    args = raw  # type: TakeItemArguments
+    target = _require_distinct_target(context, args.target_character_id)
+    _require_same_location(context, target.character_id)
+    item = context.state.items.get(args.item_id)
+    if item is None:
+        raise _tool_error(
+            ToolFailureCode.target_not_found,
+            f"unknown item: {args.item_id}",
+            stage="execute_tool",
+            details={"item_id": args.item_id},
+        )
+    if item.owner_id != target.character_id:
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"target does not own item: {args.item_id}",
+            stage="execute_tool",
+            details={
+                "owner_id": item.owner_id,
+                "target_character_id": target.character_id,
+            },
+        )
+    if not item.accessible or item.quantity <= 0:
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"item is not transferable: {args.item_id}",
+            stage="execute_tool",
+            details={
+                "accessible": item.accessible,
+                "quantity": item.quantity,
+            },
+        )
+    affordances = context.state.entity_affordances.get(item.item_id, [])
+    if not any(
+        affordance.enabled
+        and affordance.action_type in {"take_item", "swap_object"}
+        for affordance in affordances
+    ):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"item does not allow taking: {args.item_id}",
+            stage="execute_tool",
+            details={"item_id": args.item_id},
+        )
+    patch = StatePatch(
+        operations=[
+            Operation(
+                op=OperationKind.transfer_item,
+                item_id=item.item_id,
+                target_id=context.actor_id,
+                reason=(
+                    f"taken by {context.actor_id} from {target.character_id}"
+                ),
+            )
+        ],
+        notes=(
+            f"{context.actor_id} takes {item.item_id} "
+            f"from {target.character_id}"
+        ),
+    )
+    return ToolCandidate(
+        patch=patch,
+        output={
+            "item_id": item.item_id,
+            "source_character_id": target.character_id,
+            "target_character_id": context.actor_id,
+        },
+        summary=(
+            f"{context.actor_id} took {item.item_id} "
+            f"from {target.character_id}"
+        ),
+        target_ids=[item.item_id, target.character_id],
+        presentation_events=[
+            PresentationEvent(
+                event_type="item_taken",
+                payload={
+                    "item_id": item.item_id,
+                    "from_id": target.character_id,
+                    "to_id": context.actor_id,
+                },
+            )
+        ],
+    )
+
+
+def _invoke_ability(context: ToolContext, raw: BaseModel) -> ToolCandidate:
+    """Invoke one trusted, data-driven world ability.
+
+    The LLM only selects an enabled ``ability_id``.  The target, legal source
+    locations and deterministic effects live in the authoritative world
+    package under ``runtime.ability_specs``; model output can never supply a
+    destination or a state patch.
+    """
+
+    args = raw  # type: InvokeAbilityArguments
+    capabilities = {
+        capability.capability_id
+        for capability in context.state.character_capabilities.get(
+            context.actor_id, []
+        )
+        if capability.enabled
+    }
+    if args.ability_id not in capabilities:
+        raise _tool_error(
+            ToolFailureCode.permission_denied,
+            f"actor lacks enabled ability: {args.ability_id}",
+            stage="execute_tool",
+            details={"ability_id": args.ability_id},
+        )
+
+    specs = context.state.flags.get("runtime.ability_specs", {})
+    spec = specs.get(args.ability_id) if isinstance(specs, dict) else None
+    if not isinstance(spec, dict):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"ability has no trusted world specification: {args.ability_id}",
+            stage="execute_tool",
+            details={"ability_id": args.ability_id},
+        )
+    owner_id = str(spec.get("owner_id") or "")
+    if owner_id != context.actor_id:
+        raise _tool_error(
+            ToolFailureCode.permission_denied,
+            f"ability is owned by another actor: {args.ability_id}",
+            stage="execute_tool",
+            details={"owner_id": owner_id},
+        )
+
+    target_id = str(spec.get("target_character_id") or "")
+    target = _character(context, target_id)
+    actor = context.state.characters[context.actor_id]
+    move_actor = bool(spec.get("move_actor", True))
+    move_target = bool(spec.get("move_target", True))
+    destination_id = str(spec.get("destination_id") or "")
+    if (move_actor or move_target) and destination_id not in context.state.locations:
+        raise _tool_error(
+            ToolFailureCode.target_not_found,
+            f"ability destination does not exist: {destination_id}",
+            stage="execute_tool",
+            details={"destination_id": destination_id},
+        )
+
+    completion_flag = str(spec.get("completion_flag") or "")
+    if completion_flag and context.state.flags.get(completion_flag):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"ability was already completed: {args.ability_id}",
+            stage="execute_tool",
+            details={"completion_flag": completion_flag},
+        )
+    required_flags = spec.get("required_flags", {})
+    if not isinstance(required_flags, dict) or any(
+        context.state.flags.get(str(key)) != value
+        for key, value in required_flags.items()
+    ):
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"ability flags are not satisfied: {args.ability_id}",
+            stage="execute_tool",
+            details={"required_flags": required_flags},
+        )
+
+    actor_sources = {str(value) for value in spec.get("actor_source_locations", [])}
+    target_sources = {
+        str(value) for value in spec.get("target_source_locations", [])
+    }
+    if actor_sources and actor.location_id not in actor_sources:
+        raise _tool_error(
+            ToolFailureCode.spatial_constraint,
+            f"actor is outside the ability source region: {args.ability_id}",
+            stage="execute_tool",
+            details={"actor_location_id": actor.location_id},
+        )
+    if target_sources and target.location_id not in target_sources:
+        raise _tool_error(
+            ToolFailureCode.spatial_constraint,
+            f"target is outside the ability source region: {args.ability_id}",
+            stage="execute_tool",
+            details={"target_location_id": target.location_id},
+        )
+    if bool(spec.get("requires_co_location")):
+        _require_same_location(context, target.character_id)
+
+    summary = str(spec.get("summary") or f"{context.actor_id} invoked {args.ability_id}")
+    operations: List[Operation] = []
+    moved_ids: List[str] = []
+    if move_actor:
+        operations.append(
+            Operation(
+                op=OperationKind.move_character,
+                target_id=context.actor_id,
+                location_id=destination_id,
+                reason=f"ability:{args.ability_id}",
+            )
+        )
+        moved_ids.append(context.actor_id)
+    if move_target:
+        operations.append(
+            Operation(
+                op=OperationKind.move_character,
+                target_id=target.character_id,
+                location_id=destination_id,
+                reason=f"ability:{args.ability_id}",
+            )
+        )
+        moved_ids.append(target.character_id)
+
+    perceptions = spec.get("perceptions", {})
+    if isinstance(perceptions, dict):
+        for character_id, perception in perceptions.items():
+            if character_id not in context.state.character_psyches:
+                continue
+            text = str(perception).strip()
+            if text:
+                operations.append(
+                    Operation(
+                        op=OperationKind.update_psyche,
+                        target_id=str(character_id),
+                        perception=text,
+                        reason=f"ability:{args.ability_id}",
+                    )
+                )
+    if completion_flag:
+        operations.append(
+            Operation(
+                op=OperationKind.set_flag,
+                path=completion_flag,
+                value=True,
+                reason=f"ability:{args.ability_id}",
+            )
+        )
+    if not operations:
+        raise _tool_error(
+            ToolFailureCode.precondition_failed,
+            f"ability has no executable effects: {args.ability_id}",
+            stage="execute_tool",
+        )
+
+    return ToolCandidate(
+        patch=StatePatch(operations=operations, notes=summary),
+        output={
+            "ability_id": args.ability_id,
+            "owner_id": context.actor_id,
+            "target_character_id": target.character_id,
+            "destination_id": destination_id,
+            "moved_character_ids": moved_ids,
+        },
+        summary=summary,
+        target_ids=[
+            value
+            for value in [
+                target.character_id,
+                destination_id,
+                actor.location_id,
+            ]
+            if value
+        ],
+        presentation_events=[
+            PresentationEvent(
+                event_type="ability_invoked",
+                payload={
+                    "ability_id": args.ability_id,
+                    "owner_id": context.actor_id,
+                    "target_character_id": target.character_id,
+                    "destination_id": destination_id,
+                },
+            )
+        ],
+    )
+
+
 def _destroy_item(context: ToolContext, raw: BaseModel) -> ToolCandidate:
     args = raw  # type: DestroyItemArguments
     item = context.state.items.get(args.item_id)
@@ -1059,10 +1374,12 @@ CORE_TOOL_PERMISSIONS: FrozenSet[str] = frozenset(
         "character.communicate",
         "inventory.destroy",
         "inventory.give",
+        "inventory.take",
         "inventory.pick_up",
         "knowledge.observe",
         "knowledge.share",
         "alliance.propose",
+        "ability.invoke",
     }
 )
 
@@ -1071,6 +1388,25 @@ def create_core_tool_registry() -> ToolRegistry:
     """注册受控世界交互与认知传播核心工具。"""
 
     registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="invoke_ability",
+            description=(
+                "Invoke one enabled character ability. The authoritative world "
+                "package fixes its target, preconditions and state effects."
+            ),
+            arguments_model=InvokeAbilityArguments,
+            handler=_invoke_ability,
+            required_permissions=frozenset({"ability.invoke"}),
+            allowed_patch_operations=frozenset(
+                {
+                    OperationKind.move_character,
+                    OperationKind.update_psyche,
+                    OperationKind.set_flag,
+                }
+            ),
+        )
+    )
     registry.register(
         ToolDefinition(
             name="move_to",
@@ -1131,6 +1467,21 @@ def create_core_tool_registry() -> ToolRegistry:
             arguments_model=GiveItemArguments,
             handler=_give_item,
             required_permissions=frozenset({"inventory.give"}),
+            allowed_patch_operations=frozenset(
+                {OperationKind.transfer_item}
+            ),
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="take_item",
+            description=(
+                "Take an accessible item from a co-located character only "
+                "when the item's world affordance permits taking or transfer."
+            ),
+            arguments_model=TakeItemArguments,
+            handler=_take_item,
+            required_permissions=frozenset({"inventory.take"}),
             allowed_patch_operations=frozenset(
                 {OperationKind.transfer_item}
             ),

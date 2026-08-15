@@ -1,0 +1,223 @@
+{
+  "schema_version": "long_horizon_report.v1",
+  "suite_id": "novelsim-dynamic-joint-plan-v1",
+  "deterministic": true,
+  "cases": [
+    {
+      "case_id": "p1_destroyed_letter",
+      "seed": 2026081401,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 3,
+      "perturbation_event_count": 2,
+      "stale_plan_count": 1,
+      "detected_stale_plan_count": 1,
+      "deadlock_count": 0,
+      "recovered_deadlock_count": 0,
+      "replan_count": 1,
+      "useful_replan_count": 1,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 0,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "0fbf6a390f19f69fbdd429ba422ba90112fa11c603a684f2bda58af8b6662232",
+      "triggers": [
+        {
+          "code": "PLAN_STALE",
+          "reasons": [
+            "missing_or_destroyed_item:item_sealed_letter"
+          ],
+          "affected_actor_ids": [
+            "char_guard"
+          ],
+          "deadlock_cycle": [],
+          "relevant_diff": null
+        }
+      ]
+    },
+    {
+      "case_id": "p2_key_npc_left_scene",
+      "seed": 2026081402,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 3,
+      "perturbation_event_count": 1,
+      "stale_plan_count": 0,
+      "detected_stale_plan_count": 0,
+      "deadlock_count": 0,
+      "recovered_deadlock_count": 0,
+      "replan_count": 1,
+      "useful_replan_count": 1,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 0,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "ed12459895c9e2b07b882ff1fe339edc86fd8f1886df374479477cf463c0b4f9",
+      "triggers": [
+        {
+          "code": "PLAN_ACTION_FAILED",
+          "reasons": [
+            "spatial_constraint"
+          ],
+          "affected_actor_ids": [
+            "char_guard"
+          ],
+          "deadlock_cycle": [],
+          "relevant_diff": null
+        }
+      ]
+    },
+    {
+      "case_id": "p3_conflicting_evidence",
+      "seed": 2026081403,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 2,
+      "perturbation_event_count": 1,
+      "stale_plan_count": 0,
+      "detected_stale_plan_count": 0,
+      "deadlock_count": 0,
+      "recovered_deadlock_count": 0,
+      "replan_count": 0,
+      "useful_replan_count": 0,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 0,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "b256c835940bbc9bc3584778d8e33cc139644d23b7f5a054c0f1252e67fa70e4",
+      "triggers": []
+    },
+    {
+      "case_id": "p4_competing_item_claims",
+      "seed": 2026081404,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 2,
+      "perturbation_event_count": 0,
+      "stale_plan_count": 0,
+      "detected_stale_plan_count": 0,
+      "deadlock_count": 0,
+      "recovered_deadlock_count": 0,
+      "replan_count": 1,
+      "useful_replan_count": 1,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 0,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "ae5a45872329cba234040b50a6c4a9bf1711854c69557ba00c01b94197e1eaa0",
+      "triggers": [
+        {
+          "code": "PLAN_ACTION_FAILED",
+          "reasons": [
+            "precondition_failed"
+          ],
+          "affected_actor_ids": [
+            "char_steward"
+          ],
+          "deadlock_cycle": [],
+          "relevant_diff": null
+        }
+      ]
+    },
+    {
+      "case_id": "p5_wait_cycle",
+      "seed": 2026081405,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 1,
+      "perturbation_event_count": 0,
+      "stale_plan_count": 0,
+      "detected_stale_plan_count": 0,
+      "deadlock_count": 1,
+      "recovered_deadlock_count": 1,
+      "replan_count": 1,
+      "useful_replan_count": 1,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 0,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "e35b1bb1650e64e580f4895105839f11906239690c1ceaeee6264efa07689998",
+      "triggers": [
+        {
+          "code": "PLAN_DEADLOCK",
+          "reasons": [
+            "PLAN_DEADLOCK"
+          ],
+          "affected_actor_ids": [
+            "char_guard",
+            "char_steward"
+          ],
+          "deadlock_cycle": [
+            "char_guard",
+            "char_steward",
+            "char_guard"
+          ],
+          "relevant_diff": null
+        }
+      ]
+    },
+    {
+      "case_id": "p6_invalid_entity",
+      "seed": 2026081406,
+      "max_turns": 10,
+      "turns_executed": 10,
+      "objective_satisfied": true,
+      "plan_status": "completed",
+      "event_count": 1,
+      "perturbation_event_count": 0,
+      "stale_plan_count": 1,
+      "detected_stale_plan_count": 1,
+      "deadlock_count": 0,
+      "recovered_deadlock_count": 0,
+      "replan_count": 1,
+      "useful_replan_count": 1,
+      "unnecessary_replan_count": 0,
+      "external_llm_call_count": 0,
+      "illegal_proposal_count": 1,
+      "illegal_commit_count": 0,
+      "replay_consistent": true,
+      "final_state_hash": "e35b1bb1650e64e580f4895105839f11906239690c1ceaeee6264efa07689998",
+      "triggers": [
+        {
+          "code": "PLAN_STALE",
+          "reasons": [
+            "missing_destination:missing_airport"
+          ],
+          "affected_actor_ids": [
+            "char_guard"
+          ],
+          "deadlock_cycle": [],
+          "relevant_diff": null
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "episode_count": 6,
+    "long_horizon_success_rate": 1.0,
+    "deadlock_recovery_rate": 1.0,
+    "replan_precision": 1.0,
+    "staleness_recall": 1.0,
+    "unnecessary_replan_rate": 0.0,
+    "planner_calls_per_success": 0.8333333333333334,
+    "external_llm_calls_per_success": 0.0,
+    "illegal_commit_count": 0,
+    "replay_consistency_rate": 1.0
+  },
+  "passed": true
+}

@@ -3,6 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import {
   deleteSave,
   exportSave,
+  getJointPlans,
   importSave,
   listSaves,
   renameSave,
@@ -34,6 +35,7 @@ const saveManagerOpen = ref(false)
 const demoLauncherOpen = ref(false)
 const activeDemo = ref(null)
 const saves = ref([])
+const jointPlans = ref([])
 const creatorMode = ref(window.location.hash === '#/creator')
 const SESSION_STORAGE_KEY = 'ai-transmigration-session-id'
 
@@ -76,6 +78,16 @@ function applySession(data, { resumed = false } = {}) {
         },
       }])
     : []
+  refreshJointPlans()
+}
+
+async function refreshJointPlans() {
+  if (!sessionId.value) {
+    jointPlans.value = []
+    return
+  }
+  const data = await getJointPlans(sessionId.value)
+  jointPlans.value = data.status === 'ok' ? (data.plans || []) : []
 }
 
 // ---- 启动与恢复会话 ----
@@ -256,6 +268,7 @@ async function submitTurnHandler(text, useNpcAgents) {
     memory_warning: data.memory_warning || '',
   })
   if (data.state) state.value = data.state
+  await refreshJointPlans()
   if (saveManagerOpen.value) await refreshSaves()
 }
 
@@ -357,6 +370,7 @@ onMounted(() => {
           :default-actor="defaultActor"
           :latest-turn="latestDecision"
           :world-meta="worldMeta"
+          :joint-plans="jointPlans"
         />
       </aside>
     </main>

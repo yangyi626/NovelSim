@@ -43,7 +43,7 @@ Unity / Python 权威游戏世界
 
 | 模块 | 状态 | 已有证据 / 下一验收 |
 |---|---|---|
-| V1 求职版 | **100% 已完成并冻结** | Python `333 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7`；Windows 三路线 smoke 通过 |
+| V1 求职版 | **100% 已完成并冻结** | Python `444 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7`；Windows 三路线 smoke 通过 |
 | V1 客观评测 | **已完成** | 确定性场景 `9/9`；真实 LLM `20/20` 完成运行、目标成功 `18/20 = 90%`；已提交事件的回放、因果证据、叙事覆盖与结构化依据均为 `100%` |
 | V1 主观校准 | **已完成，小样本不外推** | 强基线 Pairwise `3:3`；真人/Judge 一致 `5/6 = 83.33%`，Cohen's κ `0.667` |
 | V1 作品集 | **已完成** | README、架构图、Windows 包、世界包、演示脚本和 `138.50s` Unity 核心视频齐备 |
@@ -68,7 +68,7 @@ Unity / Python 权威游戏世界
 | 多 NPC 认知 | beliefs、记忆、信息传播、联盟、反思 | 直接复用 |
 | 可玩客户端 | Unity 6.3、NavMesh、交互、HUD、三路线 Windows smoke | 冻结为 V1 Demo |
 | 自动评测 | 确定性 benchmark、真实 LLM、Pairwise、消融、Trace | 扩展而非重写 |
-| 工程质量 | Python `333 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7` | 作为回归基线 |
+| 工程质量 | Python `444 passed, 15 deselected`；Unity EditMode `6/6`、PlayMode `7/7` | 作为回归基线 |
 | 主观评测边界 | 6 题真人/Judge 一致 `5/6`，Cohen's κ `0.667`，样本小不外推 | V2 扩大样本并继续谨慎表述 |
 
 ### 1.2 原始五个缺口与当前剩余证据
@@ -703,7 +703,7 @@ Phase 1B 验收：
 - 任意 episode 可以从 trajectory 重放；
 - 同一输入、seed 与代码版本的状态 hash 可复现；
 - 每条失败轨迹都有确定性 failure label 和可读原因；
-- 现有 333 项 Python 回归不下降。
+- 现有 444 项 Python 回归不下降。
 
 ### Phase 2：参数化世界与数据流水线（5–7 天）
 

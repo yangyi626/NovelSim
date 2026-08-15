@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "suite_id": "novelsim-dynamic-joint-plan-v1",
+  "description": "10-turn fixed-seed perturbation suite for explicit collaboration and repair",
+  "cases": [
+    {
+      "case_id": "p1_destroyed_letter",
+      "seed": 2026081401,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_guard", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p1", "kind": "destroy_item", "turn": 0}
+      ],
+      "expected_stale_triggers": 1,
+      "expected_deadlocks": 0,
+      "expected_illegal_proposals": 0
+    },
+    {
+      "case_id": "p2_key_npc_left_scene",
+      "seed": 2026081402,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_guard", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p2", "kind": "move_key_actor", "turn": 1}
+      ],
+      "expected_stale_triggers": 0,
+      "expected_deadlocks": 0,
+      "expected_illegal_proposals": 0
+    },
+    {
+      "case_id": "p3_conflicting_evidence",
+      "seed": 2026081403,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_guard", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p3", "kind": "conflicting_evidence", "turn": 0}
+      ],
+      "expected_stale_triggers": 0,
+      "expected_deadlocks": 0,
+      "expected_illegal_proposals": 0
+    },
+    {
+      "case_id": "p4_competing_item_claims",
+      "seed": 2026081404,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_steward", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p4", "kind": "item_competition", "turn": 0}
+      ],
+      "expected_stale_triggers": 0,
+      "expected_deadlocks": 0,
+      "expected_illegal_proposals": 0
+    },
+    {
+      "case_id": "p5_wait_cycle",
+      "seed": 2026081405,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_guard", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p5", "kind": "wait_cycle", "turn": 0}
+      ],
+      "expected_stale_triggers": 0,
+      "expected_deadlocks": 1,
+      "expected_illegal_proposals": 0
+    },
+    {
+      "case_id": "p6_invalid_entity",
+      "seed": 2026081406,
+      "max_turns": 10,
+      "objective_conditions": [
+        {"kind": "character_at", "character_id": "char_guard", "location_id": "loc_courtyard"}
+      ],
+      "perturbations": [
+        {"perturbation_id": "p6", "kind": "invalid_entity", "turn": 0}
+      ],
+      "expected_stale_triggers": 1,
+      "expected_deadlocks": 0,
+      "expected_illegal_proposals": 1
+    }
+  ]
+}
+

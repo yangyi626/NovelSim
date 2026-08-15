@@ -7,6 +7,7 @@ const props = defineProps({
   defaultActor: { type: String, default: '' },
   latestTurn: { type: Object, default: null },
   worldMeta: { type: Object, default: null },
+  jointPlans: { type: Array, default: () => [] },
 })
 
 const activeTab = ref('status')
@@ -48,6 +49,7 @@ function charactersAt(locationId) {
         规则判定<span v-if="latestTurn?.status === 'rejected'" class="alert-dot"></span>
       </button>
       <button :class="{ active: activeTab === 'scenes' }" @click="activeTab = 'scenes'">场景</button>
+      <button :class="{ active: activeTab === 'plans' }" @click="activeTab = 'plans'">协作计划</button>
     </div>
 
     <div class="tab-content">
@@ -93,7 +95,7 @@ function charactersAt(locationId) {
         </section>
       </div>
 
-      <div v-else class="scenes-panel">
+      <div v-else-if="activeTab === 'scenes'" class="scenes-panel">
         <div class="world-summary">
           <span class="eyebrow">WORLD PACKAGE</span>
           <strong>{{ worldMeta?.scenario || '当前世界' }}</strong>
@@ -118,6 +120,34 @@ function charactersAt(locationId) {
           </div>
         </article>
       </div>
+
+      <div v-else class="plans-panel">
+        <article v-for="plan in jointPlans" :key="plan.plan_id" class="plan-card">
+          <div class="plan-head">
+            <div><span class="eyebrow">JOINT PLAN · R{{ plan.revision }}</span><strong>{{ plan.goal_id }}</strong></div>
+            <span class="plan-status" :class="plan.status">{{ plan.status }}</span>
+          </div>
+          <div class="plan-meta">v{{ plan.base_world_version }} → v{{ plan.observed_world_version }} · 重规划 {{ plan.replan_count }} 次</div>
+          <div v-if="plan.deadlock_cycle?.length" class="plan-warning">死锁：{{ plan.deadlock_cycle.join(' → ') }}</div>
+          <div v-if="plan.stale_reasons?.length" class="plan-warning">失效：{{ plan.stale_reasons.join('；') }}</div>
+          <section v-for="chain in plan.actor_chains" :key="chain.actor_id" class="chain-card">
+            <div class="chain-title">
+              <strong>{{ state?.characters?.[chain.actor_id]?.display_name || chain.actor_id }}</strong>
+              <span v-if="chain.blocked_reason">{{ chain.blocked_reason }}</span>
+            </div>
+            <ol>
+              <li v-for="step in chain.steps" :key="step.step_id" :class="step.status">
+                <i></i>
+                <div>
+                  <b>{{ step.kind }}</b>
+                  <span>{{ step.tool_call?.tool_name || step.target_step_id || step.condition?.kind }}</span>
+                </div>
+              </li>
+            </ol>
+          </section>
+        </article>
+        <div v-if="!jointPlans.length" class="empty-mini">当前存档还没有运行中的联合计划。</div>
+      </div>
     </div>
   </div>
 </template>
@@ -126,7 +156,7 @@ function charactersAt(locationId) {
 .inspector { display: flex; height: 100%; min-height: 0; flex-direction: column; }
 .tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
@@ -143,7 +173,7 @@ function charactersAt(locationId) {
 .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); }
 .alert-dot { position: absolute; width: 6px; height: 6px; margin: 1px 0 0 4px; border-radius: 50%; background: var(--danger); }
 .tab-content { flex: 1; min-height: 0; overflow-y: auto; }
-.rules-panel, .scenes-panel { padding: 14px; }
+.rules-panel, .scenes-panel, .plans-panel { padding: 14px; }
 .decision-card {
   padding: 14px;
   border: 1px solid var(--border);
@@ -190,4 +220,27 @@ function charactersAt(locationId) {
 .scene-characters { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .scene-characters span { padding: 2px 6px; border-radius: 999px; background: var(--bg-input); color: var(--text-dim); font-size: 9px; }
 .scene-characters em { color: var(--text-faint); font-size: 10px; font-style: normal; }
+.plan-card { margin-bottom: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.plan-head { display: flex; justify-content: space-between; gap: 8px; }
+.plan-head strong { display: block; margin-top: 4px; color: var(--text); font-size: 12px; }
+.plan-status { align-self: flex-start; padding: 2px 6px; border-radius: 999px; background: var(--bg-input); color: var(--text-dim); font: 9px/1.5 ui-monospace, monospace; }
+.plan-status.active { color: var(--player); }
+.plan-status.completed { color: var(--system); }
+.plan-status.stale, .plan-status.deadlocked, .plan-status.aborted { color: var(--danger); }
+.plan-meta { margin-top: 7px; color: var(--text-faint); font: 9px/1.4 ui-monospace, monospace; }
+.plan-warning { margin-top: 7px; padding: 6px; border-radius: 4px; background: rgba(201, 90, 90, 0.12); color: var(--danger); font-size: 10px; }
+.chain-card { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border-soft); }
+.chain-title { display: flex; justify-content: space-between; gap: 6px; color: var(--text); font-size: 10px; }
+.chain-title span { color: var(--warn); font: 8px/1.4 ui-monospace, monospace; }
+.chain-card ol { display: grid; gap: 4px; margin-top: 7px; padding: 0; list-style: none; }
+.chain-card li { display: grid; grid-template-columns: 7px 1fr; gap: 6px; align-items: center; color: var(--text-faint); }
+.chain-card li i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.chain-card li div { display: flex; justify-content: space-between; gap: 6px; font-size: 9px; }
+.chain-card li b { color: inherit; font-weight: 600; }
+.chain-card li.completed { color: var(--system); }
+.chain-card li.ready { color: var(--player); }
+.chain-card li.blocked { color: var(--warn); }
+.chain-card li.completed i { background: var(--system); }
+.chain-card li.ready i { background: var(--player); }
+.chain-card li.blocked i { background: var(--warn); }
 </style>

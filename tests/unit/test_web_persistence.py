@@ -3,7 +3,17 @@
 import importlib
 import json
 
-from engine import SQLiteWorldStore, TurnResult, WorldPackageStore, commit_event
+from engine import (
+    ActionStep,
+    ActorActionChain,
+    JointPlan,
+    SQLiteWorldStore,
+    ToolCall,
+    TurnResult,
+    WorldPackageStore,
+    commit_event,
+    create_plan_runtime,
+)
 from examples.huarong_lane import build_snapshot
 from examples.huarong_lane.scenario import NIGHT, QINGQING
 from world_schema import Operation, OperationKind, StatePatch
@@ -113,6 +123,48 @@ def test_events_endpoint_returns_persisted_history(tmp_path, monkeypatch):
     assert payload["state_version"] == 1
     assert len(payload["events"]) == 1
     assert payload["events"][0]["action_id"] == "act_web_test"
+
+
+def test_joint_plan_endpoint_exposes_action_chain_and_wait_state(
+    tmp_path,
+    monkeypatch,
+):
+    store = SQLiteWorldStore(tmp_path / "web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", store)
+    started = web_app.api_start()
+    state = store.get_state(started["session_id"])
+    actor_id = started["default_actor"]
+    plan = JointPlan(
+        plan_id="web_joint_plan",
+        goal_id="inspect_plan",
+        base_world_version=state.version,
+        actor_chains={
+            actor_id: ActorActionChain(
+                actor_id=actor_id,
+                steps=[
+                    ActionStep(
+                        step_id="inspect_step",
+                        tool_call=ToolCall(
+                            actor_id=actor_id,
+                            tool_name="move_to",
+                            arguments={"destination_id": state.current_scene_id},
+                        ),
+                    )
+                ],
+            )
+        },
+    )
+    runtime = create_plan_runtime(plan)
+    runtime.blocked_reasons[actor_id] = "wait_state:character_at"
+    store.save_joint_plan_runtime(started["session_id"], plan, runtime)
+
+    payload = web_app.api_joint_plans(session=started["session_id"])
+
+    assert payload["status"] == "ok"
+    assert payload["plans"][0]["plan_id"] == "web_joint_plan"
+    chain = payload["plans"][0]["actor_chains"][0]
+    assert chain["blocked_reason"] == "wait_state:character_at"
+    assert chain["steps"][0]["status"] == "blocked"
 
 
 def test_web_turn_retrieves_and_persists_character_memory(

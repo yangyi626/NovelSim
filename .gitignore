@@ -83,3 +83,6 @@ unity/NovelSim3D/.vs/
 unity/NovelSim3D/*.csproj
 unity/NovelSim3D/*.sln
 unity/NovelSim3D/*.suo
+
+# 开发文档
+.docs/
