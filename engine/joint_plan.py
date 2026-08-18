@@ -10,6 +10,7 @@ directly.
 from __future__ import annotations
 
 import inspect
+import json
 from enum import Enum
 from typing import (
     Any,
@@ -658,9 +659,21 @@ class JointPlanExecutor:
                 reason = (
                     failure.code.value if failure is not None else "execution_error"
                 )
+                reasons = [reason]
+                if failure is not None:
+                    reasons.append("message:%s" % failure.message)
+                    if failure.details:
+                        reasons.append(
+                            "details:%s"
+                            % json.dumps(
+                                failure.details,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            )
+                        )
                 trigger = JointPlanTrigger(
                     code="PLAN_ACTION_FAILED",
-                    reasons=[reason],
+                    reasons=reasons,
                     affected_actor_ids=[actor_id],
                 )
                 return await self._handle_trigger(
@@ -764,6 +777,9 @@ class JointPlanExecutor:
             trigger.affected_actor_ids,
             world_version=state.version,
         )
+        runtime.status = PlanRuntimeStatus.aborted
+        runtime.last_trigger = "SUPERSEDED_BY_REPLAN:%s" % revised_plan.plan_id
+        _save_runtime(store, session_id, plan, runtime)
         _save_runtime(store, session_id, revised_plan, revised_runtime)
         return JointPlanTickResult(
             plan=revised_plan,

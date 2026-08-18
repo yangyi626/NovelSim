@@ -109,7 +109,7 @@ class PlannerFeedback(_ReadOnlyContract):
 class GameObservation(_ReadOnlyContract):
     """A versioned, serializable and actor-scoped planner input."""
 
-    schema_version: str = "game_observation.v2"
+    schema_version: str = "game_observation.v3"
     observation_id: str
     actor_id: str
     timeline_id: str
@@ -235,7 +235,7 @@ def build_game_observation(
         VisibleLocation(
             location_id=location.location_id,
             display_name=location.display_name,
-            accessible=location.accessible,
+            accessible=_actor_can_enter_location(state, actor_id, location.location_id),
         )
         for location in sorted(
             state.locations.values(),
@@ -435,6 +435,32 @@ def build_game_observation(
         feedback=feedback,
         metadata=dict(metadata or {}),
     )
+
+
+def _actor_can_enter_location(
+    state: WorldState,
+    actor_id: str,
+    location_id: str,
+) -> bool:
+    """Expose effective entry availability without leaking hidden gate names."""
+
+    actor = state.characters[actor_id]
+    location = state.locations[location_id]
+    if not location.accessible:
+        return False
+    current = state.locations.get(actor.location_id or "")
+    if (
+        current is not None
+        and bool(getattr(current, "blocks_ordinary_exit", False))
+        and actor.location_id != location_id
+    ):
+        return False
+    required_flag = str(getattr(location, "requires_flag", "") or "")
+    if required_flag and not state.flags.get(required_flag):
+        return False
+    if set(location.requires_permission) - set(actor.identity_tags):
+        return False
+    return True
 
 
 def _ability_ready(state: WorldState, actor_id: str, spec: Dict[str, Any]) -> bool:

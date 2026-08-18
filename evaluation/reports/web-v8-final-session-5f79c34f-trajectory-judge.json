@@ -1,0 +1,260 @@
+{
+  "session_id": "5f79c34f8d49714c",
+  "report": {
+    "event_count": 42,
+    "chunk_count": 4,
+    "overall_score": 0.802,
+    "passed": false,
+    "threshold": 0.72,
+    "minimum_dimension": 0.6,
+    "blocking_issue_count": 2,
+    "aggregate": {
+      "causal_coherence": 0.81,
+      "character_consistency": 0.88,
+      "goal_progression": 0.76,
+      "world_state_consistency": 0.8,
+      "repetition_control": 0.76,
+      "summary": "整体叙事在角色性格塑造和主线目标推进上表现良好，场景转换与因果逻辑基本连贯。但存在明显的局部缺陷：一是物品状态追踪出现严重失误，导致前后矛盾；二是异空间奇遇中NPC姬月的对话陷入严重的原地循环与逻辑矛盾，大幅拖慢了目标推进节奏并导致重复度飙升。",
+      "strengths": [
+        "角色性格刻画鲜明，夜轻歌的冷酷果决、夜清清的阴毒以及配角的势利均符合设定，对话交锋张力十足。",
+        "场景切换与空间转移逻辑严密，从街头冲突到异空间再到家族大堂的过渡自然，主线冲突展开顺利。"
+      ],
+      "issues": [
+        {
+          "category": "world_state_consistency",
+          "severity": "high",
+          "event_ids": [
+            "event_000011"
+          ],
+          "message": "在 event_000007 中，外衫已被林管家拿走，但在 event_000011 的台词中，夜轻歌却声称该物品在自己手中，与当前世界的物品持有状态严重冲突。"
+        },
+        {
+          "category": "repetition_control",
+          "severity": "high",
+          "event_ids": [
+            "event_000030",
+            "event_000032",
+            "event_000034",
+            "event_000036"
+          ],
+          "message": "姬月的台词高度重复，在多个事件中反复强调相同内容并重复自我介绍，对话陷入严重的原地循环。"
+        },
+        {
+          "category": "causal_coherence",
+          "severity": "medium",
+          "event_ids": [
+            "event_000030",
+            "event_000032",
+            "event_000034"
+          ],
+          "message": "姬月在 event_000030 中称日后自会知晓目的，却在随后的事件中直接透露，前后表态矛盾，逻辑不连贯。"
+        },
+        {
+          "category": "goal_progression",
+          "severity": "medium",
+          "event_ids": [
+            "event_000026",
+            "event_000030",
+            "event_000032",
+            "event_000034",
+            "event_000036"
+          ],
+          "message": "姬月在连续多次交互中始终卖关子和重复台词，未能实质性推进建立互利关系的计划步骤，导致互动停滞。"
+        },
+        {
+          "category": "repetition_control",
+          "severity": "low",
+          "event_ids": [
+            "event_000039",
+            "event_000040"
+          ],
+          "message": "事件39和40在叙事内容上存在轻微重复，均表达了绿荷传唤夜轻歌的动作，可考虑合并以精简节奏。"
+        }
+      ]
+    },
+    "chunks": [
+      {
+        "causal_coherence": 0.75,
+        "character_consistency": 0.85,
+        "goal_progression": 0.8,
+        "world_state_consistency": 0.4,
+        "repetition_control": 0.85,
+        "summary": "角色性格与目标推进符合设定，对话交锋具有张力。但存在严重的物品状态不一致问题，主角在台词中声称某物品在自己手中，而该物品在之前的系统事件中已被NPC拿走。",
+        "strengths": [
+          "角色对话符合各自的人设与性格特征，如夜轻歌的冷酷果决、夜清清的阴毒嘲讽以及林管家的伪善。",
+          "目标推进清晰，夜轻歌通过言语反击和转移地点（回府找管家）来应对诬陷，展现了主动破局的策略。"
+        ],
+        "issues": [
+          {
+            "category": "world_state_consistency",
+            "severity": "high",
+            "event_ids": [
+              "event_000011"
+            ],
+            "message": "在 event_000007 中，外衫（item_qingqing_outer_robe）已被林管家从夜轻歌手中拿走，但在 event_000011 的台词中，夜轻歌却声称‘这沾着你体香的外衫为何在我手中’，与当前世界的物品持有状态严重冲突。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.9,
+        "character_consistency": 0.95,
+        "goal_progression": 0.85,
+        "world_state_consistency": 0.95,
+        "repetition_control": 0.95,
+        "summary": "轨迹从街头冲突平滑过渡到异空间奇遇，因果连贯，角色性格符合设定，目标推进合理。",
+        "strengths": [
+          "角色对话符合性格设定，冲突张力足",
+          "场景转换自然，奇遇触发合理"
+        ],
+        "issues": []
+      },
+      {
+        "causal_coherence": 0.65,
+        "character_consistency": 0.8,
+        "goal_progression": 0.5,
+        "world_state_consistency": 0.9,
+        "repetition_control": 0.4,
+        "summary": "场景与角色设定保持一致，但姬月的对话陷入严重的原地循环与前后矛盾，未能实质性推进建立互利关系的计划。",
+        "strengths": [
+          "场景状态与角色位置在三生泉中保持一致",
+          "夜轻歌的冷静试探符合其果决冷酷的性格设定"
+        ],
+        "issues": [
+          {
+            "category": "repetition_control",
+            "severity": "high",
+            "event_ids": [
+              "event_000030",
+              "event_000032",
+              "event_000034",
+              "event_000036"
+            ],
+            "message": "姬月的台词高度重复，在event_000030、000032、000034中反复强调‘图的是变数/有趣’，且在event_000026和event_000036中重复自我介绍与地点说明，对话陷入原地循环。"
+          },
+          {
+            "category": "causal_coherence",
+            "severity": "medium",
+            "event_ids": [
+              "event_000030",
+              "event_000032",
+              "event_000034"
+            ],
+            "message": "姬月在event_000030中称‘我图什么，你日后自会知晓’，却在随后的event_000032和event_000034中直接透露‘图的是变数’，前后表态矛盾，逻辑不连贯。"
+          },
+          {
+            "category": "goal_progression",
+            "severity": "medium",
+            "event_ids": [
+              "event_000026",
+              "event_000030",
+              "event_000032",
+              "event_000034",
+              "event_000036"
+            ],
+            "message": "姬月的计划步骤包含‘解释双方处境’和‘提出互利承诺’，但在连续多次交互中，姬月始终在卖关子和重复台词，未能实质性推进计划步骤，导致互动停滞。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.95,
+        "character_consistency": 0.9,
+        "goal_progression": 0.9,
+        "world_state_consistency": 0.95,
+        "repetition_control": 0.85,
+        "summary": "轨迹因果清晰，角色从异空间返回后迅速切入家族大堂质问的核心冲突，目标推进合理。绿荷的传唤行为符合其势利人设，夜轻歌的应对也符合其冷酷果决的性格，场景切换与状态更新准确无误。",
+        "strengths": [
+          "空间转移与场景切换逻辑严密，位置状态更新准确",
+          "角色行为高度契合既定人设，绿荷的傲慢与夜轻歌的冷峻形成良好对比",
+          "主线冲突（大堂质问）顺利展开，各方目标推进自然且符合预期"
+        ],
+        "issues": [
+          {
+            "category": "repetition_control",
+            "severity": "low",
+            "event_ids": [
+              "event_000039",
+              "event_000040"
+            ],
+            "message": "事件39（能力调用）和事件40（对话）在叙事内容上存在轻微重复，均表达了绿荷传唤夜轻歌前往大堂的动作，可考虑合并以精简叙事节奏。"
+          }
+        ]
+      }
+    ]
+  },
+  "llm_usage": {
+    "call_count": 5,
+    "failed_call_count": 0,
+    "prompt_tokens": 18478,
+    "completion_tokens": 10380,
+    "total_tokens": 28858,
+    "cached_tokens": 0,
+    "latency_ms": 180509.284
+  },
+  "llm_calls": [
+    {
+      "call_id": "3c18c2bb07e24b0a80ad20484e4aacac",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4149,
+      "completion_tokens": 1765,
+      "total_tokens": 5914,
+      "cached_tokens": 0,
+      "latency_ms": 31078.828,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "fec3754600e34b47a95cc9d0d08728e8",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4244,
+      "completion_tokens": 1681,
+      "total_tokens": 5925,
+      "cached_tokens": 0,
+      "latency_ms": 29313.354,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "9bdba8456ec042aa842d9b6b103773e3",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4194,
+      "completion_tokens": 2257,
+      "total_tokens": 6451,
+      "cached_tokens": 0,
+      "latency_ms": 39070.742,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "6c90be757b204e7cb98f25afb9c86112",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 3049,
+      "completion_tokens": 2133,
+      "total_tokens": 5182,
+      "cached_tokens": 0,
+      "latency_ms": 37005.968,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "6bb293daede94060ad6c65e221adefff",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 2842,
+      "completion_tokens": 2544,
+      "total_tokens": 5386,
+      "cached_tokens": 0,
+      "latency_ms": 44040.392,
+      "success": true,
+      "error_type": null
+    }
+  ]
+}

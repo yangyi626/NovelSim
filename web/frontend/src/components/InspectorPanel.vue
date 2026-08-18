@@ -19,6 +19,7 @@ const emit = defineEmits([
   'approve-plan',
   'execute-plan',
   'toggle-auto',
+  'abort-plans',
 ])
 
 const activeTab = ref('status')
@@ -34,6 +35,9 @@ watch(() => props.latestTurn, (turn) => {
 
 const locations = computed(() => Object.values(props.state?.locations || {}))
 const activePlan = computed(() => props.jointPlans[0] || null)
+const unfinishedPlanCount = computed(() => props.jointPlans.filter((plan) => (
+  !['completed', 'aborted'].includes(plan.status)
+)).length)
 const planningCharacters = computed(() => {
   const characters = Object.values(props.state?.characters || {}).filter((item) => item.is_alive)
   const local = characters.filter((item) => (
@@ -251,6 +255,15 @@ function toggleAuto() {
               @click="toggleAuto"
             >
               {{ autoRunning ? '停止 Auto' : '启动 Auto' }}
+            </button>
+            <button
+              v-if="unfinishedPlanCount"
+              type="button"
+              class="danger"
+              :disabled="planBusy || autoRunning"
+              @click="emit('abort-plans')"
+            >
+              终止旧规划（{{ unfinishedPlanCount }}）
             </button>
           </div>
           <p v-if="planError" class="console-error">{{ planError }}</p>

@@ -87,11 +87,13 @@ class WorldPackageRecord:
     def editable(self) -> bool:
         return self.source == "custom"
 
-    def world_meta(self) -> Dict[str, str]:
+    def world_meta(self) -> Dict[str, Any]:
         return {
+            "package_id": self.package_id,
             "novel": self.novel,
             "scenario": self.scenario,
             "anchor": self.anchor,
+            "source_chapters": list(self.source_chapters),
         }
 
     def summary(self) -> Dict[str, Any]:

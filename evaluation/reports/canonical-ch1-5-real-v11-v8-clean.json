@@ -1,0 +1,1152 @@
+{
+  "schema_version": "canonical_novel_report.v2",
+  "evaluation_mode": "clean",
+  "case_id": "first_crazy_waste_third_lady_ch1_5",
+  "novel_title": "第一狂妃：废柴三小姐",
+  "target_chapters": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "source_fingerprint": "b99a311179755c6a9fe4d5905739a7e55986ac7c14fb107d123308ccd65b1ecb",
+  "real_llm": true,
+  "fallback_count": 0,
+  "future_event_leakage_detected": false,
+  "initial_state_hash": "de304312fee17a2f1ebcc035658e5a404272935ac08b4e04e99e6fa4df6689e7",
+  "final_state_hash": "fe323b33c3ae64c2789d0d14b18f6a2c6bced71b87dc28d23e3eaa8906de0f59",
+  "initial_world_version": 0,
+  "final_world_version": 30,
+  "beat_count": 10,
+  "execution_tick_count": 13,
+  "plan_count": 10,
+  "plan_invalidation_count": 0,
+  "replan_count": 0,
+  "fragment_completed": true,
+  "replay_consistent": true,
+  "illegal_commit_count": 0,
+  "stages": [
+    {
+      "name": "canonical_checkpoint_loaded",
+      "status": "passed",
+      "details": {
+        "checkpoint": "chapter_000001",
+        "evaluation_mode": "clean",
+        "future_event_count_visible_to_planner": 0,
+        "world_version": 0
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 0,
+        "plan_id": "fc523ff8e01c4350a0786fa81851d35f",
+        "actors": [
+          "char_yeqingge",
+          "char_yeqingqing"
+        ],
+        "action_count": 3,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 0,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000001",
+          "event_000002"
+        ],
+        "world_version": 4
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 0,
+        "tick": 1,
+        "committed_event_ids": [
+          "event_000005"
+        ],
+        "world_version": 5
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 1,
+        "plan_id": "f4fae219c37b4ec2baf9a49eba29f4f6",
+        "actors": [
+          "char_yeqingge",
+          "char_lin_guanjia"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 1,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000006",
+          "event_000007"
+        ],
+        "world_version": 9
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 2,
+        "plan_id": "9c9b2cd107ea4a799a8e1c197f9bbf09",
+        "actors": [
+          "char_jiyue"
+        ],
+        "action_count": 1,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 2,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000010"
+        ],
+        "world_version": 10
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 3,
+        "plan_id": "a5762348c04f47759d7d88728ab695e6",
+        "actors": [
+          "char_yeqingge",
+          "char_jiyue"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 3,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000011",
+          "event_000012"
+        ],
+        "world_version": 14
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 4,
+        "plan_id": "51d0a64e5ed34ac0a5bc7ebf80a3d27f",
+        "actors": [
+          "char_jiyue"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 4,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000015"
+        ],
+        "world_version": 16
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 4,
+        "tick": 1,
+        "committed_event_ids": [
+          "event_000017"
+        ],
+        "world_version": 17
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 5,
+        "plan_id": "d7cd6d0433fd4ff2a597dfd9f54e8a51",
+        "actors": [
+          "char_yeqingge",
+          "char_jiyue"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 5,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000018",
+          "event_000019"
+        ],
+        "world_version": 21
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 6,
+        "plan_id": "c04c8ea8071c4d0ea8f2f2b1315872cd",
+        "actors": [
+          "char_jiyue"
+        ],
+        "action_count": 1,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 6,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000022"
+        ],
+        "world_version": 23
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 7,
+        "plan_id": "7631c52f0c924a28b1e25b7046f17193",
+        "actors": [
+          "char_jiyue"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 7,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000024"
+        ],
+        "world_version": 25
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 7,
+        "tick": 1,
+        "committed_event_ids": [
+          "event_000026"
+        ],
+        "world_version": 26
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 8,
+        "plan_id": "f5cc51a273264fb2807dc3270696612b",
+        "actors": [
+          "char_luhe"
+        ],
+        "action_count": 1,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 8,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000027"
+        ],
+        "world_version": 27
+      }
+    },
+    {
+      "name": "real_llm_plan_generated",
+      "status": "passed",
+      "details": {
+        "beat_index": 9,
+        "plan_id": "e37d66260d2d41fb949dd5b315f0438e",
+        "actors": [
+          "char_yeqingge",
+          "char_luhe"
+        ],
+        "action_count": 2,
+        "fallback_used": false
+      }
+    },
+    {
+      "name": "guarded_multi_agent_execution",
+      "status": "passed",
+      "details": {
+        "beat_index": 9,
+        "tick": 0,
+        "committed_event_ids": [
+          "event_000028",
+          "event_000029"
+        ],
+        "world_version": 30
+      }
+    },
+    {
+      "name": "story_fragment_terminal",
+      "status": "passed",
+      "details": {
+        "night_location": "loc_ye_clan_hall",
+        "expected_location": "loc_ye_clan_hall"
+      }
+    },
+    {
+      "name": "canonical_event_alignment",
+      "status": "passed",
+      "details": {
+        "canonical_event_count": 10,
+        "matched_event_count": 9,
+        "weighted_event_recall": 0.8707,
+        "event_order_accuracy": 1.0,
+        "actor_consistency": 1.0,
+        "target_consistency": 1.0
+      }
+    }
+  ],
+  "planner_traces": [
+    {
+      "actor_id": "char_yeqingge",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-67c8bdc3-1bd9-9bc8-a9dd-af17f899a431",
+      "raw_response_sha256": "5e06d32ee1430813357177b5cb4ea4be8d54533581cb8e1d6d02110c9820832e",
+      "latency_ms": 6136.917,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_yeqingqing",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-8c18cbec-65ef-92d3-84b9-c02d1162f0c4",
+      "raw_response_sha256": "3ec99329a966622240c53f4f2a66fac80fa7a91ea1e27d35ddec1e2ee87dbfc6",
+      "latency_ms": 4288.602,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_yeqingge",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-0127bfd8-e046-9c17-acb5-0e90a079eff8",
+      "raw_response_sha256": "26eeb1ed488f4464f82985371d39bc8717b26abb91bdce5817d41bdc0f0286d9",
+      "latency_ms": 4543.377,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_lin_guanjia",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-8fcd83a8-9cbc-9ae7-985e-792c0859fd0f",
+      "raw_response_sha256": "e52992d2b011785a927620fa57bffc96a595c080c9412b20c342618d7dc4ef67",
+      "latency_ms": 3841.46,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-bb466bb5-7049-97fe-ac5d-5c31bf540d9a",
+      "raw_response_sha256": "ddd3b2d9967614e5051c9352154ea7efae0d815590882bd1075b2be7efc8f585",
+      "latency_ms": 3347.942,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_yeqingge",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-95b1b662-deb8-9202-a8ca-de2c5c5416fd",
+      "raw_response_sha256": "515405f73094fea079e3c58fd0787cc38dbcf61b5cee4264d0f6fb7eaaf0feb0",
+      "latency_ms": 3777.548,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-191a420c-33aa-94ee-abf2-0ac2a769345f",
+      "raw_response_sha256": "e0dc9c764770a9fb6b7058a5aacc46e079b22da66528a4a72247990376668a67",
+      "latency_ms": 3821.556,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-9c19c0d1-72d1-9aec-8fcd-14e7143e0c60",
+      "raw_response_sha256": "e557860272c1ef929dc40df67826773254c84cf9ebd7e62628366469ce084a11",
+      "latency_ms": 5063.924,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_yeqingge",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-f046556d-f938-92a3-bb23-666bc6c50a1f",
+      "raw_response_sha256": "5c9ca3ab60895e996af78fff50985b08b8880f5057932fa1b9b19198f1d45822",
+      "latency_ms": 3953.425,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-d5777e07-3d83-9142-82c7-5a2eac0ef0c4",
+      "raw_response_sha256": "d6d26732de752edd3f114d4859ef48361a272e13cba266f7b87e09f7e80e88d5",
+      "latency_ms": 4622.65,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-5a36432e-2500-9138-8f68-78864e33e59f",
+      "raw_response_sha256": "6d254beb3979727da13027fb61c132ff57d73f1cb7f8a77f672cf50f9fc8f23f",
+      "latency_ms": 3854.079,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_jiyue",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-72c4aa56-4a7b-92a9-9505-56f8f565286e",
+      "raw_response_sha256": "7bf18cda3d3756ab7c613022a05c518af038e6fc7997380c3203c5e440074e97",
+      "latency_ms": 4963.421,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_luhe",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-7204b024-0fc3-9fe9-920a-808bad98452b",
+      "raw_response_sha256": "c30025ad8b2fa44a1b9c716509249a266659f250933299f4c5459445105e4425",
+      "latency_ms": 3179.476,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_yeqingge",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-247957b1-3b49-9c5b-be62-8f7edfc9b04a",
+      "raw_response_sha256": "77ed0d6de3ccf556515e11c97fc9d4846bcefe13fd24797cc7b69bbea8207ee2",
+      "latency_ms": 3588.393,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    },
+    {
+      "actor_id": "char_luhe",
+      "attempt": 1,
+      "operation": "narrative_plan",
+      "model_id": "qwen3.7-plus",
+      "prompt_version": "novelsim_narrative_beat.v8",
+      "response_id": "chatcmpl-4aff04e9-a2e9-99b2-9e5a-0d107b8bce22",
+      "raw_response_sha256": "9416b6b5a76fb11407bea33df22c924c3dafccf80b8bdcd1f18bf56594acde0c",
+      "latency_ms": 3948.032,
+      "success": true,
+      "error_type": "",
+      "fallback_used": false
+    }
+  ],
+  "llm_calls": [
+    {
+      "call_id": "5037c9c8ee06431b8d5e2add9cd69503",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4071,
+      "completion_tokens": 241,
+      "total_tokens": 4312,
+      "cached_tokens": 0,
+      "latency_ms": 6136.196,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "7021760fbdfe4145b2d948dfaa75dcf0",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4030,
+      "completion_tokens": 200,
+      "total_tokens": 4230,
+      "cached_tokens": 0,
+      "latency_ms": 4287.438,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "49ddea85b1774dd090747cf7db032e5f",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4247,
+      "completion_tokens": 205,
+      "total_tokens": 4452,
+      "cached_tokens": 0,
+      "latency_ms": 4542.177,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "4bdc7ab4ee9f4645b42fbf97ff13ee7f",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4087,
+      "completion_tokens": 163,
+      "total_tokens": 4250,
+      "cached_tokens": 0,
+      "latency_ms": 3839.165,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "88d65853c492470787beec7297d379a6",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4306,
+      "completion_tokens": 139,
+      "total_tokens": 4445,
+      "cached_tokens": 0,
+      "latency_ms": 3346.972,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "e4ee3ce8c4164a37bd671e5208356609",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4526,
+      "completion_tokens": 169,
+      "total_tokens": 4695,
+      "cached_tokens": 0,
+      "latency_ms": 3776.238,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "25183eeb725d49b1bd1f901c296a1812",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4219,
+      "completion_tokens": 167,
+      "total_tokens": 4386,
+      "cached_tokens": 0,
+      "latency_ms": 3818.687,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "ba9f22ba52154f549eaac42a5c87bdaa",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4646,
+      "completion_tokens": 233,
+      "total_tokens": 4879,
+      "cached_tokens": 0,
+      "latency_ms": 5062.814,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "5b31a35223844de58423ab9f0ec209ca",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4940,
+      "completion_tokens": 168,
+      "total_tokens": 5108,
+      "cached_tokens": 0,
+      "latency_ms": 3951.812,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "ec4910c07d034286a6ea71049ef47c16",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4512,
+      "completion_tokens": 192,
+      "total_tokens": 4704,
+      "cached_tokens": 0,
+      "latency_ms": 4619.622,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "de7cd36455e2468399e53d329cdd6717",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4931,
+      "completion_tokens": 174,
+      "total_tokens": 5105,
+      "cached_tokens": 0,
+      "latency_ms": 3852.499,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "31cd7a206d9c460485aaac1d6f01916a",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4927,
+      "completion_tokens": 227,
+      "total_tokens": 5154,
+      "cached_tokens": 0,
+      "latency_ms": 4961.409,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "d840bcc5b3004f8f8103c887520d0a28",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4764,
+      "completion_tokens": 125,
+      "total_tokens": 4889,
+      "cached_tokens": 0,
+      "latency_ms": 3178.722,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "c6408d3ff4a74cfea58547cef6fb8ced",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 5231,
+      "completion_tokens": 142,
+      "total_tokens": 5373,
+      "cached_tokens": 0,
+      "latency_ms": 3586.638,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "3b5563c850e440919003609cc6752b41",
+      "operation": "narrative_joint_plan",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4501,
+      "completion_tokens": 170,
+      "total_tokens": 4671,
+      "cached_tokens": 0,
+      "latency_ms": 3945.097,
+      "success": true,
+      "error_type": null
+    }
+  ],
+  "llm_usage": {
+    "call_count": 15,
+    "failed_call_count": 0,
+    "prompt_tokens": 67938,
+    "completion_tokens": 2715,
+    "total_tokens": 70653,
+    "cached_tokens": 0,
+    "latency_ms": 62905.486
+  },
+  "simulated_events": [
+    {
+      "event_id": "event_000001",
+      "event_type": "tool.talk_to",
+      "world_version": 1,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_yeqingqing",
+        "loc_huarong_lane"
+      ],
+      "summary": "char_yeqingge talked to char_yeqingqing",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000002",
+      "event_type": "tool.talk_to",
+      "world_version": 2,
+      "actor_ids": [
+        "char_yeqingqing"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_huarong_lane"
+      ],
+      "summary": "char_yeqingqing talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000005",
+      "event_type": "tool.move_to",
+      "world_version": 5,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "loc_yefu"
+      ],
+      "summary": "char_yeqingge moved to loc_yefu",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000006",
+      "event_type": "tool.talk_to",
+      "world_version": 6,
+      "actor_ids": [
+        "char_lin_guanjia"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_yefu"
+      ],
+      "summary": "char_lin_guanjia talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000007",
+      "event_type": "tool.talk_to",
+      "world_version": 7,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_lin_guanjia",
+        "loc_yefu"
+      ],
+      "summary": "char_yeqingge talked to char_lin_guanjia",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000010",
+      "event_type": "tool.invoke_ability",
+      "world_version": 10,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_jiyue_space",
+        "loc_jiyue_space"
+      ],
+      "summary": "姬月触发异空间联系，将夜轻歌带入姬月异空间",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000011",
+      "event_type": "tool.talk_to",
+      "world_version": 11,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_jiyue_space"
+      ],
+      "summary": "char_jiyue talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000012",
+      "event_type": "tool.talk_to",
+      "world_version": 12,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_jiyue",
+        "loc_jiyue_space"
+      ],
+      "summary": "char_yeqingge talked to char_jiyue",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000015",
+      "event_type": "tool.talk_to",
+      "world_version": 15,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_jiyue_space"
+      ],
+      "summary": "char_jiyue talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000017",
+      "event_type": "tool.invoke_ability",
+      "world_version": 17,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_sansheng_spring",
+        "loc_jiyue_space"
+      ],
+      "summary": "姬月开放三生泉，将夜轻歌带入泉中疗伤",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000018",
+      "event_type": "tool.talk_to",
+      "world_version": 18,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_sansheng_spring"
+      ],
+      "summary": "char_jiyue talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000019",
+      "event_type": "tool.talk_to",
+      "world_version": 19,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_jiyue",
+        "loc_sansheng_spring"
+      ],
+      "summary": "char_yeqingge talked to char_jiyue",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000022",
+      "event_type": "tool.talk_to",
+      "world_version": 22,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_sansheng_spring"
+      ],
+      "summary": "char_jiyue talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000024",
+      "event_type": "tool.talk_to",
+      "world_version": 24,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_sansheng_spring"
+      ],
+      "summary": "char_jiyue talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000026",
+      "event_type": "tool.invoke_ability",
+      "world_version": 26,
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_fengyue_pavilion",
+        "loc_sansheng_spring"
+      ],
+      "summary": "姬月关闭异空间通道，将夜轻歌送回风月阁",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000027",
+      "event_type": "tool.invoke_ability",
+      "world_version": 27,
+      "actor_ids": [
+        "char_luhe"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_fengyue_pavilion"
+      ],
+      "summary": "绿荷奉命传唤夜轻歌前往夜家大堂",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000028",
+      "event_type": "tool.talk_to",
+      "world_version": 28,
+      "actor_ids": [
+        "char_luhe"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "loc_fengyue_pavilion"
+      ],
+      "summary": "char_luhe talked to char_yeqingge",
+      "source": "llm_tool"
+    },
+    {
+      "event_id": "event_000029",
+      "event_type": "tool.move_to",
+      "world_version": 29,
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "loc_ye_clan_hall"
+      ],
+      "summary": "char_yeqingge moved to loc_ye_clan_hall",
+      "source": "llm_tool"
+    }
+  ],
+  "triggers": [],
+  "alignment": {
+    "schema_version": "canonical_alignment.v1",
+    "alignments": [
+      {
+        "canonical_event_id": "canon_ch2_take_robe",
+        "simulated_event_id": null,
+        "score": 0.0,
+        "matched": false,
+        "tool_match": false,
+        "actor_match": false,
+        "target_match": false,
+        "keyword_match_rate": 0.0
+      },
+      {
+        "canonical_event_id": "canon_ch2_return_yefu",
+        "simulated_event_id": "event_000005",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch2_warn_lin",
+        "simulated_event_id": "event_000007",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch3_enter_space",
+        "simulated_event_id": "event_000010",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch3_jiyue_reveal",
+        "simulated_event_id": "event_000011",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch4_enter_spring",
+        "simulated_event_id": "event_000017",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch4_repair_promise",
+        "simulated_event_id": "event_000018",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch4_return_pavilion",
+        "simulated_event_id": "event_000026",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch5_summons",
+        "simulated_event_id": "event_000027",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      },
+      {
+        "canonical_event_id": "canon_ch5_enter_hall",
+        "simulated_event_id": "event_000029",
+        "score": 1.0,
+        "matched": true,
+        "tool_match": true,
+        "actor_match": true,
+        "target_match": true,
+        "keyword_match_rate": 1.0
+      }
+    ],
+    "unmatched_simulated_event_ids": [
+      "event_000001",
+      "event_000002",
+      "event_000006",
+      "event_000012",
+      "event_000015",
+      "event_000019",
+      "event_000022",
+      "event_000024",
+      "event_000028"
+    ],
+    "metrics": {
+      "canonical_event_count": 10,
+      "matched_event_count": 9,
+      "weighted_event_recall": 0.8707,
+      "event_order_accuracy": 1.0,
+      "actor_consistency": 1.0,
+      "target_consistency": 1.0
+    }
+  },
+  "source_attribution": {
+    "total_canonical_weight": 11.6,
+    "matched_weight": 10.1,
+    "matched_event_count_by_source": {
+      "llm_tool": 9
+    },
+    "matched_weight_by_source": {
+      "llm_tool": 10.1
+    },
+    "canonical_recall_by_source": {
+      "llm_tool": 0.8707
+    }
+  }
+}

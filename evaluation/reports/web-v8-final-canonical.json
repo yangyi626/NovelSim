@@ -1,0 +1,399 @@
+{
+  "benchmark": "web_canonical_ch1_to_ch5",
+  "prompt_version": "novelsim_narrative_beat.v8",
+  "session_id": "e2d15698fe210f02",
+  "save_name": "v8最终基准·一致性修复·无玩家干预",
+  "completed": true,
+  "blocking_error": "",
+  "metrics": {
+    "canonical_event_count": 10,
+    "matched_event_count": 9,
+    "weighted_event_recall": 0.8707,
+    "event_order_accuracy": 1.0,
+    "actor_consistency": 1.0,
+    "target_consistency": 1.0,
+    "player_intervention_count": 0,
+    "illegal_action_proposal_rate": 0.0,
+    "illegal_state_commit_rate": 0.0,
+    "replan_rate_per_root_plan": 0.0,
+    "replan_count": 0,
+    "root_plan_count": 9,
+    "unfinished_plan_count": 0,
+    "total_execution_attempts": 17,
+    "failed_execution_attempts": 0,
+    "event_count": 28,
+    "final_world_version": 28,
+    "current_story_chapter": 5,
+    "terminal_reached": true,
+    "wall_time_ms": 85796.013,
+    "mean_cycle_wall_ms": 9473.368,
+    "p95_cycle_wall_ms": 12473.15
+  },
+  "llm_usage": {
+    "call_count": 15,
+    "failed_call_count": 0,
+    "prompt_tokens": 69443,
+    "completion_tokens": 2762,
+    "total_tokens": 72205,
+    "cached_tokens": 0,
+    "latency_ms": 64495.803
+  },
+  "cycles": [
+    {
+      "beat": 1,
+      "generate_wall_ms": 10159.583,
+      "generate_status": "ok",
+      "plan_id": "4e236f93135f4bd1931a1484972bded8",
+      "base_world_version": 0,
+      "actors": [
+        "char_yeqingge",
+        "char_yeqingqing"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 8157,
+        "completion_tokens": 434,
+        "total_tokens": 8591,
+        "cached_tokens": 0,
+        "latency_ms": 10074.633
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 4119.213,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 2,
+      "successful_actions": 3,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 5,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 2,
+      "generate_wall_ms": 8847.748,
+      "generate_status": "ok",
+      "plan_id": "7afd775df1ab48d3ba0049214351caa6",
+      "base_world_version": 5,
+      "actors": [
+        "char_yeqingge",
+        "char_lin_guanjia"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 8596,
+        "completion_tokens": 384,
+        "total_tokens": 8980,
+        "cached_tokens": 0,
+        "latency_ms": 8771.835
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 2931.353,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 4,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 3,
+      "generate_wall_ms": 3514.202,
+      "generate_status": "ok",
+      "plan_id": "c4c4c5fac3184020b1639901d9a56fb0",
+      "base_world_version": 9,
+      "actors": [
+        "char_jiyue"
+      ],
+      "generate_llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 4540,
+        "completion_tokens": 128,
+        "total_tokens": 4668,
+        "cached_tokens": 0,
+        "latency_ms": 3446.217
+      },
+      "generation_attempts": 1,
+      "execute_wall_ms": 631.269,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 1,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 1,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 4,
+      "generate_wall_ms": 8113.303,
+      "generate_status": "ok",
+      "plan_id": "40282e3e27cd46fca2f2cfc1ee5e7d51",
+      "base_world_version": 10,
+      "actors": [
+        "char_yeqingge",
+        "char_jiyue"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 9201,
+        "completion_tokens": 353,
+        "total_tokens": 9554,
+        "cached_tokens": 0,
+        "latency_ms": 8051.638
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 2879.065,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 4,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 5,
+      "generate_wall_ms": 5295.465,
+      "generate_status": "ok",
+      "plan_id": "447d83d13f1c477ebe252652d57232ee",
+      "base_world_version": 14,
+      "actors": [
+        "char_jiyue"
+      ],
+      "generate_llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 4869,
+        "completion_tokens": 248,
+        "total_tokens": 5117,
+        "cached_tokens": 0,
+        "latency_ms": 5233.395
+      },
+      "generation_attempts": 1,
+      "execute_wall_ms": 2000.305,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 2,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 3,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 6,
+      "generate_wall_ms": 9819.285,
+      "generate_status": "ok",
+      "plan_id": "abb87df7d4254b3fa440f5aabd7d02d2",
+      "base_world_version": 17,
+      "actors": [
+        "char_yeqingge",
+        "char_jiyue"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 9683,
+        "completion_tokens": 422,
+        "total_tokens": 10105,
+        "cached_tokens": 0,
+        "latency_ms": 9737.013
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 2653.865,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 4,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 7,
+      "generate_wall_ms": 9110.003,
+      "generate_status": "ok",
+      "plan_id": "8406719bfff343139190fdcc0414728b",
+      "base_world_version": 21,
+      "actors": [
+        "char_jiyue"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 9937,
+        "completion_tokens": 389,
+        "total_tokens": 10326,
+        "cached_tokens": 0,
+        "latency_ms": 9028.081
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 2007.654,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 2,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 3,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 8,
+      "generate_wall_ms": 3300.17,
+      "generate_status": "ok",
+      "plan_id": "bc561a1dfd674b518defe0341a648f05",
+      "base_world_version": 24,
+      "actors": [
+        "char_luhe"
+      ],
+      "generate_llm_usage": {
+        "call_count": 1,
+        "failed_call_count": 0,
+        "prompt_tokens": 4738,
+        "completion_tokens": 126,
+        "total_tokens": 4864,
+        "cached_tokens": 0,
+        "latency_ms": 3252.844
+      },
+      "generation_attempts": 1,
+      "execute_wall_ms": 718.846,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 1,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 1,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    },
+    {
+      "beat": 9,
+      "generate_wall_ms": 6998.345,
+      "generate_status": "ok",
+      "plan_id": "e92c4ef30f0d48aea851c9896bbb9054",
+      "base_world_version": 25,
+      "actors": [
+        "char_yeqingge",
+        "char_luhe"
+      ],
+      "generate_llm_usage": {
+        "call_count": 2,
+        "failed_call_count": 0,
+        "prompt_tokens": 9722,
+        "completion_tokens": 278,
+        "total_tokens": 10000,
+        "cached_tokens": 0,
+        "latency_ms": 6900.147
+      },
+      "generation_attempts": 2,
+      "execute_wall_ms": 2160.639,
+      "execute_status": "ok",
+      "runtime_status": "completed",
+      "revision": 0,
+      "replan_count": 0,
+      "ticks": 1,
+      "successful_actions": 2,
+      "failed_actions": 0,
+      "failure_codes": [],
+      "committed_events": 3,
+      "execute_llm_usage": {
+        "call_count": 0,
+        "failed_call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "latency_ms": 0.0
+      }
+    }
+  ]
+}

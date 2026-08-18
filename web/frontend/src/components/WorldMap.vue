@@ -65,8 +65,8 @@ function charactersAt(locationId) {
     >
       <defs>
         <linearGradient id="map-node-fill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#3b3025" />
-          <stop offset="1" stop-color="#241e18" />
+          <stop offset="0" stop-color="#292c31" />
+          <stop offset="1" stop-color="#1a1c20" />
         </linearGradient>
       </defs>
       <path
@@ -114,8 +114,8 @@ function charactersAt(locationId) {
   overflow: auto;
   padding: 0 8px 8px;
   background:
-    linear-gradient(rgba(201, 169, 106, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(201, 169, 106, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 .world-map { display: block; width: 100%; min-height: 190px; }
@@ -133,7 +133,7 @@ function charactersAt(locationId) {
 .map-node.current rect {
   stroke: var(--accent);
   stroke-width: 2.5;
-  filter: drop-shadow(0 0 7px rgba(201, 169, 106, 0.28));
+  filter: drop-shadow(0 0 7px rgba(138, 180, 248, 0.22));
 }
 .map-node.locked { opacity: 0.52; }
 .location-name { fill: var(--text); font-size: 14px; font-weight: 600; }

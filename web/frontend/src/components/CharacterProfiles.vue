@@ -83,7 +83,7 @@ function initials(name) {
   border: 1px solid var(--border-soft);
   border-left: 3px solid transparent;
   border-radius: 8px;
-  background: rgba(44, 36, 28, 0.72);
+  background: rgba(255, 255, 255, 0.025);
 }
 .profile-card.present { border-left-color: var(--npc); }
 .profile-card.player { border-left-color: var(--player); background: rgba(70, 82, 94, 0.18); }
@@ -96,8 +96,8 @@ function initials(name) {
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 50%;
-  background: linear-gradient(145deg, #4a3d2e, #241e18);
-  color: var(--accent);
+  background: linear-gradient(145deg, #34373d, #1b1d21);
+  color: var(--text-dim);
   font-size: 11px;
 }
 .profile-body { min-width: 0; flex: 1; }

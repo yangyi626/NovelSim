@@ -60,9 +60,11 @@ from engine import (
     create_core_tool_registry,
     create_plan_runtime,
     create_world_store,
+    commit_dialogue_perceptions,
     cursor_after_world_version,
     filter_compatible_memories,
     project_presentation_commands,
+    ready_ability_ids,
     record_event_memory,
     reflect_character_memories,
     validate_joint_plan,
@@ -83,8 +85,10 @@ from web.auth import (
     SYSTEM_ACTOR,
     require_permission,
 )
+from web.player_view import build_player_view
 
 from examples.huarong_lane import build_snapshot, build_world_package
+from examples.huarong_lane.canonical_case import build_canonical_start_state
 from examples.huarong_lane.scenario import NIGHT
 from examples.secret_letter.package import (
     PACKAGE_ID as SECRET_LETTER_PACKAGE_ID,
@@ -97,6 +101,7 @@ from examples.secret_letter.scenario import (
     run_secret_letter_scene,
 )
 from engine.scene_controller import SceneMode
+from engine.llm_telemetry import capture_llm_usage
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +110,7 @@ from engine.scene_controller import SceneMode
 
 # 内置华容巷世界的默认玩家角色
 DEFAULT_ACTOR_ID = NIGHT
+CANONICAL_CH1_PACKAGE_ID = "first_crazy_ch1_checkpoint"
 
 STATIC_DIR = Path(__file__).parent / "static"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -160,6 +166,29 @@ PACKAGES = WorldPackageStore(
             "default_actor_id": DEFAULT_ACTOR_ID,
             "source_chapters": _builtin_manifest["source_chapters"],
             "snapshot": build_snapshot().dict(),
+            "revision": 1,
+        },
+        CANONICAL_CH1_PACKAGE_ID: {
+            "package_id": CANONICAL_CH1_PACKAGE_ID,
+            "novel": "第一狂妃：废柴三小姐",
+            "scenario": "原著时间线 · 第1章检查点",
+            "anchor": "华容巷冲突结束后，角色依据原著认知继续推进第2—5章",
+            "default_actor_id": DEFAULT_ACTOR_ID,
+            "source_chapters": [
+                "第1章 华容巷",
+                "第2章 那就脱！",
+                "第3章 没身材没脸蛋的女人",
+                "第4章 你也算香玉？",
+                "第5章 狗仗人势的东西",
+            ],
+            "snapshot": build_canonical_start_state().dict(),
+            "manifest": {
+                "entry_kind": "canonical_checkpoint",
+                "checkpoint_chapter": 1,
+                "target_chapters": [2, 3, 4, 5],
+                "evaluation_case_id": "first_crazy_waste_third_lady_ch1_5",
+                "description": "原著第1章结束时的可执行世界状态，用于真实 LLM 自动复现第2—5章。",
+            },
             "revision": 1,
         },
         SECRET_LETTER_PACKAGE_ID: _secret_letter_manifest,
@@ -602,34 +631,80 @@ def _select_planning_actors(
             raise ValueError("死亡角色不能参与规划: " + "、".join(dead))
         return requested[:4]
 
-    candidates = [
-        character.character_id
-        for character in state.characters.values()
-        if character.is_alive
-        and (
-            not state.current_scene_id
-            or character.location_id == state.current_scene_id
+    driver = state.characters.get(default_actor_id)
+    if driver is None or not driver.is_alive:
+        driver = next(
+            (character for character in state.characters.values() if character.is_alive),
+            None,
         )
-    ]
-    if not candidates:
-        candidates = [
-            character.character_id
-            for character in state.characters.values()
-            if character.is_alive
-        ]
-    candidates.sort(
-        key=lambda actor_id: (
-            actor_id != default_actor_id,
-            not bool(
-                state.character_psyches.get(actor_id)
-                and state.character_psyches[actor_id].goals
-            ),
-            actor_id,
-        )
-    )
-    if not candidates:
+    if driver is None:
         raise ValueError("当前世界没有可参与规划的存活角色")
-    return candidates[:3]
+
+    candidates = []
+    for actor_id, character in state.characters.items():
+        if not character.is_alive:
+            continue
+        psyche = state.character_psyches.get(actor_id)
+        active_goals = [] if psyche is None else [
+            goal
+            for goal in psyche.goals
+            if not goal.achieved
+            and getattr(goal, "status", "active") == "active"
+            and _planning_goal_is_activated(goal, driver.location_id, state)
+        ]
+        same_scene = character.location_id == driver.location_id
+        if actor_id != driver.character_id and not active_goals:
+            continue
+        if actor_id != driver.character_id and not same_scene:
+            active_goals = [
+                goal
+                for goal in active_goals
+                if list(
+                    getattr(goal, "activation_target_location_ids", []) or []
+                )
+            ]
+            if not active_goals:
+                continue
+        priority = max((goal.priority for goal in active_goals), default=0.0)
+        candidates.append(
+            (
+                0 if actor_id == driver.character_id else (1 if same_scene else 2),
+                -priority,
+                actor_id,
+            )
+        )
+
+    candidates.sort()
+    ready_drivers = [
+        item for item in candidates if ready_ability_ids(state, item[2])
+    ]
+    if ready_drivers:
+        return [ready_drivers[0][2]]
+
+    selected = [driver.character_id]
+    for item in candidates:
+        if item[0] >= 2:
+            continue
+        if item[2] not in selected and len(selected) < 3:
+            selected.append(item[2])
+    return selected
+
+
+def _planning_goal_is_activated(
+    goal,
+    driver_location_id: Optional[str],
+    state: WorldState,
+) -> bool:
+    locations = list(
+        getattr(goal, "activation_target_location_ids", []) or []
+    )
+    if locations and driver_location_id not in locations:
+        return False
+    required_flags = dict(getattr(goal, "activation_flags", {}) or {})
+    return all(
+        state.flags.get(str(key)) == value
+        for key, value in required_flags.items()
+    )
 
 
 def _serialize_joint_plan(plan, runtime) -> Dict[str, Any]:
@@ -967,6 +1042,28 @@ def index():
         },
         status_code=503,
     )
+
+
+@app.get("/api/worlds")
+def api_world_catalog():
+    """列出试玩端可启动的内置或已发布世界，不暴露完整状态快照。"""
+
+    try:
+        packages = [
+            package
+            for package in PACKAGES.list_packages()
+            if package.source == "builtin"
+            or package.review_status == "published"
+        ]
+    except WorldPackageError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取世界目录失败: {exc}"},
+            status_code=500,
+        )
+    return {
+        "status": "ok",
+        "worlds": [package.summary() for package in packages],
+    }
 
 
 @app.post("/api/start")
@@ -1314,6 +1411,40 @@ def api_session(session: str = ""):
     except (PersistenceError, WorldPackageError) as e:
         return JSONResponse(
             {"status": "error", "error": f"读取会话失败: {e}"},
+            status_code=500,
+        )
+
+
+@app.get("/api/player-view")
+def api_player_view(session: str = ""):
+    """把权威事件日志投影为玩家剧情，并提供独立的原著对照。"""
+
+    if not session:
+        return JSONResponse(
+            {"status": "error", "error": "请提供 ?session=<id>"},
+            status_code=400,
+        )
+    try:
+        metadata = SESSIONS.get_metadata(session)
+        state = SESSIONS.get_state(session)
+        if metadata is None or state is None:
+            raise SessionNotFound(f"会话不存在: {session}")
+        package = PACKAGES.get(metadata.world_package_id)
+        return build_player_view(
+            project_root=PROJECT_ROOT,
+            package_id=metadata.world_package_id,
+            state=state,
+            events=SESSIONS.list_events(session),
+            source_chapters=package.source_chapters,
+        )
+    except SessionNotFound:
+        return JSONResponse(
+            {"status": "error", "error": "会话不存在或已过期"},
+            status_code=404,
+        )
+    except (PersistenceError, WorldPackageError, OSError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取玩家剧情失败: {exc}"},
             status_code=500,
         )
 
@@ -2011,18 +2142,27 @@ def api_generate_joint_plan(req: JointPlanGenerateRequest):
         if metadata is None or state is None:
             raise SessionNotFound("会话不存在")
         existing = SESSIONS.list_joint_plan_runtimes(req.session_id)
-        if existing and existing[0][1].status in {
+        unfinished_statuses = {
             PlanRuntimeStatus.draft,
             PlanRuntimeStatus.approved,
             PlanRuntimeStatus.active,
             PlanRuntimeStatus.stale,
             PlanRuntimeStatus.deadlocked,
-        }:
+        }
+        unfinished = next(
+            (
+                (plan, runtime)
+                for plan, runtime in existing
+                if runtime.status in unfinished_statuses
+            ),
+            None,
+        )
+        if unfinished is not None:
             return JSONResponse(
                 {
                     "status": "conflict",
                     "error": "当前仍有未结束规划，请先编辑、执行或处理该规划。",
-                    "plan": _serialize_joint_plan(*existing[0]),
+                    "plan": _serialize_joint_plan(*unfinished),
                 },
                 status_code=409,
             )
@@ -2037,16 +2177,29 @@ def api_generate_joint_plan(req: JointPlanGenerateRequest):
             metadata.default_actor_id,
             req.actor_ids,
         )
+        recent_events = SESSIONS.list_events(req.session_id)[-12:]
         permissions = _planning_permissions(actor_ids)
         planner = PLAN_PLANNER_FACTORY(metadata.world_package_id)
-        plan = planner.generate(
-            state,
-            actor_ids,
-            beat_goal=goal,
-            goal_id="web_beat_" + uuid4().hex[:12],
-            permissions_by_actor=permissions,
-            metadata={"source": "web_planning_approval"},
-        )
+        with capture_llm_usage() as usage:
+            plan = planner.generate(
+                state,
+                actor_ids,
+                beat_goal=goal,
+                goal_id="web_beat_" + uuid4().hex[:12],
+                permissions_by_actor=permissions,
+                metadata={
+                    "source": "web_planning_approval",
+                    "recent_committed_events": [
+                        {
+                            "event_type": event.event_type,
+                            "actor_ids": list(event.actor_ids),
+                            "target_ids": list(event.target_ids),
+                            "summary": event.summary,
+                        }
+                        for event in recent_events
+                    ],
+                },
+            )
         runtime = create_plan_runtime(plan, max_replans=req.max_replans)
         runtime.status = (
             PlanRuntimeStatus.approved
@@ -2058,6 +2211,8 @@ def api_generate_joint_plan(req: JointPlanGenerateRequest):
             "status": "ok",
             "plan": _serialize_joint_plan(plan, runtime),
             "planner_traces": [item.dict() for item in planner.call_traces],
+            "llm_usage": usage.summary().dict(),
+            "llm_calls": [item.dict() for item in usage.calls],
             "auto_approved": req.auto_approve,
         }
     except SessionNotFound as exc:
@@ -2082,6 +2237,59 @@ def api_generate_joint_plan(req: JointPlanGenerateRequest):
                 "error": f"真实 LLM 规划异常: {type(exc).__name__}: {exc}",
             },
             status_code=502,
+        )
+
+
+@app.post("/api/joint-plans/abort-active")
+def api_abort_active_joint_plans(req: JointPlanControlRequest):
+    """Abort every unfinished plan without changing authoritative world state."""
+
+    try:
+        state = SESSIONS.get_state(req.session_id)
+        metadata = SESSIONS.get_metadata(req.session_id)
+        if state is None or metadata is None:
+            raise SessionNotFound("会话不存在")
+        loader = getattr(SESSIONS, "list_joint_plan_runtimes", None)
+        if not callable(loader):
+            return JSONResponse(
+                {"status": "unsupported", "error": "当前存储后端不支持联合计划"},
+                status_code=501,
+            )
+        terminal = {PlanRuntimeStatus.completed, PlanRuntimeStatus.aborted}
+        aborted_plan_ids = []
+        stored = loader(req.session_id)
+        for plan, runtime in stored:
+            if runtime.status in terminal:
+                continue
+            runtime.status = PlanRuntimeStatus.aborted
+            runtime.last_trigger = "USER_ABORTED_FOR_REPLAN"
+            runtime.stale_reasons = list(
+                dict.fromkeys(
+                    [*runtime.stale_reasons, "用户选择从当前权威世界状态重新规划"]
+                )
+            )
+            SESSIONS.save_joint_plan_runtime(req.session_id, plan, runtime)
+            aborted_plan_ids.append(plan.plan_id)
+        refreshed = SESSIONS.list_joint_plan_runtimes(req.session_id)
+        return {
+            "status": "ok",
+            "session_id": req.session_id,
+            "world_version": state.version,
+            "aborted_plan_ids": aborted_plan_ids,
+            "plans": [
+                _serialize_joint_plan(plan, runtime)
+                for plan, runtime in refreshed
+            ],
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"终止旧规划失败: {exc}"},
+            status_code=500,
         )
 
 
@@ -2232,54 +2440,64 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
         outcomes = []
         ticks = 0
         tick_limit = req.max_ticks if req.run_to_completion else 1
-        for _ in range(tick_limit):
-            before = (
-                state.version,
-                dict(runtime.actor_step_pointers),
-                runtime.status.value,
-                runtime.replan_count,
-            )
-            result = await PLAN_EXECUTOR.tick(
-                plan,
-                runtime,
-                state,
-                permissions_by_actor=permissions,
-                replan=replan_callback if req.auto_replan else None,
-                store=SESSIONS,
-                session_id=req.session_id,
-            )
-            ticks += 1
-            plan, runtime, state = result.plan, result.runtime, result.state
-            all_events.extend(result.events)
-            outcomes.extend(
-                {
-                    "tool_name": item.result.tool_name,
-                    "success": item.result.success,
-                    "failure": (
-                        item.result.failure.dict()
-                        if item.result.failure is not None
-                        else None
-                    ),
-                    "event_id": item.result.committed_event_id,
-                    "world_version": item.result.world_version,
-                }
-                for item in result.outcomes
-            )
-            after = (
-                state.version,
-                dict(runtime.actor_step_pointers),
-                runtime.status.value,
-                runtime.replan_count,
-            )
-            if runtime.status in {
-                PlanRuntimeStatus.completed,
-                PlanRuntimeStatus.aborted,
-                PlanRuntimeStatus.stale,
-                PlanRuntimeStatus.deadlocked,
-            }:
-                break
-            if not req.run_to_completion or (before == after and not result.replanned):
-                break
+        with capture_llm_usage() as usage:
+            for _ in range(tick_limit):
+                before = (
+                    state.version,
+                    dict(runtime.actor_step_pointers),
+                    runtime.status.value,
+                    runtime.replan_count,
+                )
+                result = await PLAN_EXECUTOR.tick(
+                    plan,
+                    runtime,
+                    state,
+                    permissions_by_actor=permissions,
+                    replan=replan_callback if req.auto_replan else None,
+                    store=SESSIONS,
+                    session_id=req.session_id,
+                )
+                ticks += 1
+                plan, runtime, state = result.plan, result.runtime, result.state
+                state, perception_events = commit_dialogue_perceptions(
+                    state,
+                    result.events,
+                    store=SESSIONS,
+                    session_id=req.session_id,
+                )
+                all_events.extend(result.events)
+                all_events.extend(perception_events)
+                outcomes.extend(
+                    {
+                        "tool_name": item.result.tool_name,
+                        "success": item.result.success,
+                        "failure": (
+                            item.result.failure.dict()
+                            if item.result.failure is not None
+                            else None
+                        ),
+                        "event_id": item.result.committed_event_id,
+                        "world_version": item.result.world_version,
+                    }
+                    for item in result.outcomes
+                )
+                after = (
+                    state.version,
+                    dict(runtime.actor_step_pointers),
+                    runtime.status.value,
+                    runtime.replan_count,
+                )
+                if runtime.status in {
+                    PlanRuntimeStatus.completed,
+                    PlanRuntimeStatus.aborted,
+                    PlanRuntimeStatus.stale,
+                    PlanRuntimeStatus.deadlocked,
+                }:
+                    break
+                if not req.run_to_completion or (
+                    before == after and not result.replanned
+                ):
+                    break
 
         memory_warning = ""
         for event in all_events:
@@ -2307,6 +2525,8 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
                 if planner is not None
                 else []
             ),
+            "llm_usage": usage.summary().dict(),
+            "llm_calls": [item.dict() for item in usage.calls],
             "memory_warning": memory_warning,
         }
     except SessionNotFound as exc:

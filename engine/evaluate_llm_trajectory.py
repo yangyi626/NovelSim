@@ -11,6 +11,7 @@ from typing import Optional, Sequence
 from dotenv import load_dotenv
 
 from .llm_trajectory_eval import LLMTrajectoryEvaluator
+from .llm_telemetry import capture_llm_usage
 from .qdrant_memory import QdrantBackedWorldStore
 from .store_factory import create_world_store
 
@@ -26,6 +27,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--chunk-size", type=int, default=12)
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--minimum-dimension", type=float, default=0.6)
+    parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
 
     store = create_world_store(sqlite_path=Path(args.sqlite))
@@ -40,18 +42,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             threshold=args.threshold,
             minimum_dimension=args.minimum_dimension,
         )
-        report = evaluator.evaluate(
-            events,
-            final_state=final_state,
-            turns=turns,
-        )
-        print(
-            json.dumps(
-                report.dict(),
-                ensure_ascii=False,
-                indent=2,
+        with capture_llm_usage() as usage:
+            report = evaluator.evaluate(
+                events,
+                final_state=final_state,
+                turns=turns,
             )
-        )
+        payload = {
+            "session_id": args.session,
+            "report": report.dict(),
+            "llm_usage": usage.summary().dict(),
+            "llm_calls": [item.dict() for item in usage.calls],
+        }
+        rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered, encoding="utf-8")
+        print(rendered)
         return 0 if report.passed else 2
     finally:
         if isinstance(store, QdrantBackedWorldStore):

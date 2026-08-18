@@ -370,6 +370,56 @@ def test_local_replan_expands_to_dependent_chains_and_keeps_history():
     assert result.runtime.status == PlanRuntimeStatus.active
 
 
+def test_persisted_replan_aborts_superseded_parent(tmp_path):
+    state = build_snapshot()
+    plan = _cooperation_plan(state)
+    runtime = create_plan_runtime(plan)
+    store = SQLiteWorldStore(tmp_path / "world.sqlite3")
+    session_id = store.create_session(
+        state,
+        default_actor_id=GUARD,
+        world_package_id="secret_letter_v1",
+    )
+    store.save_joint_plan_runtime(session_id, plan, runtime)
+    state.items[LETTER].accessible = False
+    state.items[LETTER].quantity = 0
+
+    def replan(request, current_state):
+        return JointPlan(
+            plan_id="replacement_plan",
+            goal_id=request.goal_id,
+            base_world_version=current_state.version,
+            actor_chains={
+                actor_id: ActorActionChain(actor_id=actor_id, steps=[])
+                for actor_id in request.affected_actor_ids
+            },
+            revision=request.revision + 1,
+            parent_plan_id=request.original_plan_id,
+        )
+
+    result = _run_tick(
+        JointPlanExecutor(create_core_tool_registry()),
+        plan,
+        runtime,
+        state,
+        permissions_by_actor={
+            actor_id: CORE_TOOL_PERMISSIONS for actor_id in plan.actor_chains
+        },
+        replan=replan,
+        store=store,
+        session_id=session_id,
+    )
+
+    assert result.replanned is True
+    stored = {
+        saved_plan.plan_id: saved_runtime
+        for saved_plan, saved_runtime in store.list_joint_plan_runtimes(session_id)
+    }
+    assert stored[plan.plan_id].status == PlanRuntimeStatus.aborted
+    assert stored[plan.plan_id].last_trigger.startswith("SUPERSEDED_BY_REPLAN:")
+    assert stored[result.plan.plan_id].status == PlanRuntimeStatus.active
+
+
 def test_runtime_persistence_and_event_reconciliation_prevent_duplicate_action(
     tmp_path,
 ):

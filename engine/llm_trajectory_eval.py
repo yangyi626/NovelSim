@@ -329,6 +329,7 @@ class LLMTrajectoryEvaluator:
                 operation.dict(exclude_none=True)
                 for operation in event.patch.operations
             ],
+            "presentation_events": list(event.presentation_events),
             "player_input": turn.player_input if turn else "",
             "narration": narrative.get("narration", ""),
             "dialogues": narrative.get("dialogues", []),

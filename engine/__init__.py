@@ -97,6 +97,7 @@ from .game_observation import (
     build_game_observation,
     ready_ability_ids,
 )
+from .dialogue_effects import commit_dialogue_perceptions
 from .planner_decision import PlannerDecision, PlannerIntent
 from .narrative_planner import (
     NARRATIVE_PLANNER_PROMPT_VERSION,
@@ -382,6 +383,7 @@ __all__ = [
     "authoritative_state_hash",
     "build_game_observation",
     "ready_ability_ids",
+    "commit_dialogue_perceptions",
     "PlannerDecision",
     "PlannerIntent",
     "NARRATIVE_PLANNER_PROMPT_VERSION",

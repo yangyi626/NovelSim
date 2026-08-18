@@ -1,0 +1,200 @@
+{
+  "session_id": "e2d15698fe210f02",
+  "report": {
+    "event_count": 28,
+    "chunk_count": 3,
+    "overall_score": 0.888,
+    "passed": true,
+    "threshold": 0.72,
+    "minimum_dimension": 0.6,
+    "blocking_issue_count": 0,
+    "aggregate": {
+      "causal_coherence": 0.92,
+      "character_consistency": 0.93,
+      "goal_progression": 0.75,
+      "world_state_consistency": 0.92,
+      "repetition_control": 0.92,
+      "summary": "轨迹整体因果连贯，角色性格鲜明且行为符合设定，场景转换自然。主要问题在于多个角色的计划步骤在事件推进后未能及时更新，且存在主角称呼混用及个别角色台词语义重复的现象。",
+      "strengths": [
+        "场景与冲突对象转换自然，避免了原地循环，因果链条清晰。",
+        "角色对话和态度高度契合其性格设定，如叶清歌的冷酷威压与姬月的神秘戏谑。",
+        "世界状态与位置移动、Flag设置保持一致，逻辑清晰。"
+      ],
+      "issues": [
+        {
+          "category": "goal_progression",
+          "severity": "medium",
+          "event_ids": [
+            "event_000001",
+            "event_000005",
+            "event_000010",
+            "event_000022",
+            "event_000024"
+          ],
+          "message": "多个角色的计划步骤（如叶清歌、姬月等）在事件实质性推进后，current_step 仍停留在 0，未体现计划步骤的合理推进，且该问题在多个窗口中重复出现。"
+        },
+        {
+          "category": "repetition_control",
+          "severity": "medium",
+          "event_ids": [
+            "event_000015",
+            "event_000018"
+          ],
+          "message": "姬月在对话中重复解释了带夜轻歌来此空间的原因，台词语义高度重合，显得冗余。"
+        },
+        {
+          "category": "world_state_consistency",
+          "severity": "low",
+          "event_ids": [
+            "event_000010"
+          ],
+          "message": "叙事中主角称呼从'叶清歌'突然变为'夜轻歌'，虽指代同一角色，但缺乏过渡说明，易造成轻微混淆。"
+        }
+      ]
+    },
+    "chunks": [
+      {
+        "causal_coherence": 0.9,
+        "character_consistency": 0.9,
+        "goal_progression": 0.75,
+        "world_state_consistency": 0.85,
+        "repetition_control": 0.95,
+        "summary": "轨迹整体因果连贯，角色行为符合人设，场景转换自然。主要问题在于角色计划的步骤进度未随事件推进而更新，且主角称呼在叙事中出现了未加说明的混用。",
+        "strengths": [
+          "场景与冲突对象转换自然，从华容巷到夜府再到异空间，避免了原地循环。",
+          "角色对话和态度高度契合其性格设定，如叶清歌的冷酷威压与姬月的神秘戏谑。",
+          "世界状态与位置移动、Flag设置保持一致，逻辑清晰。"
+        ],
+        "issues": [
+          {
+            "category": "goal_progression",
+            "severity": "low",
+            "event_ids": [
+              "event_000001",
+              "event_000005",
+              "event_000010"
+            ],
+            "message": "角色计划（如叶清歌的'反驳当众诬陷'、'返回夜府寻找庇护'）在事件中已有实质性进展，但所有角色的 plan current_step 均停留在 0，未体现步骤推进。"
+          },
+          {
+            "category": "world_state_consistency",
+            "severity": "low",
+            "event_ids": [
+              "event_000010"
+            ],
+            "message": "叙事中主角称呼从'叶清歌'突然变为'夜轻歌'（如event_000010的summary和narration），虽指代同一角色(char_yeqingge)，但缺乏过渡说明，易造成轻微混淆。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.9,
+        "character_consistency": 0.95,
+        "goal_progression": 0.75,
+        "world_state_consistency": 0.95,
+        "repetition_control": 0.8,
+        "summary": "叙事因果清晰，角色性格与对话表现高度一致，空间转移与状态标记准确。但姬月在对话中重复解释了带夜轻歌来此的动机，且角色的计划步骤在叙事推进后未能及时更新。",
+        "strengths": [
+          "角色性格鲜明，姬月的高冷戏谑与夜轻歌的冷静警惕在对话中体现得淋漓尽致。",
+          "场景转换（异空间->三生泉->风月阁）与相关Flag（如entered_sansheng_spring, returned_fengyue_pavilion）设置严谨，世界状态一致性好。"
+        ],
+        "issues": [
+          {
+            "category": "repetition_control",
+            "severity": "medium",
+            "event_ids": [
+              "event_000015",
+              "event_000018"
+            ],
+            "message": "姬月在event_15和event_18中重复解释了带夜轻歌来此空间的原因（'灵魂异动引我注意'与'灵魂异变引动空间涟漪'），台词语义高度重合，显得冗余。"
+          },
+          {
+            "category": "goal_progression",
+            "severity": "medium",
+            "event_ids": [
+              "event_000022",
+              "event_000024"
+            ],
+            "message": "姬月已完成'解释双方处境'与'提出互利承诺'，夜轻歌也已返回风月阁，但两者的计划（plan_jiyue_contact, canon_night_immediate_response）的current_step仍为0，未体现计划步骤的合理推进。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.95,
+        "character_consistency": 0.95,
+        "goal_progression": 0.9,
+        "world_state_consistency": 0.95,
+        "repetition_control": 1.0,
+        "summary": "轨迹连贯，绿荷传唤夜轻歌并前往大堂的过程因果清晰，角色行为符合设定，目标有效推进。",
+        "strengths": [
+          "因果链条清晰，传唤与移动动作连贯",
+          "角色语气与性格设定高度一致",
+          "场景转移准确推进了大堂质问的剧情目标"
+        ],
+        "issues": []
+      }
+    ]
+  },
+  "llm_usage": {
+    "call_count": 4,
+    "failed_call_count": 0,
+    "prompt_tokens": 13656,
+    "completion_tokens": 7216,
+    "total_tokens": 20872,
+    "cached_tokens": 0,
+    "latency_ms": 126495.056
+  },
+  "llm_calls": [
+    {
+      "call_id": "1aef71da2ee349f28dd4915df22b34b7",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4235,
+      "completion_tokens": 2353,
+      "total_tokens": 6588,
+      "cached_tokens": 0,
+      "latency_ms": 41122.404,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "d637a79989e94c7596506093e89759a9",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4378,
+      "completion_tokens": 2074,
+      "total_tokens": 6452,
+      "cached_tokens": 0,
+      "latency_ms": 36119.856,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "1918d3878650454abfb636e89946df88",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 2486,
+      "completion_tokens": 944,
+      "total_tokens": 3430,
+      "cached_tokens": 0,
+      "latency_ms": 16744.516,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "dfec6bdfde3943038a4168f1526cc858",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 2557,
+      "completion_tokens": 1845,
+      "total_tokens": 4402,
+      "cached_tokens": 0,
+      "latency_ms": 32508.28,
+      "success": true,
+      "error_type": null
+    }
+  ]
+}

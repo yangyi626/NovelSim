@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence
 from pydantic import BaseModel, Field
 
 from engine.agent_tools import CORE_TOOL_PERMISSIONS, ToolDefinition, create_core_tool_registry
+from engine.dialogue_effects import commit_dialogue_perceptions
 from engine.event import commit_event
 from engine.game_observation import authoritative_state_hash, ready_ability_ids
 from engine.joint_plan import (
@@ -333,7 +334,7 @@ async def run_canonical_case(
                     )
                 all_events.extend(result.events)
                 scored_events.extend(result.events)
-                state, perception_events = _commit_dialogue_perceptions(
+                state, perception_events = commit_dialogue_perceptions(
                     state,
                     result.events,
                 )
@@ -529,92 +530,6 @@ def _inject_dependency_change(
         summary="动态环境变化：%s临时离开当前场景" % target_id,
     )
     return updated, event
-
-
-def _commit_dialogue_perceptions(
-    state: WorldState,
-    events: Iterable[WorldEvent],
-) -> tuple[WorldState, List[WorldEvent]]:
-    committed = []
-    for source_event in events:
-        for presentation in source_event.presentation_events:
-            if presentation.get("event_type") != "dialogue":
-                continue
-            payload = presentation.get("payload") or {}
-            target_id = str(payload.get("to_id") or "")
-            speaker_id = str(payload.get("speaker_id") or "")
-            line = str(payload.get("line") or "").strip()
-            if target_id not in state.character_psyches or not line:
-                continue
-            operations = [
-                Operation(
-                    op=OperationKind.update_psyche,
-                    target_id=target_id,
-                    perception="%s对我说：%s" % (speaker_id, line),
-                    reason="对话进入角色工作记忆",
-                )
-            ]
-            operations.extend(
-                _dialogue_effect_operations(
-                    state,
-                    speaker_id=speaker_id,
-                    target_id=target_id,
-                )
-            )
-            event, state = commit_event(
-                state,
-                action_id="perception_%s" % source_event.event_id,
-                event_type="system.dialogue_perceived",
-                patch=StatePatch(operations=operations),
-                actor_ids=[target_id],
-                target_ids=[speaker_id],
-                expected_version=state.version,
-                summary="%s记住了%s的对话" % (target_id, speaker_id),
-            )
-            committed.append(event)
-    return state, committed
-
-
-def _dialogue_effect_operations(
-    state: WorldState,
-    *,
-    speaker_id: str,
-    target_id: str,
-) -> List[Operation]:
-    """Apply trusted world-package gates unlocked by an actual dialogue."""
-
-    effects = state.flags.get("runtime.dialogue_effects", [])
-    if not isinstance(effects, list):
-        return []
-    speaker = state.characters.get(speaker_id)
-    if speaker is None:
-        return []
-    operations: List[Operation] = []
-    for effect in effects:
-        if not isinstance(effect, dict):
-            continue
-        if str(effect.get("speaker_id") or "") != speaker_id:
-            continue
-        if str(effect.get("target_character_id") or "") != target_id:
-            continue
-        if str(effect.get("location_id") or "") != speaker.location_id:
-            continue
-        required = effect.get("required_flags", {})
-        if not isinstance(required, dict) or any(
-            state.flags.get(str(key)) != value for key, value in required.items()
-        ):
-            continue
-        completion_flag = str(effect.get("completion_flag") or "")
-        if completion_flag and not state.flags.get(completion_flag):
-            operations.append(
-                Operation(
-                    op=OperationKind.set_flag,
-                    path=completion_flag,
-                    value=True,
-                    reason="dialogue_effect:%s:%s" % (speaker_id, target_id),
-                )
-            )
-    return operations
 
 
 def _fragment_completed(state: WorldState) -> bool:

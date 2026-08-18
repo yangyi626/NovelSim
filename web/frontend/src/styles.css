@@ -1,22 +1,25 @@
-/* AI 快穿 Web · 古风全局样式 */
+/* NovelSim · Codex-inspired editor theme */
 
 :root {
-  --bg: #1a1612;
-  --bg-panel: #241e18;
-  --bg-card: #2c241c;
-  --bg-input: #1a1612;
-  --border: #4a3d2e;
-  --border-soft: #3a2f24;
-  --text: #e8dcc8;
-  --text-dim: #9c8a72;
-  --text-faint: #6b5d4a;
-  --accent: #c9a96a;        /* 暖金 */
-  --accent-dim: #8a7344;
-  --player: #7aa2c9;        /* 玩家/夜轻歌 冷蓝 */
-  --npc: #c97a7a;           /* NPC 红 */
-  --system: #8aa86b;        /* 系统提示 绿 */
-  --danger: #c95a5a;
-  --warn: #c9a45a;
+  color-scheme: dark;
+  --bg: #101113;
+  --bg-panel: #181a1d;
+  --bg-card: #202226;
+  --bg-input: #131518;
+  --sidebar: #171c29;
+  --border: #34373d;
+  --border-soft: #292c31;
+  --text: #ececee;
+  --text-dim: #afb1b7;
+  --text-faint: #747780;
+  --accent: #d0d2d7;
+  --accent-dim: #8f939b;
+  --selection: #30333a;
+  --player: #8ab4f8;
+  --npc: #e58c92;
+  --system: #70b57e;
+  --danger: #e06c75;
+  --warn: #d8ad66;
 }
 
 * {
@@ -30,11 +33,11 @@ html, body, #app {
 }
 
 body {
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Serif SC", serif;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.55;
   overflow: hidden;
 }
 
@@ -42,7 +45,7 @@ button {
   font-family: inherit;
   cursor: pointer;
   border: none;
-  border-radius: 4px;
+  border-radius: 7px;
   padding: 8px 18px;
   font-size: 15px;
   transition: opacity 0.15s, background 0.15s;
@@ -53,6 +56,6 @@ button:disabled {
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3d43; border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #4b4f57; background-clip: padding-box; }

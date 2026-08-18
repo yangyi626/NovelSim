@@ -1,0 +1,213 @@
+{
+  "session_id": "7f8523fe277b9e11",
+  "report": {
+    "event_count": 33,
+    "chunk_count": 3,
+    "overall_score": 0.814,
+    "passed": false,
+    "threshold": 0.72,
+    "minimum_dimension": 0.6,
+    "blocking_issue_count": 2,
+    "aggregate": {
+      "causal_coherence": 0.85,
+      "character_consistency": 0.9,
+      "goal_progression": 0.8,
+      "world_state_consistency": 0.75,
+      "repetition_control": 0.77,
+      "summary": "综合各窗口表现，角色性格与目标推进在后期表现良好，但早期存在严重的地点状态冲突和对话重复循环问题，导致部分维度得分较低。",
+      "strengths": [
+        "角色性格和语气把握准确，符合各自设定（如女主的冷酷果决、管家的阴阳怪气）。",
+        "场景转换与能力使用逻辑严密，从异空间到三生泉再到夜家大堂的过渡自然流畅。",
+        "目标推进有效，夜轻歌主动前往大堂应对质问，切实推进了反驳诬陷和掌控夜府的计划。"
+      ],
+      "issues": [
+        {
+          "category": "world_state_consistency",
+          "severity": "high",
+          "event_ids": [
+            "event_000008",
+            "event_000009",
+            "event_000010"
+          ],
+          "message": "地点状态冲突：女主已移动至夜府，但后续对话中管家和女主仍反复提及'华容巷'，与当前所处位置矛盾。"
+        },
+        {
+          "category": "repetition_control",
+          "severity": "high",
+          "event_ids": [
+            "event_000005",
+            "event_000007",
+            "event_000008",
+            "event_000010"
+          ],
+          "message": "对话与冲突重复：管家重复劝女主回房歇息，女主对管家的质问几乎完全重复，陷入无意义的原地循环。"
+        },
+        {
+          "category": "goal_progression",
+          "severity": "medium",
+          "event_ids": [
+            "event_000006",
+            "event_000007",
+            "event_000008"
+          ],
+          "message": "目标推进受阻：女主向大长老展示证据是推进洗刷冤屈目标的关键，但剧情被管家插话打断并陷入重复争论，导致核心目标推进停滞。"
+        },
+        {
+          "category": "character_consistency",
+          "severity": "low",
+          "event_ids": [
+            "event_000022"
+          ],
+          "message": "夜轻歌在姬月未直接自报家门的情况下，直接称呼其为'姬月前辈'，认知来源略显突兀，叙事上缺乏铺垫。"
+        }
+      ]
+    },
+    "chunks": [
+      {
+        "causal_coherence": 0.7,
+        "character_consistency": 0.9,
+        "goal_progression": 0.6,
+        "world_state_consistency": 0.4,
+        "repetition_control": 0.4,
+        "summary": "角色性格保持一致，但叙事在地点状态上出现严重冲突（已移动至夜府却仍在讨论华容巷），且主角与管家的对话陷入重复质问的循环，导致目标推进停滞。",
+        "strengths": [
+          "角色性格和语气把握准确，符合各自设定（如女主的冷酷果决、管家的阴阳怪气）。",
+          "女主夺取关键道具（外衫）并试图向大长老举证的行动逻辑清晰。"
+        ],
+        "issues": [
+          {
+            "category": "world_state_consistency",
+            "severity": "high",
+            "event_ids": [
+              "event_000008",
+              "event_000009",
+              "event_000010"
+            ],
+            "message": "地点状态冲突：event_000004中女主已移动至loc_yefu（夜府），但后续对话中管家和女主仍反复提及'华容巷'（loc_huarong_lane），如'华容巷的围观群众'、'华容巷可不是您该来的地方'，与当前所处位置矛盾。"
+          },
+          {
+            "category": "repetition_control",
+            "severity": "high",
+            "event_ids": [
+              "event_000005",
+              "event_000007",
+              "event_000008",
+              "event_000010"
+            ],
+            "message": "对话与冲突重复：event_000005和event_000007中管家重复劝女主回房歇息；event_000008和event_000010中女主对管家的质问几乎完全重复，都是拿外衫质问私通和栽赃，陷入无意义的原地循环。"
+          },
+          {
+            "category": "goal_progression",
+            "severity": "medium",
+            "event_ids": [
+              "event_000006",
+              "event_000007",
+              "event_000008"
+            ],
+            "message": "目标推进受阻：event_000006中女主向大长老展示证据是推进洗刷冤屈目标的关键，但大长老未作回应，剧情反而被管家的插话打断，随后陷入与管家的重复争论，导致核心目标推进停滞。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.9,
+        "character_consistency": 0.85,
+        "goal_progression": 0.9,
+        "world_state_consistency": 0.9,
+        "repetition_control": 0.95,
+        "summary": "轨迹整体因果清晰，角色行为符合人设，目标推进合理。夜轻歌在对方未直接报名的情况下称呼其名字存在轻微认知断层，但不影响整体叙事流畅度。",
+        "strengths": [
+          "场景转换与能力使用逻辑严密，从异空间到三生泉的过渡自然。",
+          "角色对话符合各自性格，姬月神秘强势，夜轻歌冷静果决且目标明确。",
+          "夜轻歌在疗伤后主动寻求离开以推进破局计划，目标未停滞。"
+        ],
+        "issues": [
+          {
+            "category": "character_consistency",
+            "severity": "low",
+            "event_ids": [
+              "event_000022"
+            ],
+            "message": "夜轻歌在姬月未直接自报家门的情况下，直接称呼其为'姬月前辈'，认知来源略显突兀（虽可通过灵魂联系解释，但叙事上缺乏铺垫）。"
+          }
+        ]
+      },
+      {
+        "causal_coherence": 0.95,
+        "character_consistency": 0.95,
+        "goal_progression": 0.9,
+        "world_state_consistency": 0.95,
+        "repetition_control": 0.95,
+        "summary": "轨迹逻辑清晰，场景从异空间平滑过渡到风月阁再到夜家大堂。角色行为高度符合性格设定，夜轻歌面对传唤时的冷峻反击有效推进了其洗刷冤屈的核心目标，无冗余或循环内容。",
+        "strengths": [
+          "因果链条紧密，从脱离异空间到被传唤前往大堂，场景与事件转换自然流畅。",
+          "角色对话与态度高度契合人设，夜轻歌的冷峻果决与绿荷的势利傲慢形成鲜明对比，互动生动。",
+          "目标推进有效，夜轻歌主动前往大堂应对质问，切实推进了反驳诬陷和掌控夜府的计划。"
+        ],
+        "issues": []
+      }
+    ]
+  },
+  "llm_usage": {
+    "call_count": 4,
+    "failed_call_count": 0,
+    "prompt_tokens": 14868,
+    "completion_tokens": 7660,
+    "total_tokens": 22528,
+    "cached_tokens": 0,
+    "latency_ms": 133725.054
+  },
+  "llm_calls": [
+    {
+      "call_id": "54662aad8e3941b48e52796775631ca7",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4220,
+      "completion_tokens": 3134,
+      "total_tokens": 7354,
+      "cached_tokens": 0,
+      "latency_ms": 54508.473,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "59de7c01f3c242d29e2abdbab6b5b66e",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 4384,
+      "completion_tokens": 1519,
+      "total_tokens": 5903,
+      "cached_tokens": 0,
+      "latency_ms": 26698.348,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "890fc8bbd5e94061bbe9a1d6a877eb30",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 3598,
+      "completion_tokens": 1292,
+      "total_tokens": 4890,
+      "cached_tokens": 0,
+      "latency_ms": 22648.254,
+      "success": true,
+      "error_type": null
+    },
+    {
+      "call_id": "e58902cc4f5744dc8222c5aecd42207a",
+      "operation": "trajectory_judge",
+      "kind": "chat",
+      "model": "qwen3.7-plus",
+      "prompt_tokens": 2666,
+      "completion_tokens": 1715,
+      "total_tokens": 4381,
+      "cached_tokens": 0,
+      "latency_ms": 29869.979,
+      "success": true,
+      "error_type": null
+    }
+  ]
+}

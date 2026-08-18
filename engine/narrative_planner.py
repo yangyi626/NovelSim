@@ -35,7 +35,7 @@ from .llm_telemetry import call_openai_compatible, chat_generation_options
 from .planner_prompt import extract_json_object
 
 
-NARRATIVE_PLANNER_PROMPT_VERSION = "novelsim_narrative_beat.v7"
+NARRATIVE_PLANNER_PROMPT_VERSION = "novelsim_narrative_beat.v8"
 
 
 class _StrictModel(BaseModel):
@@ -368,6 +368,7 @@ class RealLLMNarrativePlanner:
                     else:
                         arguments_model.parse_obj(step.arguments)
                 if self.generator is None:
+                    _reject_invalid_immediate_action(draft, observation)
                     _reject_stagnant_dialogue_loop(draft, observation)
                 self.call_traces.append(
                     NarrativePlannerCallTrace(
@@ -475,6 +476,11 @@ def _actor_plan_messages(
         "每一步只能调用一个给定工具。若前一步移动后才能交流，应按顺序写入动作链。"
         "收到执行失败反馈时，应先修复失败的前置条件，再继续运行时上下文中仍然有效"
         "的剩余动作意图，不得只处理移动而遗忘原目标。"
+        "严禁移动到actor_location_id所示的当前位置；visible_locations中accessible=false"
+        "的地点当前不可进入，必须选择其他可执行动作。talk_to的target_character_id"
+        "不得等于actor_id，角色不能把对自己的独白伪装成对话。"
+        "visible_items中的owner_id是当前物品持有权的唯一事实；只有owner_id等于"
+        "actor_id时，角色才能在对话中声称该物品在自己手中或属于自己。"
         "只输出一个JSON对象，不要Markdown、解释或额外字段。"
     )
     contract = {
@@ -533,6 +539,7 @@ def _reject_stagnant_dialogue_loop(
     if not isinstance(recent, list):
         return
     location_id = observation.actor_location_id
+    effective_repeat_limit = 1 if observation.available_abilities else repeat_limit
     for step in draft.steps:
         target_id = str(step.arguments.get("target_character_id") or "")
         repeats = 0
@@ -549,11 +556,79 @@ def _reject_stagnant_dialogue_loop(
                 and (not location_id or location_id in targets)
             ):
                 repeats += 1
-        if repeats < repeat_limit:
+        if repeats < effective_repeat_limit:
             return
     raise ValueError(
         "stagnant dialogue loop: choose a state-progressing action or a new target"
     )
+
+
+def _reject_invalid_immediate_action(
+    draft: ActorNarrativePlan,
+    observation: GameObservation,
+) -> None:
+    """Reject obvious first-step no-ops/gate violations before runtime execution."""
+
+    if not draft.steps:
+        return
+    predicted_location = observation.actor_location_id
+    visible_characters = {
+        character.character_id: character
+        for character in observation.visible_characters
+    }
+    visible_locations = {
+        location.location_id: location
+        for location in observation.visible_locations
+    }
+    items_not_owned_by_actor = tuple(
+        item
+        for item in observation.visible_items
+        if item.owner_id and item.owner_id != observation.actor_id
+    )
+    for step in draft.steps:
+        if step.tool_name == "talk_to":
+            target_id = str(step.arguments.get("target_character_id") or "")
+            if target_id == observation.actor_id:
+                raise ValueError("talk_to target cannot be the actor itself")
+            message = str(step.arguments.get("message") or "")
+            possession_phrases = (
+                "在我手中",
+                "在我手里",
+                "在我手上",
+                "我拿着",
+                "我持有",
+                "归我所有",
+            )
+            if any(phrase in message for phrase in possession_phrases):
+                for item in items_not_owned_by_actor:
+                    item_terms = {item.display_name}
+                    if "的" in item.display_name:
+                        item_terms.add(item.display_name.rsplit("的", 1)[-1])
+                    if any(term and term in message for term in item_terms):
+                        raise ValueError(
+                            "dialogue claims possession of %s, but owner_id is %s"
+                            % (item.item_id, item.owner_id)
+                        )
+            continue
+        if step.tool_name != "move_to":
+            continue
+        destination_id = str(step.arguments.get("destination_id") or "")
+        destination_location = destination_id
+        visible_character = visible_characters.get(destination_id)
+        if visible_character is not None:
+            destination_location = str(visible_character.location_id or "")
+        if destination_location == predicted_location:
+            raise ValueError(
+                "move_to would be a no-op: actor is already at %s"
+                % destination_location
+            )
+        visible_location = visible_locations.get(destination_location)
+        if visible_location is not None and not visible_location.accessible:
+            raise ValueError(
+                "move_to precondition is not satisfied for %s"
+                % destination_location
+            )
+        predicted_location = destination_location
 
 
 def _safe_step_id(value: str) -> str:

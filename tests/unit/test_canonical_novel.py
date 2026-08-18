@@ -13,6 +13,7 @@ from engine import (
 from evaluation.canonical_novel import load_canonical_case, run_canonical_case
 from engine.narrative_planner import (
     ActorNarrativePlan,
+    _reject_invalid_immediate_action,
     _reject_stagnant_dialogue_loop,
 )
 from examples.huarong_lane.canonical_case import (
@@ -52,6 +53,88 @@ def test_take_item_is_guarded_by_location_ownership_and_affordance():
     assert outcome.result.success is True
     assert outcome.new_state.items[OUTER_ROBE].owner_id == NIGHT
     assert state.items[OUTER_ROBE].owner_id == QINGQING
+
+
+def test_planner_observation_hides_unsatisfied_location_gate_and_rejects_noop_move():
+    state = build_canonical_start_state()
+    registry = create_core_tool_registry()
+    qingqing_observation = build_game_observation(state, QINGQING, registry)
+    fengyue = next(
+        location
+        for location in qingqing_observation.visible_locations
+        if location.location_id == FENGYUE_PAVILION
+    )
+    assert fengyue.accessible is False
+
+    night_observation = build_game_observation(state, NIGHT, registry)
+    noop = ActorNarrativePlan.parse_obj(
+        {
+            "actor_id": NIGHT,
+            "intent": "重复移动",
+            "steps": [
+                {
+                    "step_id": "move_current",
+                    "tool_name": "move_to",
+                    "arguments": {"destination_id": SCENE_ID},
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="already at"):
+        _reject_invalid_immediate_action(noop, night_observation)
+
+    self_talk = ActorNarrativePlan.parse_obj(
+        {
+            "actor_id": NIGHT,
+            "intent": "无效自我对话",
+            "steps": [
+                {
+                    "step_id": "talk_to_self",
+                    "tool_name": "talk_to",
+                    "arguments": {
+                        "target_character_id": NIGHT,
+                        "message": "自言自语",
+                        "tone": "平静",
+                    },
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="actor itself"):
+        _reject_invalid_immediate_action(self_talk, night_observation)
+
+    delayed_noop = ActorNarrativePlan.parse_obj(
+        {
+            "actor_id": NIGHT,
+            "intent": "对话后重复移动",
+            "steps": [
+                {
+                    "step_id": "warn_sister",
+                    "tool_name": "talk_to",
+                    "arguments": {
+                        "target_character_id": QINGQING,
+                        "message": "不要再试探我。",
+                        "tone": "冷厉",
+                    },
+                },
+                {
+                    "step_id": "repeat_location",
+                    "tool_name": "move_to",
+                    "arguments": {"destination_id": SCENE_ID},
+                },
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="already at"):
+        _reject_invalid_immediate_action(delayed_noop, night_observation)
+
+    state.flags["canonical.returned_fengyue_pavilion"] = True
+    unlocked = build_game_observation(state, QINGQING, registry)
+    assert next(
+        location
+        for location in unlocked.visible_locations
+        if location.location_id == FENGYUE_PAVILION
+    ).accessible is True
 
 
 def test_world_ability_is_owner_scoped_and_uses_fixed_effects():
@@ -150,6 +233,85 @@ def test_repeated_pure_dialogue_plan_is_rejected_as_stagnant():
     )
     with pytest.raises(ValueError, match="stagnant dialogue loop"):
         _reject_stagnant_dialogue_loop(draft, observation)
+
+
+def test_ready_ability_rejects_pure_dialogue_after_one_matching_turn():
+    state = build_canonical_start_state()
+    state.characters[NIGHT].location_id = MYSTIC_SPACE
+    state.characters[JIYUE].location_id = MYSTIC_SPACE
+    state.flags["canonical.entered_mystic_space"] = True
+    state.flags["canonical.jiyue_revealed"] = True
+    observation = build_game_observation(
+        state,
+        JIYUE,
+        create_core_tool_registry(),
+        metadata={
+            "runtime_context": {
+                "recent_committed_events": [
+                    {
+                        "event_type": "tool.talk_to",
+                        "actor_ids": [JIYUE],
+                        "target_ids": [NIGHT, MYSTIC_SPACE],
+                        "summary": "姬月已经解释过一次",
+                    }
+                ]
+            }
+        },
+    )
+    assert OPEN_SANSHENG_SPRING in {
+        item.ability_id for item in observation.available_abilities
+    }
+    draft = ActorNarrativePlan.parse_obj(
+        {
+            "actor_id": JIYUE,
+            "intent": "继续解释而不推进状态",
+            "steps": [
+                {
+                    "step_id": "repeat_explanation",
+                    "tool_name": "talk_to",
+                    "arguments": {
+                        "target_character_id": NIGHT,
+                        "message": "我再重复解释一次。",
+                        "tone": "平静",
+                    },
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="stagnant dialogue loop"):
+        _reject_stagnant_dialogue_loop(draft, observation)
+
+
+def test_dialogue_cannot_claim_item_owned_by_another_character():
+    state = build_canonical_start_state()
+    state.characters[NIGHT].location_id = YEFU
+    state.items[OUTER_ROBE].owner_id = LIN
+    state.characters[QINGQING].inventory = []
+    state.characters[LIN].inventory = [OUTER_ROBE]
+    observation = build_game_observation(
+        state,
+        NIGHT,
+        create_core_tool_registry(),
+    )
+    draft = ActorNarrativePlan.parse_obj(
+        {
+            "actor_id": NIGHT,
+            "intent": "错误声称持有外衫",
+            "steps": [
+                {
+                    "step_id": "claim_robe",
+                    "tool_name": "talk_to",
+                    "arguments": {
+                        "target_character_id": LIN,
+                        "message": "这件外衫明明在我手中。",
+                        "tone": "冷静",
+                    },
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="claims possession"):
+        _reject_invalid_immediate_action(draft, observation)
 
 
 def test_canonical_pipeline_keeps_hidden_events_out_of_planner_and_replays():

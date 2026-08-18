@@ -8,15 +8,17 @@ from engine import (
     ActionStep,
     ActorActionChain,
     JointPlan,
+    PlanRuntimeStatus,
     SQLiteWorldStore,
     ToolCall,
     TurnResult,
     WorldPackageStore,
+    commit_dialogue_perceptions,
     commit_event,
     create_plan_runtime,
 )
 from examples.huarong_lane import build_snapshot
-from examples.huarong_lane.scenario import NIGHT, QINGQING
+from examples.huarong_lane.scenario import LIN, NIGHT, QINGQING
 from world_schema import Operation, OperationKind, StatePatch
 
 
@@ -55,6 +57,70 @@ class _RejectingPipeline:
             status="rejected",
             error="WORLD_CONCEPT_UNAVAILABLE",
         )
+
+
+def test_auto_actor_selection_follows_protagonist_and_activated_plot_drivers():
+    state = web_app.build_canonical_start_state()
+    state.characters[NIGHT].location_id = "loc_yefu"
+
+    selected = web_app._select_planning_actors(state, NIGHT, [])
+    assert selected == [NIGHT, "char_lin_guanjia"]
+
+    state.flags["canonical.lin_warning_done"] = True
+    selected = web_app._select_planning_actors(state, NIGHT, [])
+    assert selected == ["char_jiyue"]
+
+
+def test_web_persists_dialogue_effects_that_activate_next_plot_driver(tmp_path):
+    store = SQLiteWorldStore(tmp_path / "dialogue-effects.sqlite3")
+    state = web_app.build_canonical_start_state()
+    state.characters[NIGHT].location_id = "loc_yefu"
+    session_id = store.create_session(
+        state,
+        default_actor_id=NIGHT,
+        world_package_id=web_app.CANONICAL_CH1_PACKAGE_ID,
+    )
+    source_event, after_dialogue = commit_event(
+        state,
+        action_id="night_warns_lin",
+        event_type="tool.talk_to",
+        patch=StatePatch(),
+        actor_ids=[NIGHT],
+        target_ids=[LIN, "loc_yefu"],
+        expected_version=state.version,
+        presentation_events=[
+            {
+                "event_type": "dialogue",
+                "payload": {
+                    "speaker_id": NIGHT,
+                    "to_id": LIN,
+                    "line": "不要再参与夜清清的陷害。",
+                    "tone": "警告",
+                },
+            }
+        ],
+    )
+    store.commit_turn(
+        session_id,
+        expected_version=state.version,
+        new_state=after_dialogue,
+        event=source_event,
+    )
+
+    updated, derived = commit_dialogue_perceptions(
+        after_dialogue,
+        [source_event],
+        store=store,
+        session_id=session_id,
+    )
+
+    assert len(derived) == 1
+    assert updated.flags["canonical.lin_warning_done"] is True
+    assert store.get_state(session_id).flags["canonical.lin_warning_done"] is True
+    assert [event.event_type for event in store.list_events(session_id)] == [
+        "tool.talk_to",
+        "system.dialogue_perceived",
+    ]
 
 
 class _FakeNarrativePlanner:
@@ -276,7 +342,11 @@ def test_web_joint_plan_requires_editable_draft_approval_before_execution(
     )
     assert executed["status"] == "ok"
     assert executed["plan"]["status"] == "completed"
-    assert executed["state"]["version"] == 1
+    assert executed["state"]["version"] == 2
+    assert [event.event_type for event in store.list_events(sid)] == [
+        "tool.talk_to",
+        "system.dialogue_perceived",
+    ]
     assert executed["events"][0]["event_type"] == "tool.talk_to"
     assert store.list_turns(sid)[0].result["narrative"]["narration"]
 
@@ -301,6 +371,62 @@ def test_web_joint_plan_auto_approval_is_explicit(tmp_path, monkeypatch):
 
     assert generated["auto_approved"] is True
     assert generated["plan"]["status"] == "approved"
+
+
+def test_abort_active_joint_plans_keeps_authoritative_world_state(
+    tmp_path,
+    monkeypatch,
+):
+    store = SQLiteWorldStore(tmp_path / "web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", store)
+    started = web_app.api_start()
+    sid = started["session_id"]
+    state = store.get_state(sid)
+
+    def saved_plan(plan_id, status):
+        plan = JointPlan(
+            plan_id=plan_id,
+            goal_id=f"goal_{plan_id}",
+            base_world_version=state.version,
+            actor_chains={
+                NIGHT: ActorActionChain(actor_id=NIGHT, steps=[]),
+            },
+        )
+        runtime = create_plan_runtime(plan)
+        runtime.status = status
+        store.save_joint_plan_runtime(sid, plan, runtime)
+
+    saved_plan("unfinished_active", PlanRuntimeStatus.active)
+    saved_plan("unfinished_stale", PlanRuntimeStatus.stale)
+    saved_plan("already_completed", PlanRuntimeStatus.completed)
+
+    conflict = web_app.api_generate_joint_plan(
+        web_app.JointPlanGenerateRequest(
+            session_id=sid,
+            goal="不应绕过隐藏的旧规划",
+            actor_ids=[NIGHT],
+        )
+    )
+    assert conflict.status_code == 409
+    assert json.loads(conflict.body)["plan"]["plan_id"] in {
+        "unfinished_active",
+        "unfinished_stale",
+    }
+
+    payload = web_app.api_abort_active_joint_plans(
+        web_app.JointPlanControlRequest(session_id=sid)
+    )
+
+    assert set(payload["aborted_plan_ids"]) == {
+        "unfinished_active",
+        "unfinished_stale",
+    }
+    statuses = {item["plan_id"]: item["status"] for item in payload["plans"]}
+    assert statuses["unfinished_active"] == "aborted"
+    assert statuses["unfinished_stale"] == "aborted"
+    assert statuses["already_completed"] == "completed"
+    assert payload["world_version"] == 0
+    assert store.get_state(sid).version == 0
 
 
 def test_web_turn_retrieves_and_persists_character_memory(
@@ -539,10 +665,53 @@ def test_creator_package_clone_edit_and_start(tmp_path, monkeypatch):
     assert started["status"] == "ok"
     assert started["world_meta"]["scenario"] == "华容巷·创作者版"
     assert started["world_meta"]["anchor"] == "夜轻歌提前识破陷害"
+    assert started["world_meta"]["package_id"] == draft["package_id"]
+    assert started["world_meta"]["source_chapters"] == [1, 2]
     assert (
         session_store.get_metadata(started["session_id"]).world_package_id
         == draft["package_id"]
     )
+
+
+def test_canonical_chapter_one_checkpoint_is_startable_from_web(
+    tmp_path,
+    monkeypatch,
+):
+    session_store = SQLiteWorldStore(tmp_path / "canonical-web.sqlite3")
+    monkeypatch.setattr(web_app, "SESSIONS", session_store)
+
+    packages = web_app.api_world_catalog()["worlds"]
+    checkpoint = next(
+        item
+        for item in packages
+        if item["package_id"] == web_app.CANONICAL_CH1_PACKAGE_ID
+    )
+    assert checkpoint["manifest"]["entry_kind"] == "canonical_checkpoint"
+    assert checkpoint["manifest"]["checkpoint_chapter"] == 1
+
+    started = web_app.api_start(
+        web_app.StartRequest(package_id=web_app.CANONICAL_CH1_PACKAGE_ID)
+    )
+
+    assert started["status"] == "ok"
+    assert started["save"]["world_package_id"] == web_app.CANONICAL_CH1_PACKAGE_ID
+    assert started["state"]["timeline_id"] == "canon_first_crazy_ch1_5"
+    assert started["state"]["flags"]["canonical.checkpoint_chapter"] == 1
+    assert started["state"]["flags"]["canonical.future_events_exposed_to_planner"] is False
+    assert started["world_meta"]["source_chapters"] == [
+        "第1章 华容巷",
+        "第2章 那就脱！",
+        "第3章 没身材没脸蛋的女人",
+        "第4章 你也算香玉？",
+        "第5章 狗仗人势的东西",
+    ]
+
+    player_view = web_app.api_player_view(session=started["session_id"])
+    assert player_view["status"] == "ok"
+    assert player_view["canonical_baseline_available"] is True
+    assert player_view["story_beats"] == []
+    assert len(player_view["comparison"]) == 10
+    assert player_view["original_chapters"][0]["title"] == "第1章 华容巷"
 
 
 def test_creator_revision_diff_and_review_api(tmp_path, monkeypatch):

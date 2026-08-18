@@ -237,6 +237,20 @@ export async function submitTurn(sessionId, text, useNpcAgents) {
   return parseResponse(resp)
 }
 
+export async function getPlayerView(sessionId) {
+  const resp = await fetch(`/api/player-view?session=${encodeURIComponent(sessionId)}`, {
+    headers: authHeaders({ json: false }),
+  })
+  return parseResponse(resp)
+}
+
+export async function listPlayableWorlds() {
+  const resp = await fetch('/api/worlds', {
+    headers: authHeaders({ json: false }),
+  })
+  return parseResponse(resp)
+}
+
 export async function getJointPlans(sessionId) {
   const resp = await fetch(`/api/joint-plans?session=${encodeURIComponent(sessionId)}`, {
     headers: authHeaders({ json: false }),
@@ -254,6 +268,15 @@ export async function generateJointPlan(sessionId, goal, actorIds, autoApprove =
       actor_ids: actorIds,
       auto_approve: autoApprove,
     }),
+  })
+  return parseResponse(resp)
+}
+
+export async function abortActiveJointPlans(sessionId) {
+  const resp = await fetch('/api/joint-plans/abort-active', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ session_id: sessionId }),
   })
   return parseResponse(resp)
 }
