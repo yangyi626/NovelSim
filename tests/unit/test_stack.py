@@ -17,6 +17,7 @@ def test_status_without_runtime_state_is_stopped(tmp_path):
 
     assert result["status"] == "stopped"
     assert result["healthy"] is False
+    assert result["ready"] is False
     assert result["processes"] == {}
 
 
@@ -69,6 +70,7 @@ def test_start_status_and_stop_web_worker_stack(tmp_path, monkeypatch):
 
         assert started["status"] == "running"
         assert started["healthy"] is True
+        assert started["ready"] is True
         assert set(started["processes"]) == {"web", "worker"}
         assert all(
             item["running"]
@@ -77,6 +79,7 @@ def test_start_status_and_stop_web_worker_stack(tmp_path, monkeypatch):
         current = stack_status(runtime_directory=runtime)
         assert current["url"] == f"http://127.0.0.1:{port}"
         assert current["healthy"] is True
+        assert current["ready"] is True
     finally:
         stopped = stop_stack(runtime_directory=runtime)
 

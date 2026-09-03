@@ -68,6 +68,48 @@ def test_hybrid_weights_must_be_non_negative_and_sum_to_one():
         )
 
 
+def test_dimension_change_recreates_derived_collection():
+    """换嵌入模型后旧集合维度不匹配时，启动应自动重建派生索引。"""
+
+    class _Model:
+        def __init__(self, **values):
+            self.__dict__.update(values)
+
+    models = SimpleNamespace(Distance=SimpleNamespace(COSINE="cosine"), VectorParams=_Model)
+
+    class _Client:
+        def __init__(self):
+            self.deleted = []
+            self.created = []
+
+        def get_collections(self):
+            return SimpleNamespace(
+                collections=[SimpleNamespace(name="character_memories")]
+            )
+
+        def get_collection(self, name):
+            return SimpleNamespace(
+                config=SimpleNamespace(
+                    params=SimpleNamespace(vectors=SimpleNamespace(size=1536))
+                )
+            )
+
+        def delete_collection(self, *, collection_name):
+            self.deleted.append(collection_name)
+
+        def create_collection(self, **kwargs):
+            self.created.append(kwargs)
+
+    embedder = SimpleNamespace(dimensions=1024)
+    client = _Client()
+
+    QdrantMemoryIndex(embedder=embedder, client=client, models_module=models)
+
+    assert client.deleted == ["character_memories"]
+    assert len(client.created) == 1
+    assert client.created[0]["vectors_config"].size == 1024
+
+
 def test_tuned_hybrid_weights_are_the_runtime_default():
     weights = HybridRetrievalWeights()
 
@@ -163,7 +205,22 @@ def test_qdrant_index_uses_collection_scope_and_payload():
     }
 
 
-def test_qdrant_wrapper_indexes_durable_sqlite_records(tmp_path):
+def test_qdrant_wrapper_deletes_each_cleared_session(tmp_path):
+    base = SQLiteWorldStore(tmp_path / "world.sqlite3")
+    first = base.create_session(
+        build_snapshot(), default_actor_id=NIGHT, world_package_id="huarong_lane"
+    )
+    second = base.create_session(
+        build_snapshot(), default_actor_id=NIGHT, world_package_id="huarong_lane"
+    )
+    index = _FakeIndex()
+    store = QdrantBackedWorldStore(base, index)
+
+    assert store.delete_session(second) is True
+    assert store.delete_session(first) is True
+    assert index.deleted == [{"session_id": second}, {"session_id": first}]
+
+
     base, store, index, session_id = _store(tmp_path)
 
     ids = store.record_character_memories(

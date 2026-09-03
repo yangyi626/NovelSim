@@ -4,7 +4,9 @@ import {
   controlCompilationJob,
   createCompilationJob,
   getCompilationJob,
+  getCompilationJobReport,
   listCompilationJobs,
+  extendCompilationBudget,
 } from '../api.js'
 
 const emit = defineEmits(['package-created'])
@@ -12,9 +14,11 @@ const emit = defineEmits(['package-created'])
 const jobs = ref([])
 const selectedId = ref('')
 const detail = ref(null)
+const report = ref(null)
 const loading = ref(false)
 const error = ref('')
 const timer = ref(null)
+const budgetInput = ref(20)
 const form = ref({
   novel_path: '',
   novel_name: '',
@@ -89,6 +93,8 @@ async function loadDetail(jobId) {
     return
   }
   detail.value = data
+  const reportData = await getCompilationJobReport(jobId)
+  if (reportData.status === 'ok') report.value = reportData.report
   const index = jobs.value.findIndex((item) => item.job_id === jobId)
   if (index >= 0) jobs.value[index] = data.job
 }
@@ -119,6 +125,24 @@ async function createJob() {
   await refresh()
 }
 
+async function extendBudget() {
+  if (!selected.value || loading.value) return
+  const amount = Number(budgetInput.value)
+  if (!Number.isInteger(amount) || amount <= 0) {
+    error.value = '追加额度必须是正整数。'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  const data = await extendCompilationBudget(selected.value.job_id, amount)
+  loading.value = false
+  if (data.status === 'error' || data.status === 'conflict') {
+    error.value = data.error
+    return
+  }
+  await refresh()
+}
+
 async function control(action) {
   if (!selected.value || loading.value) return
   loading.value = true
@@ -138,6 +162,16 @@ function percent(job) {
 
 function shortId(value) {
   return value ? value.slice(0, 8) : ''
+}
+
+function formatDuration(seconds) {
+  if (seconds == null) return '—'
+  if (seconds < 60) return `${seconds.toFixed(1)} 秒`
+  return `${Math.floor(seconds / 60)} 分 ${Math.round(seconds % 60)} 秒`
+}
+
+function formatPercent(value) {
+  return value == null ? '—' : `${(value * 100).toFixed(1)}%`
 }
 
 onMounted(async () => {
@@ -216,7 +250,10 @@ onBeforeUnmount(() => {
             </div>
             <div class="job-actions">
               <button v-if="selected.status === 'running'" @click="control('pause')">暂停</button>
-              <button v-if="['paused', 'failed'].includes(selected.status)" @click="control('resume')">继续</button>
+              <button v-if="selected.status === 'paused'" @click="control('resume')">继续</button>
+              <button v-if="selected.status === 'failed' && selected.retryable" @click="control('retry')">重试</button>
+              <button v-if="['queued', 'running', 'paused'].includes(selected.status) && selected.max_llm_calls" @click="extendBudget">追加 {{ budgetInput }} 次预算</button>
+              <input v-if="['queued', 'running', 'paused'].includes(selected.status) && selected.max_llm_calls" v-model.number="budgetInput" type="number" min="1" step="1" aria-label="追加预算次数" />
               <button v-if="['queued', 'running', 'paused', 'failed'].includes(selected.status)" class="danger" @click="control('cancel')">取消</button>
             </div>
           </div>
@@ -229,6 +266,20 @@ onBeforeUnmount(() => {
               <template v-if="selected.current_chapter"> · 正在处理第 {{ selected.current_chapter }} 章</template>
               · LLM {{ selected.llm_calls_used }}/{{ selected.max_llm_calls || '不限' }} 次
             </small>
+          </div>
+
+          <div v-if="report" class="report-grid" aria-label="编译报告摘要">
+            <article><span>已耗时</span><strong>{{ formatDuration(report.elapsed_seconds) }}</strong></article>
+            <article><span>章节吞吐</span><strong>{{ report.chapters_per_hour == null ? '—' : `${report.chapters_per_hour.toFixed(1)} 章/小时` }}</strong></article>
+            <article><span>缓存命中率</span><strong>{{ formatPercent(report.cache_hit_rate) }}</strong></article>
+            <article><span>抽取次数</span><strong>{{ report.extraction_count }}</strong></article>
+            <article><span>剩余预算</span><strong>{{ report.llm_calls_remaining == null ? '不限' : report.llm_calls_remaining }}</strong></article>
+            <article><span>执行轮次</span><strong>{{ report.attempt_count }} · 重试 {{ report.retry_count }}</strong></article>
+          </div>
+
+          <div v-if="selected.status === 'failed'" class="failure-summary">
+            失败类型：{{ selected.failure_kind || 'unknown' }} ·
+            {{ selected.retryable ? `可重试（${selected.retry_count}/${selected.max_retries}）` : '不可重试' }}
           </div>
 
           <div class="quality-card" :class="selected.quality_status">
@@ -305,6 +356,11 @@ onBeforeUnmount(() => {
 .quality-card.passed { background: #e4f3e8; }
 .quality-card.failed, .quality-card.error { background: #f9e5e2; }
 .quality-card strong { font-size: 24px; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; }
+.report-grid article { padding: 11px; border: 1px solid #e2d7c8; border-radius: 10px; background: #fffaf2; display: grid; gap: 4px; }
+.report-grid span { color: #857665; font-size: 11px; }
+.report-grid strong { color: #663d23; font-size: 16px; }
+.failure-summary { padding: 10px 12px; border-radius: 10px; color: #8e493e; background: #fff0eb; font-size: 12px; }
 .chapter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 9px; }
 .chapter-grid article, .snapshot-strip article { border: 1px solid #e2d7c8; padding: 11px; border-radius: 10px; display: grid; gap: 4px; }
 .chapter-grid article.completed { border-color: #a8d0b4; background: #f4fbf6; }

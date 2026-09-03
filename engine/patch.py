@@ -23,6 +23,7 @@ from world_schema import (
     PropagationRecord,
     RelationDimensions,
     StatePatch,
+    WorldFact,
     WorldState,
 )
 from world_schema.models import Belief
@@ -196,6 +197,18 @@ def _apply_one(state: WorldState, op: Operation) -> None:
             b.valid_from = op.valid_from
         if op.valid_to is not None:
             b.valid_to = op.valid_to
+        return
+
+    if k == OperationKind.add_fact:
+        fact = WorldFact.parse_obj(op.value or {})
+        fact_id = op.fact_id or op.path or fact.fact_id
+        if not fact_id:
+            raise PatchError("add_fact needs fact_id")
+        if fact_id != fact.fact_id:
+            raise PatchError("add_fact id mismatch")
+        if fact_id in state.facts:
+            raise PatchError(f"duplicate fact: {fact_id}")
+        state.facts[fact_id] = fact
         return
 
     if k == OperationKind.record_evidence:

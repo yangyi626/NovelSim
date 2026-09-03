@@ -86,3 +86,7 @@ unity/NovelSim3D/*.suo
 
 # 开发文档
 .docs/
+
+# Claude 本地会话与临时 worktree
+.claude/worktrees/
+.claude/settings.local.json

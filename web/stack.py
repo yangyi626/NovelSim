@@ -24,7 +24,8 @@ from typing import Any, Dict, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUNTIME_DIRECTORY = PROJECT_ROOT / "data" / "runtime"
-DEFAULT_HEALTH_PATH = "/api/meta/contract"
+DEFAULT_HEALTH_PATH = "/health"
+DEFAULT_READY_PATH = "/ready"
 
 
 class StackError(RuntimeError):
@@ -205,10 +206,16 @@ def stack_status(
             "running": same_boot and _pid_running(pid),
         }
     health_url = str(state.get("health_url") or "")
+    ready_url = str(state.get("ready_url") or "")
     healthy = bool(
         same_boot
         and health_url
         and _health(health_url)
+    )
+    ready = bool(
+        same_boot
+        and ready_url
+        and _health(ready_url)
     )
     return {
         "status": (
@@ -216,11 +223,14 @@ def stack_status(
             if processes
             and all(item["running"] for item in processes.values())
             and (not health_url or healthy)
+            and (not ready_url or ready)
             else "stopped"
         ),
         "url": state.get("url") or "",
         "health_url": health_url,
+        "ready_url": ready_url,
         "healthy": healthy,
+        "ready": ready,
         "processes": processes,
         "runtime_directory": str(runtime_directory),
     }
@@ -256,6 +266,7 @@ def start_stack(
     environment["PYTHONUNBUFFERED"] = "1"
     url = f"http://{host}:{port}"
     health_url = f"{url}{DEFAULT_HEALTH_PATH}"
+    ready_url = f"{url}{DEFAULT_READY_PATH}"
     processes: Dict[str, Dict[str, Any]] = {}
     try:
         processes["web"] = _spawn(
@@ -273,7 +284,7 @@ def start_stack(
         )
         deadline = time.monotonic() + max(1.0, float(wait_seconds))
         while time.monotonic() < deadline:
-            if _health(health_url):
+            if _health(health_url) and _health(ready_url):
                 break
             if not _pid_running(int(processes["web"]["pid"])):
                 raise StackError(
@@ -281,7 +292,9 @@ def start_stack(
                 )
             time.sleep(0.2)
         else:
-            raise StackError(f"Web 健康检查超时: {health_url}")
+            raise StackError(
+                f"Web 健康检查超时: {health_url} 或 {ready_url}"
+            )
 
         if with_worker:
             processes["worker"] = _spawn(
@@ -294,6 +307,7 @@ def start_stack(
             "schema_version": 1,
             "url": url,
             "health_url": health_url,
+            "ready_url": ready_url,
             "started_at": _now(),
             "boot_marker": _boot_marker(),
             "processes": processes,

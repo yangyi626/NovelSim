@@ -1,11 +1,13 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   saves: { type: Array, default: () => [] },
   currentSessionId: { type: String, default: '' },
   loading: { type: Boolean, default: false },
+  clearing: { type: Boolean, default: false },
+  clearResult: { type: Object, default: null },
 })
 
 const emit = defineEmits([
@@ -17,11 +19,17 @@ const emit = defineEmits([
   'export',
   'import',
   'refresh',
+  'clear-history',
 ])
 const editingId = ref('')
 const editingName = ref('')
 const importInput = ref(null)
 const importError = ref('')
+const clearConfirmation = ref('')
+const clearError = ref('')
+const clearableCount = computed(() => props.saves.filter(
+  (save) => save.session_id !== props.currentSessionId,
+).length)
 
 function beginRename(save) {
   editingId.value = save.session_id
@@ -39,6 +47,16 @@ function requestDelete(save) {
   if (window.confirm(`确定删除存档“${save.name}”吗？此操作不可撤销。`)) {
     emit('delete', save.session_id)
   }
+}
+
+function requestClearHistory() {
+  clearError.value = ''
+  if (clearConfirmation.value.trim() !== '清空历史世界线') {
+    clearError.value = '请输入“清空历史世界线”后再确认。'
+    return
+  }
+  emit('clear-history', clearConfirmation.value.trim())
+  clearConfirmation.value = ''
 }
 
 function formatTime(value) {
@@ -85,6 +103,33 @@ async function handleImport(event) {
         />
       </div>
       <div v-if="importError" class="import-error">{{ importError }}</div>
+
+      <section class="clear-history-panel">
+        <div>
+          <strong>清空历史世界线</strong>
+          <p>将删除 {{ clearableCount }} 条非当前存档；当前世界线默认保留。</p>
+          <small>不可恢复；不会删除世界包、章节正文或编译数据。</small>
+        </div>
+        <div class="clear-history-form">
+          <input
+            v-model="clearConfirmation"
+            aria-label="清空历史世界线确认短语"
+            placeholder="输入：清空历史世界线"
+            :disabled="loading || clearing || clearableCount === 0"
+            @keyup.enter="requestClearHistory"
+          />
+          <button
+            class="mini-btn danger"
+            :disabled="loading || clearing || clearableCount === 0"
+            @click="requestClearHistory"
+          >{{ clearing ? '清理中…' : '清空历史' }}</button>
+        </div>
+        <div v-if="clearError" class="import-error">{{ clearError }}</div>
+        <div v-if="clearResult" class="clear-result">
+          已删除 {{ clearResult.deleted_count }} 条<span v-if="clearResult.preserved_session_id">，当前世界线已保留</span>。
+          <span v-if="clearResult.failed_count">仍有 {{ clearResult.failed_count }} 条删除失败。</span>
+        </div>
+      </section>
 
       <div v-if="!saves.length" class="save-empty">暂无存档</div>
       <div v-else class="save-list">
@@ -188,6 +233,39 @@ async function handleImport(event) {
   color: var(--danger);
   font-size: 13px;
 }
+.clear-history-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0 22px 12px;
+  padding: 12px 14px;
+  background: rgba(130, 36, 36, 0.12);
+  border: 1px solid rgba(190, 85, 85, 0.42);
+  border-radius: 6px;
+}
+.clear-history-panel p,
+.clear-history-panel small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.clear-history-form {
+  display: flex;
+  gap: 8px;
+}
+.clear-history-form input {
+  min-width: 0;
+  flex: 1;
+  padding: 6px 9px;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.clear-result {
+  color: var(--system);
+  font-size: 12px;
+}
 .primary-btn {
   background: var(--accent);
   color: #211a12;
@@ -272,6 +350,10 @@ async function handleImport(event) {
   text-align: center;
 }
 @media (max-width: 640px) {
+  .clear-history-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
   .save-card {
     align-items: flex-start;
     flex-direction: column;

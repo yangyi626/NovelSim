@@ -4,6 +4,7 @@ import { computed } from 'vue'
 const props = defineProps({
   state: { type: Object, default: null },
   defaultActor: { type: String, default: '' },
+  showPrivateGoals: { type: Boolean, default: false },
 })
 
 const characters = computed(() => {
@@ -60,7 +61,7 @@ function initials(name) {
           <span v-if="psycheOf(character.character_id)?.emotion">
             ◉ {{ psycheOf(character.character_id).emotion }}
           </span>
-          <span>◎ {{ mainGoal(character.character_id) }}</span>
+          <span v-if="showPrivateGoals">◎ 私下目标：{{ mainGoal(character.character_id) }}</span>
         </div>
       </div>
     </article>

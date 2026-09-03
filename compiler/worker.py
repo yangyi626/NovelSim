@@ -17,8 +17,10 @@ from pathlib import Path
 from typing import Optional
 
 from engine import LLMTrajectoryEvaluator, WorldPackageStore
+from engine.chapter_catalog import ChapterCatalogStore
 from web.auth import AuthStore, SYSTEM_ACTOR
 
+from .chapter_publisher import ChapterRuntimePublisher
 from .job_runner import CompilationJobRunner
 from .job_store import CompilationJob, CompilationJobStore
 
@@ -50,6 +52,7 @@ class CompilationWorker:
         if job is None:
             return None
 
+        execution_token = job.execution_token
         stop_heartbeat = threading.Event()
 
         def keep_lease_alive() -> None:
@@ -59,6 +62,7 @@ class CompilationWorker:
                     self.store.heartbeat(
                         job.job_id,
                         self.worker_id,
+                        execution_token=execution_token,
                         lease_seconds=self.lease_seconds,
                     )
                 except Exception:
@@ -141,9 +145,14 @@ def build_worker(
     lease_seconds: int,
     poll_seconds: float,
     auth_database_path: Optional[Path] = None,
+    world_database_path: Optional[Path] = None,
 ) -> CompilationWorker:
     store = CompilationJobStore(database_path)
     package_store = WorldPackageStore(world_directory)
+    chapter_publisher = ChapterRuntimePublisher(
+        ChapterCatalogStore(world_database_path or (database_path.parent / "world.sqlite3")),
+        package_store,
+    )
     quality_enabled = (
         os.environ.get("COMPILER_QUALITY_GATE_ENABLED", "true")
         .strip()
@@ -153,6 +162,7 @@ def build_worker(
     runner = CompilationJobRunner(
         store,
         package_store=package_store,
+        chapter_publisher=chapter_publisher,
         quality_evaluator_factory=(
             (lambda: LLMTrajectoryEvaluator())
             if quality_enabled
@@ -188,6 +198,10 @@ def main(argv=None) -> int:
         default=os.environ.get("AUTH_DB_PATH", "data/auth.sqlite3"),
     )
     parser.add_argument(
+        "--world-db",
+        default=os.environ.get("WORLD_DB_PATH", "data/world.sqlite3"),
+    )
+    parser.add_argument(
         "--worker-id",
         default=(
             f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
@@ -208,6 +222,7 @@ def main(argv=None) -> int:
         lease_seconds=args.lease_seconds,
         poll_seconds=args.poll_seconds,
         auth_database_path=_project_path(args.auth_db, "data/auth.sqlite3"),
+        world_database_path=_project_path(args.world_db, "data/world.sqlite3"),
     )
     if args.once:
         job = worker.run_once()

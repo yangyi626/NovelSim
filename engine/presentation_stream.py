@@ -52,6 +52,23 @@ def build_turn_presentation_events(
 
     directives = _fallback_directives(event)
     if narrative is not None:
+        narration = str(narrative.narration or "").strip()
+        if narration:
+            directives.append(
+                {
+                    "event_type": "narration",
+                    "payload": {
+                        "text": narration,
+                        "viewpoint": narrative.viewpoint,
+                        "grounded_event_ids": list(
+                            narrative.grounded_event_ids or [event.event_id]
+                        ),
+                        "referenced_entity_ids": list(
+                            narrative.referenced_entity_ids
+                        ),
+                    },
+                }
+            )
         for dialogue in narrative.dialogues:
             directives.append(
                 {

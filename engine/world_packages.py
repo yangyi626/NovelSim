@@ -42,6 +42,15 @@ GOAL_STATUSES = {
     "expired",
 }
 GOAL_SCOPES = {"chapter", "arc", "timeline", "world", "book"}
+RESERVED_PROGRESSION_FLAG_PREFIXES = (
+    "settlement.",
+    "reward.",
+    "unlock.",
+    "progression.",
+    "campaign.",
+    "lineage.",
+    "inheritance.",
+)
 
 
 class WorldPackageError(RuntimeError):
@@ -445,6 +454,33 @@ def validate_world_package_payload(
             set(policy.required_parameters)
         ):
             errors.append(f"ActionPolicy {action_type} 必填参数不能重复")
+
+    ability_specs = state.flags.get("runtime.ability_specs", {})
+    if isinstance(ability_specs, dict):
+        for ability_id, spec in ability_specs.items():
+            if not isinstance(spec, dict):
+                continue
+            completion_flag = str(spec.get("completion_flag") or "").lower()
+            if any(
+                completion_flag.startswith(prefix)
+                for prefix in RESERVED_PROGRESSION_FLAG_PREFIXES
+            ):
+                errors.append(
+                    f"Ability {ability_id} 不得写入系统保留字段 {completion_flag}"
+                )
+    dialogue_effects = state.flags.get("runtime.dialogue_effects", [])
+    if isinstance(dialogue_effects, list):
+        for index, effect in enumerate(dialogue_effects):
+            if not isinstance(effect, dict):
+                continue
+            completion_flag = str(effect.get("completion_flag") or "").lower()
+            if any(
+                completion_flag.startswith(prefix)
+                for prefix in RESERVED_PROGRESSION_FLAG_PREFIXES
+            ):
+                errors.append(
+                    f"DialogueEffect {index} 不得写入系统保留字段 {completion_flag}"
+                )
 
     try:
         revision = max(1, int(payload.get("revision") or 1))

@@ -95,7 +95,7 @@ Prompted 与 SFT 共享 `engine/planner_prompt.py` 中同一个 `novelsim_planne
 
 真实报告会分别给出 provider call/failed call、模型 Schema 通过、scripted fallback、Gate 通过、illegal proposal、illegal commit、目标完成、回放一致和 Token。Fallback 只用于让 smoke 继续，不计为模型成功；即使轨迹满足目标，也只标记 `eligible_for_sft_review`，不会自动并入 SFT。
 
-2026-08-02 已用真实 `qwen3.7-plus-2026-05-26` 执行冻结的 Train/Dev 四场景：17 次 provider call、22,581 tokens，Schema 与 Gate 均为 `17/17`，fallback、illegal proposal、illegal commit 均为 `0`，目标成功与回放一致均为 `4/4`。报告位于 `training/reports/prompted-smoke-v1/`。该结果证明 Prompt v4 与 Runtime 闭环可工作，不代表本地 SFT/GRPO 模型已经训练完成。
+2026-08-02 曾用真实 `qwen3.7-plus-2026-05-26` 执行冻结的 Train/Dev 四场景：17 次 provider call、22,581 tokens，Schema 与 Gate 均为 `17/17`，fallback、illegal proposal、illegal commit 均为 `0`，目标成功与回放一致均为 `4/4`。这次历史 smoke 报告已从本地工作区清理；重新执行上面的命令即可生成新的报告。该结果证明 Prompt v4 与 Runtime 闭环可工作，不代表本地 SFT/GRPO 模型已经训练完成。
 
 ## 两类安全指标
 

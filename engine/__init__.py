@@ -5,6 +5,7 @@ SQLiteWorldStore 持久化。后续迁移 PostgreSQL 时，Turn Pipeline 无需�
 """
 
 from .patch import apply_patch, PatchError
+from .fact_migration import FACT_MIGRATION_EVENT_TYPE, migrate_world_facts
 from .event import commit_event, replay_events
 from .rules import RuleEngine, RuleCheckResult
 from .action_parser import ActionParser, ParseError
@@ -17,6 +18,27 @@ from .patch_validator import (
 )
 from .narrative import NarrativeGenerator
 from .narrative_consistency import check_narrative, NarrativeCheckResult
+from .manuscript import (
+    FactClaim,
+    FactClaimKind,
+    ManuscriptGenerationStatus,
+    ManuscriptPassage,
+    ManuscriptRevision,
+    ManuscriptSource,
+    WorldlineManuscript,
+)
+from .manuscript_consistency import (
+    ManuscriptCheckResult,
+    ManuscriptViolation,
+    check_manuscript_revision,
+)
+from .manuscript_writer import (
+    DeterministicManuscriptWriter,
+    LLMManuscriptWriter,
+    ManuscriptWriter,
+    ManuscriptWriterError,
+    narrative_output_to_revision,
+)
 from .character_agent import CharacterAgent, candidate_to_action
 from .agent_scheduler import (
     CharacterScheduler,
@@ -26,11 +48,13 @@ from .agent_scheduler import (
 )
 from .turn import TurnPipeline, TurnResult
 from .persistence import (
+    ManuscriptRevisionConflict,
     MemoryRecord,
     PersistenceError,
     SessionMetadata,
     SessionNotFound,
     SQLiteWorldStore,
+    StateVersionUnavailable,
     TurnRecord,
     VersionConflict,
 )
@@ -301,6 +325,8 @@ __all__ = [
     "validate_joint_plan",
     "apply_patch",
     "PatchError",
+    "FACT_MIGRATION_EVENT_TYPE",
+    "migrate_world_facts",
     "commit_event",
     "replay_events",
     "RuleEngine",
@@ -315,6 +341,21 @@ __all__ = [
     "NarrativeGenerator",
     "check_narrative",
     "NarrativeCheckResult",
+    "FactClaim",
+    "FactClaimKind",
+    "ManuscriptGenerationStatus",
+    "ManuscriptPassage",
+    "ManuscriptRevision",
+    "ManuscriptSource",
+    "WorldlineManuscript",
+    "ManuscriptCheckResult",
+    "ManuscriptViolation",
+    "check_manuscript_revision",
+    "DeterministicManuscriptWriter",
+    "LLMManuscriptWriter",
+    "ManuscriptWriter",
+    "ManuscriptWriterError",
+    "narrative_output_to_revision",
     "CharacterAgent",
     "candidate_to_action",
     "CharacterScheduler",
@@ -323,11 +364,13 @@ __all__ = [
     "merge_patches",
     "TurnPipeline",
     "TurnResult",
+    "ManuscriptRevisionConflict",
     "MemoryRecord",
     "PersistenceError",
     "SessionMetadata",
     "SessionNotFound",
     "SQLiteWorldStore",
+    "StateVersionUnavailable",
     "TurnRecord",
     "VersionConflict",
     "CORE_TOOL_PERMISSIONS",

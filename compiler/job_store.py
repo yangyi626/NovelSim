@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import uuid
@@ -9,6 +10,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+class _ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, traceback):
+        try:
+            return super().__exit__(exc_type, exc, traceback)
+        finally:
+            self.close()
 
 
 JOB_STATUSES = {
@@ -50,6 +59,7 @@ def _json(value: Any) -> str:
 class CompilationJob:
     job_id: str
     benchmark_id: str
+    book_id: str
     package_id: str
     novel_path: str
     novel_name: str
@@ -82,11 +92,19 @@ class CompilationJob:
     attempt_count: int
     max_llm_calls: int
     llm_calls_used: int
+    source_hash: str
+    fingerprint_mode: str
+    failure_kind: str
+    retryable: bool
+    retry_count: int
+    max_retries: int
+    execution_token: str
 
     def payload(self, *, include_plan: bool = True) -> Dict[str, Any]:
         result = {
             "job_id": self.job_id,
             "benchmark_id": self.benchmark_id,
+            "book_id": self.book_id,
             "package_id": self.package_id,
             "novel_path": self.novel_path,
             "novel_name": self.novel_name,
@@ -120,6 +138,12 @@ class CompilationJob:
                 if self.max_llm_calls
                 else None
             ),
+            "source_hash": self.source_hash,
+            "fingerprint_mode": self.fingerprint_mode,
+            "failure_kind": self.failure_kind,
+            "retryable": self.retryable,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
         }
         if include_plan:
             result.update(
@@ -151,7 +175,11 @@ class CompilationJobStore:
         self._initialise()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.path), timeout=30)
+        conn = sqlite3.connect(
+            str(self.path),
+            timeout=30,
+            factory=_ClosingConnection,
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA busy_timeout = 30000")
@@ -165,6 +193,7 @@ class CompilationJobStore:
                 CREATE TABLE IF NOT EXISTS compiler_jobs (
                     job_id TEXT PRIMARY KEY,
                     benchmark_id TEXT NOT NULL DEFAULT '',
+                    book_id TEXT NOT NULL DEFAULT '',
                     package_id TEXT NOT NULL,
                     novel_path TEXT NOT NULL,
                     novel_name TEXT NOT NULL DEFAULT '',
@@ -196,6 +225,13 @@ class CompilationJobStore:
                     ,attempt_count INTEGER NOT NULL DEFAULT 0
                     ,max_llm_calls INTEGER NOT NULL DEFAULT 0
                     ,llm_calls_used INTEGER NOT NULL DEFAULT 0
+                    ,source_hash TEXT NOT NULL DEFAULT ''
+                    ,fingerprint_mode TEXT NOT NULL DEFAULT ''
+                    ,failure_kind TEXT NOT NULL DEFAULT 'unknown'
+                    ,retryable INTEGER NOT NULL DEFAULT 0
+                    ,retry_count INTEGER NOT NULL DEFAULT 0
+                    ,max_retries INTEGER NOT NULL DEFAULT 2
+                    ,execution_token TEXT NOT NULL DEFAULT ''
                 );
                 CREATE INDEX IF NOT EXISTS idx_compiler_jobs_status
                 ON compiler_jobs(status, updated_at DESC);
@@ -254,6 +290,12 @@ class CompilationJobStore:
             self._ensure_column(
                 conn,
                 "compiler_jobs",
+                "book_id",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
                 "worker_id",
                 "TEXT NOT NULL DEFAULT ''",
             )
@@ -286,6 +328,48 @@ class CompilationJobStore:
                 "compiler_jobs",
                 "llm_calls_used",
                 "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "source_hash",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "fingerprint_mode",
+                "TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "failure_kind",
+                "TEXT NOT NULL DEFAULT 'unknown'",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "retryable",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "retry_count",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "max_retries",
+                "INTEGER NOT NULL DEFAULT 2",
+            )
+            self._ensure_column(
+                conn,
+                "compiler_jobs",
+                "execution_token",
+                "TEXT NOT NULL DEFAULT ''",
             )
             # 只恢复没有租约或租约已经过期的任务。Web 与独立 Worker 可以
             # 同时打开同一个 SQLite，而不会把正在运行的任务误判为中断。
@@ -334,6 +418,7 @@ class CompilationJobStore:
         package_id: str,
         novel_path: str,
         benchmark_id: str = "",
+        book_id: str = "",
         novel_name: str = "",
         chapters: Optional[List[int]] = None,
         timeline_plan: Optional[Dict[int, str]] = None,
@@ -343,24 +428,39 @@ class CompilationJobStore:
         model: str = "",
         output_path: str = "",
         max_llm_calls: int = 0,
+        source_hash: str = "",
+        fingerprint_mode: str = "",
+        max_retries: int = 2,
     ) -> CompilationJob:
         now = _now()
+        source_hash = str(source_hash or "").strip().lower()
+        fingerprint_mode = str(fingerprint_mode or "").strip()
+        if not source_hash:
+            try:
+                source_hash = hashlib.sha256(
+                    Path(novel_path).read_bytes()
+                ).hexdigest()
+                fingerprint_mode = fingerprint_mode or "raw_bytes"
+            except OSError:
+                pass
         job_id = uuid.uuid4().hex
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO compiler_jobs (
-                    job_id, benchmark_id, package_id, novel_path, novel_name,
+                    job_id, benchmark_id, book_id, package_id, novel_path, novel_name,
                     chapters_json, timeline_plan_json, volume_plan_json,
                     volume_size, status, prompt_version, model, output_path,
-                    max_llm_calls, created_at, updated_at
+                    max_llm_calls, source_hash, fingerprint_mode, max_retries,
+                    created_at, updated_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 (
                     job_id,
                     benchmark_id.strip(),
+                    book_id.strip(),
                     package_id,
                     novel_path,
                     novel_name,
@@ -372,6 +472,9 @@ class CompilationJobStore:
                     model,
                     output_path,
                     max(0, int(max_llm_calls)),
+                    source_hash,
+                    fingerprint_mode,
+                    max(0, int(max_retries)),
                     now,
                     now,
                 ),
@@ -422,14 +525,40 @@ class CompilationJobStore:
                         str(chapter.get("heading") or ""),
                     ),
                 )
+            total = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM compiler_job_chapters
+                WHERE job_id = ?
+                """
+                , (job_id,),
+            ).fetchone()["count"]
             conn.execute(
                 """
                 UPDATE compiler_jobs
                 SET total_chapters = ?, updated_at = ?
                 WHERE job_id = ?
-                """,
-                (len(chapters), _now(), job_id),
+                """
+                , (total, _now(), job_id),
             )
+
+    @staticmethod
+    def _assert_execution_owner(
+        row: sqlite3.Row,
+        *,
+        worker_id: str = "",
+        execution_token: str = "",
+    ) -> None:
+        if not worker_id and not execution_token:
+            return
+        if (
+            row["status"] != "running"
+            or row["worker_id"] != worker_id
+            or row["execution_token"] != execution_token
+            or not row["lease_expires_at"]
+            or row["lease_expires_at"] <= _now()
+        ):
+            raise CompilationJobConflict("任务 Worker 执行凭据或租约已经失效")
 
     def start_run(self, job_id: str) -> CompilationJob:
         with self._connect() as conn:
@@ -445,7 +574,9 @@ class CompilationJobStore:
                 SET status = 'running', pause_requested = 0,
                     cancel_requested = 0, error = '', updated_at = ?,
                     worker_id = '', lease_expires_at = '',
-                    heartbeat_at = '', attempt_count = attempt_count + 1,
+                    heartbeat_at = '', execution_token = '',
+                    failure_kind = 'unknown', retryable = 0,
+                    attempt_count = attempt_count + 1,
                     started_at = CASE
                         WHEN started_at = '' THEN ?
                         ELSE started_at
@@ -469,6 +600,7 @@ class CompilationJobStore:
             raise ValueError("worker_id 不能为空")
         now = datetime.now(timezone.utc)
         expires = now + timedelta(seconds=max(30, int(lease_seconds)))
+        execution_token = uuid.uuid4().hex
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
@@ -489,7 +621,8 @@ class CompilationJobStore:
                 SET status = 'running', pause_requested = 0,
                     cancel_requested = 0, error = '',
                     worker_id = ?, lease_expires_at = ?,
-                    heartbeat_at = ?, updated_at = ?,
+                    heartbeat_at = ?, execution_token = ?, updated_at = ?,
+                    failure_kind = 'unknown', retryable = 0,
                     attempt_count = attempt_count + 1,
                     started_at = CASE
                         WHEN started_at = '' THEN ?
@@ -501,6 +634,7 @@ class CompilationJobStore:
                     worker_id,
                     expires.isoformat(),
                     now.isoformat(),
+                    execution_token,
                     now.isoformat(),
                     now.isoformat(),
                     job_id,
@@ -511,12 +645,22 @@ class CompilationJobStore:
                 return None
         return self.get_job(job_id)
 
-    def claimed_job(self, job_id: str, worker_id: str) -> CompilationJob:
+    def claimed_job(
+        self,
+        job_id: str,
+        worker_id: str,
+        *,
+        execution_token: str = "",
+    ) -> CompilationJob:
         job = self.get_job(job_id)
         if job.status != "running" or job.worker_id != worker_id:
             raise CompilationJobConflict(
                 f"任务 {job_id} 不属于 Worker {worker_id}"
             )
+        if execution_token and job.execution_token != execution_token:
+            raise CompilationJobConflict(f"任务 {job_id} 的执行凭据已经失效")
+        if not job.lease_expires_at or job.lease_expires_at <= _now():
+            raise CompilationJobConflict(f"任务 {job_id} 的 Worker 租约已经失效")
         return job
 
     def heartbeat(
@@ -524,6 +668,7 @@ class CompilationJobStore:
         job_id: str,
         worker_id: str,
         *,
+        execution_token: str = "",
         lease_seconds: int = 120,
     ) -> None:
         now = datetime.now(timezone.utc)
@@ -535,6 +680,8 @@ class CompilationJobStore:
                 SET heartbeat_at = ?, lease_expires_at = ?, updated_at = ?
                 WHERE job_id = ? AND status = 'running'
                   AND worker_id = ?
+                  AND execution_token = ?
+                  AND lease_expires_at > ?
                 """,
                 (
                     now.isoformat(),
@@ -542,6 +689,8 @@ class CompilationJobStore:
                     now.isoformat(),
                     job_id,
                     worker_id,
+                    execution_token,
+                    now.isoformat(),
                 ),
             )
             if cursor.rowcount != 1:
@@ -589,18 +738,36 @@ class CompilationJobStore:
         self,
         job_id: str,
         chapter_index: int,
+        *,
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> None:
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
-            conn.execute(
-                """
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
+            owner_sql = ""
+            owner_params = []
+            if worker_id or execution_token:
+                owner_sql = (
+                    " AND status = 'running' AND worker_id = ?"
+                    " AND execution_token = ? AND lease_expires_at > ?"
+                )
+                owner_params = [worker_id, execution_token, now]
+            cursor = conn.execute(
+                f"""
                 UPDATE compiler_jobs
                 SET current_chapter = ?, updated_at = ?
-                WHERE job_id = ?
+                WHERE job_id = ?{owner_sql}
                 """,
-                (chapter_index, now, job_id),
+                [chapter_index, now, job_id, *owner_params],
             )
+            if (worker_id or execution_token) and cursor.rowcount != 1:
+                raise CompilationJobConflict("任务 Worker 执行凭据或租约已经失效")
             conn.execute(
                 """
                 UPDATE compiler_job_chapters
@@ -623,10 +790,17 @@ class CompilationJobStore:
         extraction_count: int,
         cache_hits: int,
         cache_misses: int,
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> None:
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_job_chapters
@@ -661,7 +835,107 @@ class CompilationJobStore:
                 (completed, now, job_id),
             )
 
+    def mark_chapter_completed_with_snapshot(
+        self,
+        job_id: str,
+        chapter_index: int,
+        *,
+        extraction_count: int,
+        cache_hits: int,
+        cache_misses: int,
+        metadata: Dict[str, Any],
+        state: Dict[str, Any],
+        worker_id: str = "",
+        execution_token: str = "",
+    ) -> None:
+        now = _now()
+        with self._connect() as conn:
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
+            owner_sql = ""
+            owner_params = []
+            if worker_id or execution_token:
+                owner_sql = (
+                    " AND status = 'running' AND worker_id = ?"
+                    " AND execution_token = ? AND lease_expires_at > ?"
+                )
+                owner_params = [worker_id, execution_token, now]
+            cursor = conn.execute(
+                f"""
+                UPDATE compiler_job_chapters
+                SET status = 'completed', extraction_count = ?,
+                    cache_hits = ?, cache_misses = ?, error = '',
+                    completed_at = ?
+                WHERE job_id = ? AND chapter_index = ?
+                """,
+                [
+                    extraction_count,
+                    cache_hits,
+                    cache_misses,
+                    now,
+                    job_id,
+                    chapter_index,
+                ],
+            )
+            if cursor.rowcount != 1:
+                raise CompilationJobConflict(
+                    f"任务 {job_id} 的章节 {chapter_index} 不存在"
+                )
+            completed = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM compiler_job_chapters
+                WHERE job_id = ? AND status = 'completed'
+                """,
+                (job_id,),
+            ).fetchone()["count"]
+            job_cursor = conn.execute(
+                f"""
+                UPDATE compiler_jobs
+                SET completed_chapters = ?, updated_at = ?
+                WHERE job_id = ?{owner_sql}
+                """,
+                [completed, now, job_id, *owner_params],
+            )
+            if (worker_id or execution_token) and job_cursor.rowcount != 1:
+                raise CompilationJobConflict("任务 Worker 执行凭据或租约已经失效")
+            conn.execute(
+                """
+                INSERT INTO compiler_job_snapshots (
+                    job_id, snapshot_id, level, chapter_start,
+                    chapter_end, volume_id, timeline_ids_json,
+                    state_hash, state_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(job_id, snapshot_id) DO UPDATE SET
+                    level = excluded.level,
+                    chapter_start = excluded.chapter_start,
+                    chapter_end = excluded.chapter_end,
+                    volume_id = excluded.volume_id,
+                    timeline_ids_json = excluded.timeline_ids_json,
+                    state_hash = excluded.state_hash,
+                    state_json = excluded.state_json,
+                    created_at = excluded.created_at
+                """,
+                (
+                    job_id,
+                    metadata["snapshot_id"],
+                    metadata["level"],
+                    int(metadata["chapter_start"]),
+                    int(metadata["chapter_end"]),
+                    str(metadata.get("volume_id") or ""),
+                    _json(metadata.get("timeline_ids") or []),
+                    metadata["state_hash"],
+                    _json(state),
+                    now,
+                ),
+            )
+
     def list_chapters(self, job_id: str) -> List[Dict[str, Any]]:
+        """返回任务章节进度，按章节编号升序排列。"""
         with self._connect() as conn:
             self._require_job(conn, job_id)
             rows = conn.execute(
@@ -673,6 +947,50 @@ class CompilationJobStore:
                 (job_id,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def completed_prefix(self, job_id: str) -> List[int]:
+        """返回从第 1 章开始连续完成的章节编号。"""
+        chapters = self.list_chapters(job_id)
+        completed = sorted(
+            int(item["chapter_index"])
+            for item in chapters
+            if item.get("status") == "completed"
+        )
+        result: List[int] = []
+        expected = 1
+        for chapter in completed:
+            if chapter != expected:
+                break
+            result.append(chapter)
+            expected += 1
+        return result
+
+    def get_snapshot(
+        self,
+        job_id: str,
+        snapshot_id: str,
+        *,
+        include_state: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """读取指定快照；不存在时返回 None。"""
+        columns = "*" if include_state else (
+            "job_id, snapshot_id, level, chapter_start, chapter_end, "
+            "volume_id, timeline_ids_json, state_hash, created_at"
+        )
+        with self._connect() as conn:
+            self._require_job(conn, job_id)
+            row = conn.execute(
+                f"SELECT {columns} FROM compiler_job_snapshots "
+                "WHERE job_id = ? AND snapshot_id = ?",
+                (job_id, snapshot_id),
+            ).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["timeline_ids"] = json.loads(item.pop("timeline_ids_json"))
+        if include_state:
+            item["state"] = json.loads(item.pop("state_json"))
+        return item
 
     def request_pause(self, job_id: str) -> CompilationJob:
         with self._connect() as conn:
@@ -708,7 +1026,9 @@ class CompilationJobStore:
             row = self._require_job(conn, job_id)
             if row["status"] == "queued":
                 return self._row_to_job(row)
-            if row["status"] not in {"paused", "failed"}:
+            if row["status"] == "failed":
+                return self._retry_failed_row(conn, row)
+            if row["status"] != "paused":
                 raise CompilationJobConflict(
                     f"任务 {job_id} 当前状态不能继续: {row['status']}"
                 )
@@ -718,11 +1038,86 @@ class CompilationJobStore:
                 SET status = 'queued', pause_requested = 0,
                     cancel_requested = 0, error = '',
                     worker_id = '', lease_expires_at = '',
-                    heartbeat_at = '', updated_at = ?
-                WHERE job_id = ?
+                    heartbeat_at = '', execution_token = '', updated_at = ?
+                WHERE job_id = ? AND status = 'paused'
                 """,
                 (_now(), job_id),
             )
+
+        return self.get_job(job_id)
+
+    def _retry_failed_row(
+        self,
+        conn: sqlite3.Connection,
+        row: sqlite3.Row,
+    ) -> CompilationJob:
+        if not bool(row["retryable"]):
+            raise CompilationJobConflict(
+                f"任务 {row['job_id']} 的失败不可重试: {row['failure_kind']}"
+            )
+        if int(row["retry_count"]) >= int(row["max_retries"]):
+            raise CompilationJobConflict(
+                f"任务 {row['job_id']} 已达到最大重试次数"
+            )
+        cursor = conn.execute(
+            """
+            UPDATE compiler_jobs
+            SET status = 'queued', retry_count = retry_count + 1,
+                pause_requested = 0, cancel_requested = 0, error = '',
+                worker_id = '', lease_expires_at = '', heartbeat_at = '',
+                execution_token = '', updated_at = ?
+            WHERE job_id = ? AND status = 'failed'
+              AND retryable = 1 AND retry_count < max_retries
+            """,
+            (_now(), row["job_id"]),
+        )
+        if cursor.rowcount != 1:
+            raise CompilationJobConflict(
+                f"任务 {row['job_id']} 已被其他操作改变，无法重试"
+            )
+        return self._row_to_job(
+            conn.execute(
+                "SELECT * FROM compiler_jobs WHERE job_id = ?",
+                (row["job_id"],),
+            ).fetchone()
+        )
+
+    def retry_failed(self, job_id: str) -> CompilationJob:
+        with self._connect() as conn:
+            return self._retry_failed_row(conn, self._require_job(conn, job_id))
+
+    def increase_llm_budget(
+        self,
+        job_id: str,
+        additional_calls: int,
+    ) -> CompilationJob:
+        if isinstance(additional_calls, bool) or not isinstance(additional_calls, int):
+            raise ValueError("追加的 LLM 调用次数必须为正整数")
+        if additional_calls <= 0:
+            raise ValueError("追加的 LLM 调用次数必须为正整数")
+        with self._connect() as conn:
+            row = self._require_job(conn, job_id)
+            if row["status"] in {"cancelled", "completed", "failed"}:
+                raise CompilationJobConflict(
+                    f"任务 {job_id} 当前状态不能追加预算: {row['status']}"
+                )
+            maximum = int(row["max_llm_calls"])
+            if maximum == 0:
+                raise CompilationJobConflict(
+                    f"任务 {job_id} 已是不限预算，无需追加"
+                )
+            cursor = conn.execute(
+                """
+                UPDATE compiler_jobs
+                SET max_llm_calls = max_llm_calls + ?, updated_at = ?
+                WHERE job_id = ? AND status IN ('queued', 'paused', 'running')
+                """,
+                (additional_calls, _now(), job_id),
+            )
+            if cursor.rowcount != 1:
+                raise CompilationJobConflict(
+                    f"任务 {job_id} 状态已改变，无法追加预算"
+                )
         return self.get_job(job_id)
 
     def request_cancel(self, job_id: str) -> CompilationJob:
@@ -765,12 +1160,24 @@ class CompilationJobStore:
             return "paused"
         return ""
 
-    def mark_stopped(self, job_id: str, reason: str) -> CompilationJob:
+    def mark_stopped(
+        self,
+        job_id: str,
+        reason: str,
+        *,
+        worker_id: str = "",
+        execution_token: str = "",
+    ) -> CompilationJob:
         if reason not in {"paused", "cancelled"}:
             raise ValueError("停止原因必须是 paused 或 cancelled")
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_jobs
@@ -789,21 +1196,43 @@ class CompilationJobStore:
             )
         return self.get_job(job_id)
 
-    def mark_failed(self, job_id: str, error: str) -> CompilationJob:
+    def mark_failed(
+        self,
+        job_id: str,
+        error: str,
+        *,
+        failure_kind: str = "unknown",
+        retryable: bool = False,
+        worker_id: str = "",
+        execution_token: str = "",
+    ) -> CompilationJob:
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_jobs
                 SET status = 'failed', error = ?, current_chapter = NULL,
                     pause_requested = 0, cancel_requested = 0,
                     worker_id = '', lease_expires_at = '',
-                    heartbeat_at = '',
+                    heartbeat_at = '', execution_token = '',
+                    failure_kind = ?, retryable = ?,
                     updated_at = ?, completed_at = ?
                 WHERE job_id = ?
                 """,
-                (error[:4000], now, now, job_id),
+                (
+                    error[:4000],
+                    failure_kind if failure_kind in {"transient", "permanent", "unknown"} else "unknown",
+                    int(bool(retryable)),
+                    now,
+                    now,
+                    job_id,
+                ),
             )
         return self.get_job(job_id)
 
@@ -813,10 +1242,17 @@ class CompilationJobStore:
         *,
         result_package_id: str,
         output_path: str,
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> CompilationJob:
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_jobs
@@ -825,7 +1261,8 @@ class CompilationJobStore:
                     completed_chapters = total_chapters,
                     pause_requested = 0, cancel_requested = 0,
                     worker_id = '', lease_expires_at = '',
-                    heartbeat_at = '',
+                    heartbeat_at = '', execution_token = '',
+                    failure_kind = 'unknown', retryable = 0,
                     updated_at = ?, completed_at = ?
                 WHERE job_id = ?
                 """,
@@ -840,9 +1277,16 @@ class CompilationJobStore:
         status: str,
         score: Optional[float],
         report: Dict[str, Any],
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> None:
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_jobs
@@ -853,46 +1297,54 @@ class CompilationJobStore:
                 (status, score, _json(report), _now(), job_id),
             )
 
+
     def reserve_llm_call(self, job_id: str) -> int:
         """在真实调用前原子占用一次预算，跨 Worker/重启保持硬上限。"""
 
         with self._connect() as conn:
             row = self._require_job(conn, job_id)
             maximum = int(row["max_llm_calls"])
-            used = int(row["llm_calls_used"])
-            if maximum and used >= maximum:
-                raise CompilationBudgetExceeded(
-                    f"LLM 调用预算已用完: {used}/{maximum}；"
-                    "任务已暂停，可新建更高预算任务并复用场景缓存"
-                )
-            used += 1
-            conn.execute(
+            cursor = conn.execute(
                 """
                 UPDATE compiler_jobs
-                SET llm_calls_used = ?, updated_at = ?
+                SET llm_calls_used = llm_calls_used + 1, updated_at = ?
                 WHERE job_id = ?
+                  AND (max_llm_calls = 0 OR llm_calls_used < max_llm_calls)
                 """,
-                (used, _now(), job_id),
+                (_now(), job_id),
             )
-        return used
+            if cursor.rowcount != 1:
+                raise CompilationBudgetExceeded(
+                    f"LLM 调用预算已用完: {int(row['llm_calls_used'])}/{maximum}；"
+                    "任务已暂停，可追加预算后继续"
+                )
+            return int(row["llm_calls_used"]) + 1
 
     def pause_for_budget(
         self,
         job_id: str,
         error: str,
+        *,
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> CompilationJob:
         """预算耗尽时安全释放 Worker，保留章节与场景缓存。"""
 
         now = _now()
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 UPDATE compiler_jobs
                 SET status = 'paused', error = ?, current_chapter = NULL,
                     pause_requested = 0, cancel_requested = 0,
                     worker_id = '', lease_expires_at = '',
-                    heartbeat_at = '', updated_at = ?
+                    heartbeat_at = '', execution_token = '', updated_at = ?
                 WHERE job_id = ?
                 """,
                 (error[:4000], now, job_id),
@@ -960,9 +1412,16 @@ class CompilationJobStore:
         *,
         metadata: Dict[str, Any],
         state: Dict[str, Any],
+        worker_id: str = "",
+        execution_token: str = "",
     ) -> None:
         with self._connect() as conn:
-            self._require_job(conn, job_id)
+            row = self._require_job(conn, job_id)
+            self._assert_execution_owner(
+                row,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
             conn.execute(
                 """
                 INSERT INTO compiler_job_snapshots (
@@ -1047,6 +1506,7 @@ class CompilationJobStore:
         return CompilationJob(
             job_id=row["job_id"],
             benchmark_id=row["benchmark_id"],
+            book_id=row["book_id"],
             package_id=row["package_id"],
             novel_path=row["novel_path"],
             novel_name=row["novel_name"],
@@ -1089,4 +1549,11 @@ class CompilationJobStore:
             attempt_count=int(row["attempt_count"]),
             max_llm_calls=int(row["max_llm_calls"]),
             llm_calls_used=int(row["llm_calls_used"]),
+            source_hash=str(row["source_hash"] or ""),
+            fingerprint_mode=str(row["fingerprint_mode"] or ""),
+            failure_kind=str(row["failure_kind"] or "unknown"),
+            retryable=bool(row["retryable"]),
+            retry_count=int(row["retry_count"]),
+            max_retries=int(row["max_retries"]),
+            execution_token=str(row["execution_token"] or ""),
         )

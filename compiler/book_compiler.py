@@ -49,6 +49,38 @@ class GlobalEntityResolver:
     alias_index: Dict[str, str] = field(default_factory=dict)
     ambiguous_aliases: Dict[str, List[str]] = field(default_factory=dict)
 
+    def restore_from_state(self, state: WorldState, registry: EntityRegistry) -> None:
+        """从恢复的累计状态重建身份和别名索引。"""
+        self.identity_index = {}
+        self.alias_index = {}
+        self.ambiguous_aliases = {}
+        for entity_id, character in registry.characters.items():
+            identity = _normalise_identity(
+                str(character.attrs.get("global_identity") or "")
+            )
+            if identity:
+                existing = self.identity_index.get(identity)
+                if existing and existing != entity_id:
+                    self.ambiguous_aliases.setdefault(identity, [])
+                    for candidate in (existing, entity_id):
+                        if candidate not in self.ambiguous_aliases[identity]:
+                            self.ambiguous_aliases[identity].append(candidate)
+                else:
+                    self.identity_index[identity] = entity_id
+            names = [character.display_name, *character.aliases]
+            for name in names:
+                key = _normalise_identity(name)
+                if not key:
+                    continue
+                existing = self.alias_index.get(key)
+                if existing and existing != entity_id:
+                    values = self.ambiguous_aliases.setdefault(key, [])
+                    for candidate in (existing, entity_id):
+                        if candidate not in values:
+                            values.append(candidate)
+                else:
+                    self.alias_index[key] = entity_id
+
     def prepare(
         self,
         extraction: SceneExtraction,
@@ -264,6 +296,15 @@ class BookCompiler:
         )
         self.volume_size = max(1, int(volume_size))
 
+    def restore_from_state(
+        self,
+        state: WorldState,
+        registry: EntityRegistry,
+    ) -> None:
+        """恢复断点续编所需的身份解析与实体注册状态。"""
+        registry.restore_from_state(state)
+        self._resolver.restore_from_state(state, registry)
+
     def compile(
         self,
         chapters: List[Chapter],
@@ -275,6 +316,9 @@ class BookCompiler:
         max_scenes_per_chapter: Optional[int] = None,
         stop_requested: Optional[Callable[[], str]] = None,
         on_chapter_started: Optional[Callable[[Chapter], None]] = None,
+        on_chapter_start_snapshot: Optional[
+            Callable[[Chapter, HierarchicalSnapshot], None]
+        ] = None,
         on_chapter_completed: Optional[
             Callable[[Chapter, ChapterCompileResult, HierarchicalSnapshot], None]
         ] = None,
@@ -304,6 +348,18 @@ class BookCompiler:
             state.flags["compiler.current_volume"] = volume_id
             if on_chapter_started:
                 on_chapter_started(chapter)
+
+            chapter_start_snapshot = HierarchicalSnapshot(
+                snapshot_id=f"chapter_{chapter.index:06d}_start",
+                level="chapter_start",
+                chapter_start=chapter.index,
+                chapter_end=chapter.index,
+                volume_id=volume_id,
+                timeline_ids=[timeline_id],
+                state=state.copy(deep=True),
+            )
+            if on_chapter_start_snapshot:
+                on_chapter_start_snapshot(chapter, chapter_start_snapshot)
 
             def prepare(extraction: SceneExtraction) -> SceneExtraction:
                 return self._resolver.prepare(

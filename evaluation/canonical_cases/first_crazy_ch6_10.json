@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "case_id": "first_crazy_waste_third_lady_ch6_10",
+  "novel_id": "first_crazy_waste_third_lady",
+  "novel_title": "第一狂妃：废柴三小姐",
+  "source_fingerprint": "b99a311179755c6a9fe4d5905739a7e55986ac7c14fb107d123308ccd65b1ecb",
+  "start_checkpoint": "chapter_000005",
+  "target_chapters": [
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "planning": {
+    "goal_id": "canon_hall_confrontation_resolution",
+    "beat_goal": "所有角色只能依据自身认知、人格和当前目标行动，推进夜家大堂对峙及后续暗流，直到反击决意与联姻私谋成形。",
+    "max_beats": 15,
+    "max_ticks_per_beat": 5,
+    "max_replans_per_beat": 2,
+    "max_active_actors": 3
+  },
+  "canonical_events": [
+    {
+      "event_id": "canon_ch6_spirit_pressure",
+      "chapter": 6,
+      "order": 1,
+      "summary": "夜正熊释放灵气威压迫使夜轻歌下跪",
+      "actor_ids": [
+        "char_yezhengxiong"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "invoke_ability"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.spirit_pressure_applied": true
+      },
+      "source_evidence_sha256": "d5027ca816a0a971b31a365e1b478b3e053fef9d7918043c48b2f50baf108ae0",
+      "weight": 1.5
+    },
+    {
+      "event_id": "canon_ch6_kneel_refused",
+      "chapter": 6,
+      "order": 2,
+      "summary": "夜轻歌顶住威压拒绝向家主下跪",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_yezhengxiong"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.kneel_refused": true
+      },
+      "source_evidence_sha256": "d5027ca816a0a971b31a365e1b478b3e053fef9d7918043c48b2f50baf108ae0",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch7_marriage_proposed",
+      "chapter": 7,
+      "order": 1,
+      "summary": "秦岚提出索性成全林尘与夜轻歌的婚事",
+      "actor_ids": [
+        "char_qinlan"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.marriage_forced_proposed": true
+      },
+      "source_evidence_sha256": "5e87824b4bb2a08bd6a088c4fce7773d5fab8c2981e03f6855f5e04e6ba28071",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch7_marriage_refused",
+      "chapter": 7,
+      "order": 2,
+      "summary": "夜轻歌明确拒绝婚事并回击主母说法",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_qinlan"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.refuse_marriage": true
+      },
+      "source_evidence_sha256": "5e87824b4bb2a08bd6a088c4fce7773d5fab8c2981e03f6855f5e04e6ba28071",
+      "weight": 1.3
+    },
+    {
+      "event_id": "canon_ch8_jade_displayed",
+      "chapter": 8,
+      "order": 1,
+      "summary": "林尘展示琉璃玉佩声称是定情信物",
+      "actor_ids": [
+        "char_lin_guanjia"
+      ],
+      "target_ids": [
+        "char_yeqingge",
+        "item_glazed_jade_pendant"
+      ],
+      "accepted_tools": [
+        "invoke_ability"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.jade_shown": true
+      },
+      "source_evidence_sha256": "431c4266a419fc4750f5774334fbca2cfc612a6ca88f4fba2c45c075810dceb1",
+      "weight": 1.3
+    },
+    {
+      "event_id": "canon_ch8_jade_dismissed",
+      "chapter": 8,
+      "order": 2,
+      "summary": "夜轻歌否定玉佩证明力并将其推回",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_lin_guanjia",
+        "item_glazed_jade_pendant"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.jade_claim_dismissed": true
+      },
+      "source_evidence_sha256": "431c4266a419fc4750f5774334fbca2cfc612a6ca88f4fba2c45c075810dceb1",
+      "weight": 1.3
+    },
+    {
+      "event_id": "canon_ch8_elder_arbitration",
+      "chapter": 8,
+      "order": 3,
+      "summary": "夜轻歌主张婚事交由大长老裁断后离席",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_yezhengxiong"
+      ],
+      "accepted_tools": [
+        "talk_to",
+        "move_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.elder_arbitration_requested": true
+      },
+      "source_evidence_sha256": "431c4266a419fc4750f5774334fbca2cfc612a6ca88f4fba2c45c075810dceb1",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch8_leave_hall",
+      "chapter": 8,
+      "order": 4,
+      "summary": "夜轻歌离开大堂前往九曲环廊",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "loc_jiuqu_corridor"
+      ],
+      "accepted_tools": [
+        "move_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.elder_arbitration_requested": true
+      },
+      "source_evidence_sha256": "431c4266a419fc4750f5774334fbca2cfc612a6ca88f4fba2c45c075810dceb1",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch9_night_warning",
+      "chapter": 9,
+      "order": 1,
+      "summary": "夜菁菁之母提醒夜轻歌深夜在夜府并不安全",
+      "actor_ids": [
+        "char_jingjing_mother"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.jingjing_warning": true
+      },
+      "source_evidence_sha256": "a2501bd33cf7338dd9d309509fae6ea2d1432c54a86aac62ec62bd7acbfe00e6",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch9_identity_question",
+      "chapter": 9,
+      "order": 2,
+      "summary": "夜清清在风月阁前质问夜轻歌的真实身份",
+      "actor_ids": [
+        "char_yeqingqing"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.identity_confrontation": true
+      },
+      "source_evidence_sha256": "a2501bd33cf7338dd9d309509fae6ea2d1432c54a86aac62ec62bd7acbfe00e6",
+      "weight": 1.0
+    },
+    {
+      "event_id": "canon_ch9_nonlethal_restrain",
+      "chapter": 9,
+      "order": 3,
+      "summary": "夜轻歌以古武擒拿非致命反制夜清清",
+      "actor_ids": [
+        "char_yeqingge"
+      ],
+      "target_ids": [
+        "char_yeqingqing"
+      ],
+      "accepted_tools": [
+        "invoke_ability"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.qingqing_restrained": true
+      },
+      "source_evidence_sha256": "a2501bd33cf7338dd9d309509fae6ea2d1432c54a86aac62ec62bd7acbfe00e6",
+      "weight": 1.5
+    },
+    {
+      "event_id": "canon_ch9_kill_order",
+      "chapter": 9,
+      "order": 4,
+      "summary": "夜清清命令林尘去杀夜轻歌",
+      "actor_ids": [
+        "char_yeqingqing"
+      ],
+      "target_ids": [
+        "char_lin_guanjia"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.kill_order_issued": true
+      },
+      "source_evidence_sha256": "a2501bd33cf7338dd9d309509fae6ea2d1432c54a86aac62ec62bd7acbfe00e6",
+      "weight": 1.3
+    },
+    {
+      "event_id": "canon_ch10_bun_clue",
+      "chapter": 10,
+      "order": 1,
+      "summary": "林尘道出童年馒头旧事的线索",
+      "actor_ids": [
+        "char_lin_guanjia"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.steam_bun_clue": true
+      },
+      "source_evidence_sha256": "42f4325e1f75ae5d7e19a927b4f6060c83a38cff8a03ad62de1988c04e3381f7",
+      "weight": 1.2
+    },
+    {
+      "event_id": "canon_ch10_counterattack_resolve",
+      "chapter": 10,
+      "order": 2,
+      "summary": "姬月与夜轻歌确认童年旧事并坚定反击决意",
+      "actor_ids": [
+        "char_jiyue"
+      ],
+      "target_ids": [
+        "char_yeqingge"
+      ],
+      "accepted_tools": [
+        "invoke_ability"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.counterattack_resolve": true
+      },
+      "source_evidence_sha256": "42f4325e1f75ae5d7e19a927b4f6060c83a38cff8a03ad62de1988c04e3381f7",
+      "weight": 1.5
+    },
+    {
+      "event_id": "canon_ch10_snow_scheme",
+      "chapter": 10,
+      "order": 3,
+      "summary": "秦岚与夜正熊密谋借婚约风波为雪儿谋赐婚",
+      "actor_ids": [
+        "char_qinlan"
+      ],
+      "target_ids": [
+        "char_yezhengxiong"
+      ],
+      "accepted_tools": [
+        "talk_to"
+      ],
+      "keywords": [],
+      "required_completion_flags": {
+        "canonical.snow_marriage_scheme": true
+      },
+      "source_evidence_sha256": "42f4325e1f75ae5d7e19a927b4f6060c83a38cff8a03ad62de1988c04e3381f7",
+      "weight": 1.4
+    }
+  ]
+}

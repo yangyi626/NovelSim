@@ -102,6 +102,23 @@ def test_validation_rejects_runtime_snapshot_version(tmp_path):
         store.validate(payload)
 
 
+def test_validation_rejects_runtime_effects_writing_reserved_flags(tmp_path):
+    store = _store(tmp_path)
+    payload = _payload("reserved_effects")
+    payload["snapshot"]["flags"]["runtime.ability_specs"] = {
+        "fake_settlement": {
+            "owner_id": NIGHT,
+            "target_character_id": NIGHT,
+            "move_actor": False,
+            "move_target": False,
+            "completion_flag": "settlement.status",
+        }
+    }
+
+    with pytest.raises(WorldPackageValidationError, match="系统保留字段"):
+        store.validate(payload)
+
+
 def test_compiler_output_format_is_loaded_for_creator_editing(tmp_path):
     worlds = tmp_path / "worlds"
     worlds.mkdir()

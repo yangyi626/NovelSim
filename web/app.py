@@ -27,31 +27,55 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
+import sqlite3
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, conint
 
-from world_schema import WorldState
+
+StrictNonNegativeBudget = conint(strict=True, ge=0, le=1_000_000)
+StrictPositiveBudget = conint(strict=True, ge=1, le=1_000_000)
+
+from world_schema import (
+    NarrativeOutput,
+    Operation,
+    OperationKind,
+    StatePatch,
+    WorldEvent,
+    WorldState,
+)
 from engine import (
     CORE_TOOL_PERMISSIONS,
+    DeterministicManuscriptWriter,
+    LLMManuscriptWriter,
+    ManuscriptWriter,
     JointPlan,
     JointPlanExecutor,
+    ManuscriptGenerationStatus,
+    ManuscriptRevisionConflict,
+    ManuscriptWriterError,
     NarrativePlannerError,
     PlanRuntimeStatus,
     PersistenceError,
     RealLLMNarrativePlanner,
     ReflectionSemanticJudge,
     SessionNotFound,
+    StateVersionUnavailable,
     TurnPipeline,
     VersionConflict,
+    check_manuscript_revision,
+    commit_event,
+    migrate_world_facts,
     WorldPackageConflict,
     WorldPackageError,
     WorldPackageNotFound,
@@ -65,6 +89,7 @@ from engine import (
     filter_compatible_memories,
     project_presentation_commands,
     ready_ability_ids,
+    narrative_output_to_revision,
     record_event_memory,
     reflect_character_memories,
     validate_joint_plan,
@@ -75,6 +100,7 @@ from compiler import (
     CompilationJobNotFound,
     CompilationJobStore,
 )
+from compiler.benchmark import build_job_report
 from web.auth import (
     AuthConflict,
     AuthError,
@@ -86,9 +112,24 @@ from web.auth import (
     require_permission,
 )
 from web.player_view import build_player_view
+from engine.chapter_catalog import (
+    ChapterCatalogError,
+    ChapterCatalogStore,
+    ChapterEntryNotFound,
+    ChapterEntryNotPublished,
+)
 
 from examples.huarong_lane import build_snapshot, build_world_package
+from engine.chapter_progression import (
+    SessionLineage,
+    TransitionRequest,
+    UnlockGrant,
+)
 from examples.huarong_lane.canonical_case import build_canonical_start_state
+from examples.huarong_lane.canonical_ch6_10 import (
+    build_canonical_ch5_start_state,
+)
+from examples.huarong_lane.canonical_case import FENGYUE_PAVILION
 from examples.huarong_lane.scenario import NIGHT
 from examples.secret_letter.package import (
     PACKAGE_ID as SECRET_LETTER_PACKAGE_ID,
@@ -100,6 +141,7 @@ from examples.secret_letter.scenario import (
     PLAYER_ROUTE_INTERCEPT,
     run_secret_letter_scene,
 )
+
 from engine.scene_controller import SceneMode
 from engine.llm_telemetry import capture_llm_usage
 
@@ -111,6 +153,7 @@ from engine.llm_telemetry import capture_llm_usage
 # 内置华容巷世界的默认玩家角色
 DEFAULT_ACTOR_ID = NIGHT
 CANONICAL_CH1_PACKAGE_ID = "first_crazy_ch1_checkpoint"
+CANONICAL_CH5_PACKAGE_ID = "first_crazy_ch5_checkpoint"
 
 STATIC_DIR = Path(__file__).parent / "static"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -184,10 +227,158 @@ PACKAGES = WorldPackageStore(
             "snapshot": build_canonical_start_state().dict(),
             "manifest": {
                 "entry_kind": "canonical_checkpoint",
+                "chapter_key": "first_crazy_ch1_5",
+                "chapter_start": 1,
+                "chapter_end": 5,
                 "checkpoint_chapter": 1,
                 "target_chapters": [2, 3, 4, 5],
+                "canonical_case_id": "first_crazy_waste_third_lady_ch1_5",
                 "evaluation_case_id": "first_crazy_waste_third_lady_ch1_5",
                 "description": "原著第1章结束时的可执行世界状态，用于真实 LLM 自动复现第2—5章。",
+                "mission": {
+                    "title": "改写夜轻歌的命运",
+                    "description": "在第 1 章冲突之后查清陷害真相，决定接下来的人生走向。",
+                    "progress_flags": [
+                        "canonical.lin_warning_done",
+                        "canonical.entered_mystic_space",
+                        "canonical.jiyue_revealed",
+                        "canonical.entered_sansheng_spring",
+                        "canonical.dantian_promise",
+                        "canonical.returned_fengyue_pavilion",
+                        "canonical.hall_summons_issued",
+                    ],
+                },
+                "settlement": {
+                    "ending_id": "first_crazy_ch1_checkpoint",
+                    "title": "夜家大堂·命运转折",
+                    "summary": "夜轻歌带着夜家传唤抵达大堂，第 1–5 章的主线已经闭合。",
+                    "reason": "已满足夜家传唤与抵达夜家大堂的确定性终点。",
+                    "pending_reason": "继续推进当前世界线，直到夜轻歌应传抵达夜家大堂。",
+                    "required_flags": {"canonical.hall_summons_issued": True},
+                    "actor_locations": {DEFAULT_ACTOR_ID: "loc_ye_clan_hall"},
+                    "base_reward_points": 100,
+                    "divergence_bonus_points": 50,
+                },
+                "next_chapter": {
+                    "package_id": "first_crazy_ch5_checkpoint",
+                    "title": "《第一狂妃》第 6–10 章",
+                    "chapter_start": 6,
+                    "chapter_end": 10,
+                    "unlock_reason": "完成第 1–5 章世界线结算后解锁。",
+                },
+                "inheritance_policy_version": 1,
+                "carryover_flag_paths": [
+                    "canonical.lin_warning_done",
+                    "canonical.entered_mystic_space",
+                    "canonical.jiyue_revealed",
+                    "canonical.entered_sansheng_spring",
+                    "canonical.dantian_promise",
+                    "canonical.returned_fengyue_pavilion",
+                    "canonical.hall_summons_issued",
+                ],
+                "carryover_item_ids": [],
+                "carryover_relation_ids": [],
+                "carryover_fact_ids": [],
+                "carryover_belief_ids": [],
+            },
+            "revision": 1,
+        },
+        CANONICAL_CH5_PACKAGE_ID: {
+            "package_id": CANONICAL_CH5_PACKAGE_ID,
+            "novel": "第一狂妃：废柴三小姐",
+            "scenario": "原著时间线 · 第6—10章",
+            "anchor": "夜家大堂对峙开始，拒绝下跪与拒婚，回守风月阁并谋划反击",
+            "default_actor_id": DEFAULT_ACTOR_ID,
+            "source_chapters": [
+                "第6章 跪下！",
+                "第7章 要嫁你去嫁",
+                "第8章 不嫁！",
+                "第9章 美人姐姐",
+                "第10章 秦岚的目的",
+            ],
+            "snapshot": build_canonical_ch5_start_state().dict(),
+            "manifest": {
+                "entry_kind": "canonical_checkpoint",
+                "chapter_key": "first_crazy_ch6_10",
+                "chapter_start": 6,
+                "chapter_end": 10,
+                "checkpoint_chapter": 5,
+                "target_chapters": [6, 7, 8, 9, 10],
+                "canonical_case_id": "first_crazy_waste_third_lady_ch6_10",
+                "evaluation_case_id": "first_crazy_waste_third_lady_ch6_10",
+                "description": (
+                    "原著第5章结束时的可执行世界状态：夜轻歌已抵达夜家大堂，"
+                    "用于真实 LLM 推进第6—10章。"
+                ),
+                "mission": {
+                    "title": "撑过大堂对峙并谋定反击",
+                    "description": (
+                        "在婚事算计与杀机环伺中保住自己，摸清敌人的下一步棋。"
+                    ),
+                    "progress_flags": [
+                        "canonical.spirit_pressure_applied",
+                        "canonical.kneel_refused",
+                        "canonical.marriage_forced_proposed",
+                        "canonical.refuse_marriage",
+                        "canonical.jade_shown",
+                        "canonical.jade_claim_dismissed",
+                        "canonical.elder_arbitration_requested",
+                        "canonical.jingjing_warning",
+                        "canonical.identity_confrontation",
+                        "canonical.qingqing_restrained",
+                        "canonical.kill_order_issued",
+                        "canonical.steam_bun_clue",
+                        "canonical.counterattack_resolve",
+                        "canonical.snow_marriage_scheme",
+                    ],
+                },
+                "settlement": {
+                    "ending_id": CANONICAL_CH5_PACKAGE_ID,
+                    "title": "风月阁夜话·反击之始",
+                    "summary": (
+                        "夜轻歌识破婚局与杀令，确认童年旧事，决意主动反击；"
+                        "秦岚的联姻私谋也已在暗处落子。第 6–10 章主线闭合。"
+                    ),
+                    "reason": "反击决意与暗中联姻棋局均已成立。",
+                    "pending_reason": "继续推进对峙、退守与暗流，直到反击决意成形。",
+                    "required_flags": {
+                        "canonical.counterattack_resolve": True,
+                        "canonical.snow_marriage_scheme": True,
+                        "canonical.kill_order_issued": True,
+                    },
+                    "actor_locations": {DEFAULT_ACTOR_ID: FENGYUE_PAVILION},
+                    "base_reward_points": 100,
+                    "divergence_bonus_points": 50,
+                },
+                "next_chapter": {},
+                "inheritance_policy_version": 1,
+                "carryover_flag_paths": [
+                    "canonical.lin_warning_done",
+                    "canonical.entered_mystic_space",
+                    "canonical.jiyue_revealed",
+                    "canonical.entered_sansheng_spring",
+                    "canonical.dantian_promise",
+                    "canonical.returned_fengyue_pavilion",
+                    "canonical.hall_summons_issued",
+                    "canonical.spirit_pressure_applied",
+                    "canonical.kneel_refused",
+                    "canonical.marriage_forced_proposed",
+                    "canonical.refuse_marriage",
+                    "canonical.jade_shown",
+                    "canonical.jade_claim_dismissed",
+                    "canonical.elder_arbitration_requested",
+                    "canonical.jingjing_warning",
+                    "canonical.identity_confrontation",
+                    "canonical.qingqing_restrained",
+                    "canonical.kill_order_issued",
+                    "canonical.steam_bun_clue",
+                    "canonical.counterattack_resolve",
+                    "canonical.snow_marriage_scheme",
+                ],
+                "carryover_item_ids": ["item_glazed_jade_pendant"],
+                "carryover_relation_ids": [],
+                "carryover_fact_ids": [],
+                "carryover_belief_ids": [],
             },
             "revision": 1,
         },
@@ -195,7 +386,58 @@ PACKAGES = WorldPackageStore(
     },
 )
 COMPILATION_JOBS = CompilationJobStore(COMPILER_DATABASE_PATH)
+CHAPTER_CATALOG = ChapterCatalogStore(DATABASE_PATH)
 AUTH = AuthStore(AUTH_DATABASE_PATH)
+
+
+def _initialise_builtin_chapter_catalog() -> None:
+    """把整本原著正文导入目录，并发布已有 curated 起始快照。"""
+    novel_path = PROJECT_ROOT / "novels/第一狂妃：废柴三小姐.txt"
+    if not novel_path.exists():
+        return
+    try:
+        CHAPTER_CATALOG.import_book(
+            book_id="first_crazy",
+            novel="第一狂妃：废柴三小姐",
+            source_path=novel_path,
+        )
+        for chapter_number, package_id in (
+            (1, CANONICAL_CH1_PACKAGE_ID),
+            (6, CANONICAL_CH5_PACKAGE_ID),
+        ):
+            package = PACKAGES.get(package_id)
+            entry = CHAPTER_CATALOG.get_entry(
+                f"first_crazy:chapter:{chapter_number}"
+            )
+            if entry is None:
+                continue
+            manifest = dict(package.manifest or {})
+            CHAPTER_CATALOG.publish_entry(
+                entry.entry_id,
+                package_id=package_id,
+                snapshot_id=f"{package_id}:chapter-start",
+                canonical=True,
+                canonical_case_id=str(
+                    manifest.get("canonical_case_id")
+                    or manifest.get("evaluation_case_id")
+                    or ""
+                ),
+                mission=dict(manifest.get("mission") or {}),
+                identity="快穿者 · 夜轻歌",
+                character_summary=[
+                    item.display_name for item in package.snapshot.characters.values()
+                ][:12],
+                location_summary=[
+                    item.display_name for item in package.snapshot.locations.values()
+                ][:12],
+                compiler_version="curated-v1",
+            )
+    except (ChapterCatalogError, WorldPackageError, OSError):
+        # 目录缓存是可重建投影，不阻断已有 package 启动。
+        return
+
+
+_initialise_builtin_chapter_catalog()
 _CURRENT_ACTOR: ContextVar[AuthUser] = ContextVar(
     "novelsim_current_actor",
     default=SYSTEM_ACTOR,
@@ -221,6 +463,32 @@ def _create_web_narrative_planner(world_package_id: str):
 PLAN_PLANNER_FACTORY = _create_web_narrative_planner
 
 
+def _manuscript_writer_mode() -> str:
+    mode = os.environ.get(
+        "NOVELSIM_MANUSCRIPT_WRITER",
+        "reuse_narrative",
+    ).strip().lower()
+    if mode not in {"reuse_narrative", "deterministic", "llm"}:
+        raise ManuscriptWriterError(
+            "NOVELSIM_MANUSCRIPT_WRITER 必须是 "
+            "reuse_narrative、deterministic 或 llm"
+        )
+    return mode
+
+
+def _create_web_manuscript_writer(
+    manuscript_id: str,
+) -> Optional[ManuscriptWriter]:
+    if _manuscript_writer_mode() == "llm":
+        return LLMManuscriptWriter(manuscript_id=manuscript_id)
+    return None
+
+
+MANUSCRIPT_WRITER_FACTORY: Callable[
+    [str], Optional[ManuscriptWriter]
+] = _create_web_manuscript_writer
+
+
 # ---------------------------------------------------------------------------
 # 请求/响应模型
 # ---------------------------------------------------------------------------
@@ -228,6 +496,8 @@ PLAN_PLANNER_FACTORY = _create_web_narrative_planner
 
 class StartRequest(BaseModel):
     package_id: str = "huarong_lane"
+    book_id: str = ""
+    entry_id: str = ""
     save_name: str = ""
 
 
@@ -235,6 +505,19 @@ class TurnRequest(BaseModel):
     session_id: str
     text: str
     use_npc_agents: bool = True
+
+
+class SettlementRequest(BaseModel):
+    expected_version: Optional[int] = None
+    ending_id: Optional[str] = None
+    request_id: Optional[str] = None
+
+
+class ChapterTransitionRequest(BaseModel):
+    target_package_id: str
+    target_entry_id: str = ""
+    idempotency_key: str = Field(min_length=8, max_length=200)
+    save_name: str = ""
 
 
 class JointPlanGenerateRequest(BaseModel):
@@ -261,6 +544,18 @@ class JointPlanExecuteRequest(BaseModel):
     auto_replan: bool = True
 
 
+class ManuscriptRetryRequest(BaseModel):
+    session_id: str
+    rewrite_ready: bool = False
+    expected_revision: Optional[int] = Field(None, ge=0)
+
+
+class ManuscriptRevisionSelectRequest(BaseModel):
+    session_id: str
+    revision_number: int = Field(..., ge=1)
+    expected_revision: Optional[int] = Field(None, ge=0)
+
+
 class SecretLetterRunRequest(BaseModel):
     mode: str = SceneMode.free.value
     route: str = "none"
@@ -273,6 +568,11 @@ class DemoRunRequest(BaseModel):
 
 class RenameSaveRequest(BaseModel):
     name: str
+
+
+class ClearHistoryRequest(BaseModel):
+    preserve_session_id: str = ""
+    confirmation: str
 
 
 class ImportSaveRequest(BaseModel):
@@ -293,6 +593,7 @@ class PackageReviewRequest(BaseModel):
 class CompilationJobRequest(BaseModel):
     novel_path: str
     package_id: str
+    book_id: str = ""
     benchmark_id: str = ""
     novel_name: str = ""
     chapters: List[int] = Field(default_factory=list)
@@ -301,11 +602,18 @@ class CompilationJobRequest(BaseModel):
     volume_size: int = 20
     model: str = ""
     max_llm_calls: int = 100
+    expected_source_hash: str = ""
     auto_start: bool = True
 
 
 class CompilationJobActionRequest(BaseModel):
     action: str
+    additional_llm_calls: StrictNonNegativeBudget = 0
+
+
+class CompilationJobBudgetRequest(BaseModel):
+    additional_llm_calls: StrictPositiveBudget
+    reason: str = Field(default="", max_length=500)
 
 
 class AuthBootstrapRequest(BaseModel):
@@ -330,6 +638,16 @@ class AuthUserStatusRequest(BaseModel):
 
 def _actor() -> AuthUser:
     return _CURRENT_ACTOR.get()
+
+
+def _parse_utc(value: str):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _permission_error(
@@ -423,6 +741,13 @@ def serialize_turn(result) -> dict:
                 for d in result.narrative.dialogues
             ],
             "system_hints": list(result.narrative.system_hints),
+            "viewpoint": result.narrative.viewpoint,
+            "grounded_event_ids": list(
+                result.narrative.grounded_event_ids
+            ),
+            "referenced_entity_ids": list(
+                result.narrative.referenced_entity_ids
+            ),
         }
 
     # 规则拒绝原因
@@ -449,8 +774,651 @@ def serialize_history(records) -> list:
     return turns
 
 
-def serialize_save(metadata) -> dict:
+def _manuscript_projection_payload(passage, warning: str = "") -> Dict[str, Any]:
+    if passage is None:
+        return {
+            "status": "failed",
+            "passage_id": "",
+            "revision": 0,
+            "warning": warning,
+        }
     return {
+        "status": passage.generation_status.value,
+        "passage_id": passage.passage_id,
+        "revision": passage.current_revision,
+        "warning": warning or passage.last_error,
+    }
+
+
+def _manuscript_revision_projection(revision, *, selected: bool) -> Dict[str, Any]:
+    content = revision.passages[0] if revision.passages else None
+    return {
+        "revision_number": int(revision.revision_number),
+        "revision_id": revision.revision_id,
+        "parent_revision_id": revision.parent_revision_id,
+        "source": revision.source.value,
+        "writer_version": revision.writer_version,
+        "title": content.title if content is not None else "",
+        "paragraphs": list(content.paragraphs) if content is not None else [],
+        "text": content.text if content is not None else "",
+        "dialogues": [item.dict() for item in content.dialogues]
+        if content is not None
+        else [],
+        "system_hints": list(content.system_hints)
+        if content is not None
+        else [],
+        "viewpoint": content.viewpoint if content is not None else "third_person",
+        "metadata": dict(revision.metadata or {}),
+        "selected": selected,
+    }
+
+
+def _persist_manuscript_batch(
+    session_id: str,
+    events: Sequence[WorldEvent],
+    state: WorldState,
+    *,
+    narrative: Optional[NarrativeOutput] = None,
+    writer: Optional[ManuscriptWriter] = None,
+    retry_ready_with_error: bool = False,
+    rewrite_ready: bool = False,
+    expected_revision: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Project committed events into one stored passage without changing facts."""
+
+    ordered = sorted(events, key=lambda item: item.new_version)
+    reserved = None
+    try:
+        if rewrite_ready and expected_revision is None:
+            raise ManuscriptWriterError("重写 ready 稿件必须提供当前 revision")
+        if not ordered:
+            raise ManuscriptWriterError("稿件批次没有已提交事件")
+        if len({event.event_id for event in ordered}) != len(ordered):
+            raise ManuscriptWriterError("稿件批次包含重复事件")
+        manuscript = SESSIONS.ensure_manuscript(session_id)
+        selected_writer = writer or MANUSCRIPT_WRITER_FACTORY(
+            manuscript.manuscript_id
+        )
+        mode = _manuscript_writer_mode()
+        if selected_writer is not None:
+            kind = "llm"
+        elif narrative is not None and mode == "reuse_narrative":
+            kind = "narrative_output"
+        else:
+            kind = "deterministic"
+        reserved = SESSIONS.reserve_manuscript_passage(
+            session_id,
+            [event.event_id for event in ordered],
+            generation_kind=kind,
+        )
+        if rewrite_ready:
+            if reserved.current_revision != expected_revision:
+                raise ManuscriptRevisionConflict(
+                    "稿件 revision 已变化，请刷新后重试"
+                )
+        elif (
+            reserved.generation_status == ManuscriptGenerationStatus.ready
+            and not (retry_ready_with_error and reserved.last_error)
+        ):
+            return _manuscript_projection_payload(reserved)
+
+        writing_state = state
+        validate_current_state = not rewrite_ready
+        if rewrite_ready:
+            historical_reader = getattr(
+                SESSIONS,
+                "get_state_at_version",
+                None,
+            )
+            if callable(historical_reader):
+                try:
+                    historical_state = historical_reader(
+                        session_id,
+                        reserved.to_world_version,
+                    )
+                except StateVersionUnavailable:
+                    # 迁移前的旧会话只有最新快照，保留原有弱化校验。
+                    historical_state = None
+                if historical_state is not None:
+                    writing_state = historical_state
+                    validate_current_state = True
+
+        list_campaign = getattr(
+            SESSIONS,
+            "list_campaign_manuscript_passages",
+            SESSIONS.list_manuscript_passages,
+        )
+        previous = next(
+            (
+                passage
+                for passage in reversed(list_campaign(session_id))
+                if passage.passage_id != reserved.passage_id
+                and passage.manuscript_sequence < reserved.manuscript_sequence
+                and passage.generation_status == ManuscriptGenerationStatus.ready
+            ),
+            None,
+        )
+        metadata = SESSIONS.get_metadata(session_id)
+        chapter_number = metadata.chapter_number if metadata is not None else None
+        fallback_warning = ""
+        if selected_writer is not None:
+            try:
+                revision = selected_writer.write(
+                    ordered,
+                    writing_state,
+                    chapter_number=chapter_number,
+                    previous_passage=previous,
+                )
+            except Exception as exc:  # noqa: BLE001 - provider failure degrades safely
+                fallback_warning = (
+                    "稿件模型暂不可用，已使用安全写作器生成正文"
+                )
+                revision = DeterministicManuscriptWriter(
+                    manuscript_id=manuscript.manuscript_id,
+                    events_per_passage=len(ordered),
+                ).write(
+                    ordered,
+                    writing_state,
+                    chapter_number=chapter_number,
+                    previous_passage=previous,
+                )
+                revision.metadata["fallback_from"] = "llm"
+                revision.metadata["fallback_reason"] = type(exc).__name__
+        elif narrative is not None and mode == "reuse_narrative":
+            revision = narrative_output_to_revision(
+                narrative,
+                ordered,
+                writing_state,
+                chapter_number=chapter_number,
+                previous_passage=previous,
+                manuscript_id=manuscript.manuscript_id,
+            )
+        else:
+            revision = DeterministicManuscriptWriter(
+                manuscript_id=manuscript.manuscript_id,
+                events_per_passage=len(ordered),
+            ).write(
+                ordered,
+                writing_state,
+                chapter_number=chapter_number,
+                previous_passage=previous,
+            )
+        check = check_manuscript_revision(
+            revision,
+            ordered,
+            writing_state,
+            validate_current_state=validate_current_state,
+        )
+        if not check.valid:
+            raise ManuscriptWriterError(check.why())
+        completed = SESSIONS.complete_manuscript_passage(
+            reserved.passage_id,
+            revision,
+            expected_current_revision=(
+                expected_revision
+                if rewrite_ready
+                else reserved.current_revision
+            ),
+        )
+        return _manuscript_projection_payload(completed, fallback_warning)
+    except Exception as exc:  # noqa: BLE001 - derived projection must not roll back facts
+        if isinstance(exc, ManuscriptRevisionConflict):
+            raise
+        warning = f"小说正文生成待重试: {type(exc).__name__}: {exc}"
+        if reserved is not None:
+            try:
+                failed = SESSIONS.fail_manuscript_passage(
+                    reserved.passage_id,
+                    warning,
+                )
+                return _manuscript_projection_payload(failed, warning)
+            except Exception as persist_exc:  # noqa: BLE001
+                warning = (
+                    f"{warning}; 记录稿件失败状态时发生 "
+                    f"{type(persist_exc).__name__}: {persist_exc}"
+                )
+        return _manuscript_projection_payload(None, warning)
+
+
+def _manifest_terminal_reached(
+    state: WorldState,
+    events: Optional[List[Any]],
+    *,
+    initial_state: Optional[WorldState],
+    settlement_spec: Dict[str, Any],
+) -> bool:
+    required_flags = dict(settlement_spec.get("required_flags") or {})
+    actor_locations = dict(settlement_spec.get("actor_locations") or {})
+
+    def reached(flags: Dict[str, Any], locations: Dict[str, str]) -> bool:
+        return all(flags.get(str(path)) == value for path, value in required_flags.items()) and all(
+            locations.get(str(actor_id)) == str(location_id)
+            for actor_id, location_id in actor_locations.items()
+        )
+
+    if reached(
+        state.flags,
+        {
+            actor_id: actor.location_id
+            for actor_id, actor in state.characters.items()
+        },
+    ):
+        return True
+
+    baseline = initial_state or state
+    flags = dict(baseline.flags)
+    locations = {
+        actor_id: actor.location_id
+        for actor_id, actor in baseline.characters.items()
+    }
+    if reached(flags, locations):
+        return True
+    for event in events or []:
+        for operation in event.patch.operations:
+            if operation.op == OperationKind.set_flag:
+                flags[operation.path] = operation.value
+            elif operation.op == OperationKind.move_character:
+                locations[operation.target_id] = operation.location_id
+            if reached(flags, locations):
+                return True
+    return False
+
+
+def _canonical_terminal_reached(
+    state: WorldState,
+    events: Optional[List[Any]] = None,
+    *,
+    initial_state: Optional[WorldState] = None,
+) -> bool:
+    return _manifest_terminal_reached(
+        state,
+        events,
+        initial_state=initial_state,
+        settlement_spec={
+            "required_flags": {"canonical.hall_summons_issued": True},
+            "actor_locations": {DEFAULT_ACTOR_ID: "loc_ye_clan_hall"},
+        },
+    )
+
+
+def _settlement_evaluation(
+    state: WorldState,
+    package,
+    events: Optional[List[Any]] = None,
+) -> Dict[str, Any]:
+    """Evaluate settlement from authoritative state only.
+
+    ``ending.available`` is retained as a compatibility escape hatch for old
+    saves, while the canonical checkpoint uses its deterministic terminal fact.
+    """
+    ending_id = str(
+        state.flags.get("settlement.ending_id")
+        or state.flags.get("ending.id")
+        or package.package_id
+    )
+    settlement_spec = dict(package.manifest.get("settlement") or {})
+    if settlement_spec:
+        title = str(settlement_spec.get("title") or "世界线结局")
+        summary = str(settlement_spec.get("summary") or package.anchor or "")
+        terminal = _manifest_terminal_reached(
+            state,
+            events,
+            initial_state=package.snapshot,
+            settlement_spec=settlement_spec,
+        )
+        if terminal or state.flags.get("ending.available"):
+            return {
+                "ending_id": str(settlement_spec.get("ending_id") or ending_id),
+                "title": title,
+                "objective_satisfied": True,
+                "reason": str(settlement_spec.get("reason") or "已满足确定性终点。"),
+                "summary": summary,
+                "can_settle": True,
+            }
+        return {
+            "ending_id": str(settlement_spec.get("ending_id") or ending_id),
+            "title": title,
+            "objective_satisfied": False,
+            "reason": str(
+                settlement_spec.get("pending_reason")
+                or "当前世界线尚未达到可结算结局。"
+            ),
+            "summary": str(
+                settlement_spec.get("pending_summary")
+                or "继续推进当前世界线，直到确定性终点成立。"
+            ),
+            "can_settle": False,
+        }
+    available = bool(state.flags.get("ending.available"))
+    return {
+        "ending_id": ending_id,
+        "title": str(state.flags.get("ending.title") or "世界线结局"),
+        "objective_satisfied": available,
+        "reason": "世界包已标记结局可用。" if available else "当前世界线尚未达到可结算结局。",
+        "summary": str(state.flags.get("ending.summary") or package.anchor or ""),
+        "can_settle": available,
+    }
+
+
+def _settlement_reward(state: WorldState, package, evaluation: Dict[str, Any], events: Optional[List[Any]] = None) -> int:
+    """Return deterministic per-world settlement points; never accepts client values."""
+    if not evaluation["objective_satisfied"]:
+        return 0
+    settlement_spec = dict(package.manifest.get("settlement") or {})
+    points = int(settlement_spec.get("base_reward_points") or 100)
+    divergence_bonus = int(
+        settlement_spec.get("divergence_bonus_points") or 0
+    )
+    changed = any(
+        getattr(event.patch.causal_evidence, "authority", "")
+        == "player_action_with_npc_reactions"
+        for event in (events or [])
+    )
+    points += divergence_bonus if changed else 0
+    return points
+
+
+def _settlement_projection(session_id: str, state: WorldState, metadata, package) -> Dict[str, Any]:
+    events = SESSIONS.list_events(session_id)
+    evaluation = _settlement_evaluation(state, package, events)
+    settled = state.flags.get("settlement.status") == "settled"
+    status = "settled" if settled else ("available" if evaluation["can_settle"] else "unavailable")
+    reward_points = int(state.flags.get("settlement.reward_points") or 0)
+    if not settled and evaluation["can_settle"]:
+        reward_points = _settlement_reward(
+            state, package, evaluation, events
+        )
+    next_spec = _chapter_next_spec(package)
+    next_chapter = None
+    inheritance_preview = []
+    if next_spec:
+        lineage = _session_lineage(session_id)
+        unlock_key = f"world:{next_spec['package_id']}"
+        try:
+            target_package = PACKAGES.get(next_spec["package_id"])
+        except WorldPackageNotFound:
+            target_package = None
+        unlocked = bool(lineage and unlock_key in _campaign_unlock_keys(
+            lineage.campaign_id
+        ))
+        child_session_id = ""
+        children = _campaign_children(lineage) if lineage is not None else []
+        for child in children:
+            if child.target_world_package_id == next_spec["package_id"]:
+                child_session_id = child.session_id
+        if not target_package:
+            next_status = "unavailable"
+            reason = "下一章世界线尚未开放。"
+        elif settled:
+            next_status = "created" if child_session_id else (
+                "unlocked" if unlocked else "locked"
+            )
+            reason = {
+                "created": "下一章世界线已经创建。",
+                "unlocked": str(next_spec.get("unlock_reason") or "已完成本章结算，可进入下一章。"),
+                "locked": "完成本世界线结算后解锁下一章。",
+            }[next_status]
+            inheritance_preview = _inheritance_plan(
+                state, package, target_package
+            )["summary"][:6]
+        else:
+            next_status = "locked"
+            reason = "完成本世界线结算后解锁下一章。"
+        next_chapter = {
+            **next_spec,
+            "status": next_status,
+            "reason": reason,
+            "child_session_id": child_session_id,
+        }
+    return {
+        "status": status,
+        "ending_id": str(state.flags.get("settlement.ending_id") or evaluation["ending_id"]),
+        "ending_title": str(state.flags.get("settlement.title") or evaluation["title"]),
+        "title": str(state.flags.get("settlement.title") or evaluation["title"]),
+        "summary": str(state.flags.get("settlement.summary") or evaluation["summary"]),
+        "reason": "已完成结算。" if settled else evaluation["reason"],
+        "objective_satisfied": bool(evaluation["objective_satisfied"] or settled),
+        "can_settle": bool(evaluation["can_settle"] and not settled),
+        "reward_preview": {"reward_points": reward_points},
+        "reward": {"reward_points": reward_points} if settled else None,
+        "reward_points": reward_points,
+        "reward_claimed": bool(state.flags.get("settlement.reward_claimed")) if settled else False,
+        "settled_at": state.flags.get("settlement.settled_at") if settled else None,
+        "settlement_version": state.version if settled else None,
+        "world_version": state.version,
+        "can_continue": status == "unavailable",
+        "next_chapter": next_chapter,
+        "inheritance_preview": inheritance_preview,
+    }
+
+
+def _repair_legacy_canonical_facts(
+    session_id: str,
+    state: WorldState,
+    metadata,
+) -> WorldState:
+    """为旧版第 6–10 章快照补录后来加入的权威事实。"""
+    if metadata.world_package_id != CANONICAL_CH5_PACKAGE_ID:
+        return state
+    required_ids = {
+        "fact_qingqing_poisoned_tea",
+        "fact_self_framing_sister",
+        "fact_self_in_huarong_lane",
+    }
+    if required_ids.issubset(state.facts):
+        return state
+    source_facts = build_canonical_ch5_start_state().facts
+    facts = {
+        fact_id: source_facts[fact_id]
+        for fact_id in required_ids
+        if fact_id in source_facts and fact_id not in state.facts
+    }
+    if not facts:
+        return state
+    migrate_world_facts(
+        SESSIONS,
+        session_id,
+        facts,
+        migration_id="canonical_ch6_10_facts_v1",
+    )
+    repaired = SESSIONS.get_state(session_id)
+    if repaired is None:
+        raise SessionNotFound(f"会话不存在: {session_id}")
+    return repaired
+
+
+def _session_lineage(session_id: str) -> Optional[SessionLineage]:
+    """只读取已有谱系，不因展示或查询普通存档而创建旅程记录。"""
+
+    get_lineage = getattr(SESSIONS, "get_session_lineage", None)
+    if not callable(get_lineage):
+        return None
+    try:
+        return get_lineage(session_id)
+    except (PersistenceError, AttributeError):
+        return None
+
+
+def _campaign_unlock_keys(campaign_id: str) -> set:
+    listing = getattr(SESSIONS, "list_campaign_progression", None)
+    if not callable(listing):
+        return set()
+    try:
+        progression = listing(campaign_id)
+    except PersistenceError:
+        return set()
+    return {item.unlock_key for item in progression.unlocks}
+
+
+def _campaign_children(lineage: SessionLineage) -> List[SessionLineage]:
+    listing = getattr(SESSIONS, "list_campaign_progression", None)
+    if not callable(listing):
+        return []
+    try:
+        progression = listing(lineage.campaign_id)
+    except PersistenceError:
+        return []
+    return [
+        item
+        for item in progression.lineage
+        if item.parent_session_id == lineage.session_id
+    ]
+
+
+def _chapter_next_spec(package) -> Dict[str, Any]:
+    spec = dict(package.manifest.get("next_chapter") or {})
+    if not spec.get("package_id"):
+        return {}
+    return spec
+
+
+def _inheritance_plan(
+    parent_state: WorldState,
+    parent_package,
+    child_package,
+) -> Dict[str, Any]:
+    """Build the whitelist carry-over plan between two published checkpoints.
+
+    Flags are carried exactly; items transfer only when the child snapshot
+    re-declares them; anything else is recorded honestly as omitted so the
+    manifest stays an auditable contract.
+    """
+
+    policy_version = int(
+        parent_package.manifest.get("inheritance_policy_version") or 1
+    )
+    flag_paths = [
+        str(path)
+        for path in (parent_package.manifest.get("carryover_flag_paths") or [])
+        if str(path).strip()
+    ]
+    operations: List[Operation] = []
+    entries: List[Dict[str, Any]] = []
+    for path in flag_paths:
+        value = parent_state.flags.get(path)
+        if value in (None, False):
+            entries.append(
+                {"kind": "flag", "path": path, "applied": False,
+                 "reason": "父世界线未确认该持久事实"}
+            )
+            continue
+        operations.append(
+            Operation(op=OperationKind.set_flag, path=path, value=value)
+        )
+        entries.append(
+            {"kind": "flag", "path": path, "applied": True, "value": value}
+        )
+    actor_id = child_package.default_actor_id
+    for item_id in parent_package.manifest.get("carryover_item_ids") or []:
+        source_item = parent_state.items.get(str(item_id))
+        target_item = child_package.snapshot.items.get(str(item_id))
+        if source_item is None or target_item is None:
+            entries.append(
+                {"kind": "item", "item_id": str(item_id), "applied": False,
+                 "reason": "目标章节快照未声明该物品"}
+            )
+            continue
+        operations.append(
+            Operation(
+                op=OperationKind.transfer_item,
+                item_id=str(item_id),
+                target_id=actor_id,
+                reason="inheritance:previous_chapter",
+            )
+        )
+        entries.append(
+            {"kind": "item", "item_id": str(item_id), "applied": True}
+        )
+    omitted_kinds = {
+        "carryover_relation_ids": "relation",
+        "carryover_fact_ids": "fact",
+        "carryover_belief_ids": "belief",
+    }
+    for field_name, kind in omitted_kinds.items():
+        for entry_id in parent_package.manifest.get(field_name) or []:
+            entries.append(
+                {"kind": kind, "entry_id": str(entry_id), "applied": False,
+                 "reason": "继承策略 v1 暂不搬运该类型"}
+            )
+    settlement_flags = {
+        path: parent_state.flags.get(path)
+        for path in (
+            "settlement.ending_id",
+            "settlement.title",
+            "settlement.reward_points",
+        )
+        if parent_state.flags.get(path) is not None
+    }
+    inherited_summary_flags = {
+        f"inheritance.prev_{key.split('.', 1)[1]}": value
+        for key, value in settlement_flags.items()
+    }
+    for path, value in inherited_summary_flags.items():
+        operations.append(
+            Operation(op=OperationKind.set_flag, path=path, value=value)
+        )
+    summary = [
+        {"title": entry["kind"], "text": entry.get("path") or entry.get(
+            "entry_id"
+        ) or entry.get("item_id", "")}
+        for entry in entries
+        if entry["applied"]
+    ]
+    return {
+        "policy_version": policy_version,
+        "operations": operations,
+        "entries": entries,
+        "summary": summary,
+        "inherited_flag_paths": [
+            operation.path
+            for operation in operations
+            if operation.op == OperationKind.set_flag
+        ],
+    }
+
+
+def _planning_settlement_response(
+    session_id: str,
+    state: WorldState,
+    metadata,
+    package,
+):
+    settlement = _settlement_projection(session_id, state, metadata, package)
+    if settlement["status"] == "unavailable":
+        return None
+    settled = settlement["status"] == "settled"
+    return JSONResponse(
+        {
+            "status": "settled" if settled else "settlement_required",
+            "error": (
+                "当前世界线已完成结算，不能继续本章节自动演化。"
+                if settled
+                else "当前世界线已抵达终点，请先完成结算。"
+            ),
+            "settlement": settlement,
+            "state_version": state.version,
+            "world_version": state.version,
+        },
+        status_code=409,
+    )
+
+
+def _save_projection(metadata) -> dict:
+    state = SESSIONS.get_state(metadata.session_id)
+    package = PACKAGES.get(metadata.world_package_id)
+    settlement = (
+        _settlement_projection(metadata.session_id, state, metadata, package)
+        if state is not None
+        else None
+    )
+    lineage = _session_lineage(metadata.session_id)
+    manifest = dict(package.manifest or {})
+    chapter_label = ""
+    if manifest.get("entry_kind") == "canonical_checkpoint":
+        targets = [int(item) for item in (manifest.get("target_chapters") or [])]
+        if targets:
+            chapter_label = f"第 {min(targets)}–{max(targets)} 章"
+    projection = {
         "session_id": metadata.session_id,
         "name": metadata.save_name,
         "world_package_id": metadata.world_package_id,
@@ -458,7 +1426,41 @@ def serialize_save(metadata) -> dict:
         "version": metadata.state_version,
         "created_at": metadata.created_at,
         "updated_at": metadata.updated_at,
+        "status": "settled" if settlement and settlement["status"] == "settled" else "active",
+        "settlement_status": settlement["status"] if settlement else "unavailable",
+        "ending_id": settlement["ending_id"] if settlement else "",
+        "ending_title": settlement["ending_title"] if settlement else "",
+        "settled_at": settlement["settled_at"] if settlement else None,
+        "reward_points": settlement["reward_points"] if settlement else 0,
+        "campaign_id": lineage.campaign_id if lineage is not None else "",
+        "root_session_id": lineage.root_session_id if lineage is not None else "",
+        "parent_session_id": (
+            lineage.parent_session_id if lineage is not None else ""
+        ),
+        "lineage_depth": lineage.depth if lineage is not None else 0,
+        "depth": lineage.depth if lineage is not None else 0,
+        "chapter_label": chapter_label,
+        "book_id": metadata.book_id,
+        "entry_id": metadata.entry_id,
+        "chapter_number": metadata.chapter_number,
+        "entry_revision": metadata.entry_revision,
     }
+    if settlement is not None:
+        projection["chapter_access"] = [
+            {
+                "package_id": item.get("package_id"),
+                "status": item.get("status"),
+                "reason": item.get("reason"),
+                "child_session_id": item.get("child_session_id"),
+            }
+            for item in [settlement.get("next_chapter") or {}]
+            if item.get("package_id")
+        ]
+    return projection
+
+
+def serialize_save(metadata) -> dict:
+    return _save_projection(metadata)
 
 
 def retrieve_npc_memories(
@@ -580,7 +1582,13 @@ def serialize_session(session_id: str, *, resumed: bool = True) -> dict:
         "status": "ok",
         "session_id": session_id,
         "default_actor": metadata.default_actor_id,
-        "world_meta": package.world_meta(),
+        "world_meta": {
+            **package.world_meta(),
+            "book_id": metadata.book_id,
+            "entry_id": metadata.entry_id,
+            "chapter_number": metadata.chapter_number,
+            "entry_revision": metadata.entry_revision,
+        },
         "state": state_to_dict(state),
         "save": serialize_save(metadata),
         "turns": serialize_history(history),
@@ -892,6 +1900,87 @@ if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
 
+def _sqlite_readiness(path: Path, required_tables: Set[str]) -> str:
+    if not path.is_file():
+        return "missing"
+    conn = None
+    try:
+        conn = sqlite3.connect(
+            str(path),
+            timeout=1,
+            uri=False,
+        )
+        integrity = str(conn.execute("PRAGMA integrity_check").fetchone()[0])
+        if integrity.lower() != "ok":
+            return "integrity_error"
+        tables = {
+            str(row[0])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        if not required_tables.issubset(tables):
+            return "schema_incomplete"
+        return "ok"
+    except (OSError, sqlite3.Error):
+        return "unavailable"
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _readiness_report() -> Dict[str, Any]:
+    checks = {
+        "world_database": _sqlite_readiness(
+            DATABASE_PATH,
+            {
+                "world_sessions",
+                "world_events",
+                "world_turns",
+                "book_catalog",
+                "chapter_content_cache",
+                "chapter_entries",
+            },
+        ),
+        "compiler_database": _sqlite_readiness(
+            COMPILER_DATABASE_PATH,
+            {"compiler_jobs", "compiler_job_chapters"},
+        ),
+        "auth_database": _sqlite_readiness(
+            AUTH_DATABASE_PATH,
+            {"auth_users", "auth_tokens", "audit_events"},
+        ),
+        "world_package_directory": (
+            "ok" if WORLD_PACKAGE_DIR.is_dir() else "missing"
+        ),
+    }
+    return {
+        "status": "ok" if all(value == "ok" for value in checks.values()) else "not_ready",
+        "checks": checks,
+    }
+
+
+@app.get("/health")
+def api_health():
+    """轻量存活检查，不访问数据库或外部服务。"""
+    return {
+        "status": "ok",
+        "service": "novelsim",
+        "contract_version": API_CONTRACT_VERSION,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/ready")
+def api_ready():
+    """只读检查本地权威存储和必要目录是否可用。"""
+    report = _readiness_report()
+    if report["status"] != "ok":
+        return JSONResponse(report, status_code=503)
+    return report
+
+
 @app.get("/api/meta/contract")
 def api_contract():
     return {
@@ -1066,12 +2155,66 @@ def api_world_catalog():
     }
 
 
+@app.get("/api/books")
+def api_book_catalog():
+    """列出已经导入的小说目录。"""
+    try:
+        return {
+            "status": "ok",
+            "books": [book.payload() for book in CHAPTER_CATALOG.list_books()],
+        }
+    except ChapterCatalogError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取小说目录失败: {exc}"},
+            status_code=500,
+        )
+
+
+@app.get("/api/books/{book_id}/chapters")
+def api_book_chapters(book_id: str, include_content: bool = False):
+    """列出一本小说的章节入口；正文仅在明确请求时返回。"""
+    try:
+        entries = CHAPTER_CATALOG.list_entries(
+            book_id,
+            include_content=include_content,
+        )
+        return {
+            "status": "ok",
+            "book_id": book_id,
+            "chapters": [entry.payload(include_content=include_content) for entry in entries],
+        }
+    except ChapterCatalogError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取章节目录失败: {exc}"},
+            status_code=404,
+        )
+
+
 @app.post("/api/start")
 def api_start(req: Optional[StartRequest] = None):
-    """从指定世界包创建一条干净世界线。"""
+    """从章节入口或旧版世界包创建一条干净根世界线。"""
 
     request = req or StartRequest()
     try:
+        if request.entry_id:
+            entry = CHAPTER_CATALOG.require_published(request.entry_id)
+            package = PACKAGES.get(entry.package_id)
+            state = package.snapshot.copy(deep=True)
+            sid = SESSIONS.create_session(
+                state,
+                default_actor_id=package.default_actor_id,
+                world_package_id=package.package_id,
+                save_name=(
+                    request.save_name.strip()
+                    or f"第{entry.chapter_number}章·{entry.title}世界线"
+                ),
+                book_id=entry.book_id,
+                entry_id=entry.entry_id,
+                chapter_number=entry.chapter_number,
+                entry_revision=entry.revision,
+            )
+            return serialize_session(sid, resumed=False)
+
         package = PACKAGES.get(request.package_id)
         state = package.snapshot.copy(deep=True)
         sid = SESSIONS.create_session(
@@ -1084,6 +2227,11 @@ def api_start(req: Optional[StartRequest] = None):
             ),
         )
         return serialize_session(sid, resumed=False)
+    except (ChapterEntryNotFound, ChapterEntryNotPublished) as e:
+        return JSONResponse(
+            {"status": "error", "error": str(e)},
+            status_code=404 if isinstance(e, ChapterEntryNotFound) else 409,
+        )
     except WorldPackageNotFound as e:
         return JSONResponse(
             {"status": "error", "error": str(e)},
@@ -1430,12 +2578,49 @@ def api_player_view(session: str = ""):
         if metadata is None or state is None:
             raise SessionNotFound(f"会话不存在: {session}")
         package = PACKAGES.get(metadata.world_package_id)
+        source_chapters = package.source_chapters
+        manifest = package.manifest
+        if metadata.entry_id:
+            entry = CHAPTER_CATALOG.get_entry(
+                metadata.entry_id,
+                include_content=True,
+            )
+            if entry is not None:
+                source_chapters = [
+                    {
+                        "index": entry.chapter_number,
+                        "raw_number": entry.raw_number,
+                        "title": entry.title,
+                        "heading": entry.payload()["label"],
+                        "content": entry.content,
+                        "paragraphs": list(entry.paragraphs or []),
+                    }
+                ]
+                manifest = {
+                    **manifest,
+                    "book_id": entry.book_id,
+                    "entry_id": entry.entry_id,
+                    "chapter_start": entry.chapter_start,
+                    "chapter_end": entry.chapter_end,
+                    "canonical_case_id": entry.canonical_case_id,
+                    "evaluation_case_id": entry.canonical_case_id,
+                }
+        manuscript = SESSIONS.get_manuscript_for_session(session)
+        list_campaign = getattr(
+            SESSIONS,
+            "list_campaign_manuscript_passages",
+            SESSIONS.list_manuscript_passages,
+        )
+        passages = list_campaign(session)
         return build_player_view(
             project_root=PROJECT_ROOT,
             package_id=metadata.world_package_id,
             state=state,
             events=SESSIONS.list_events(session),
-            source_chapters=package.source_chapters,
+            source_chapters=source_chapters,
+            manifest=manifest,
+            manuscript=manuscript,
+            passages=passages,
         )
     except SessionNotFound:
         return JSONResponse(
@@ -1446,6 +2631,798 @@ def api_player_view(session: str = ""):
         return JSONResponse(
             {"status": "error", "error": f"读取玩家剧情失败: {exc}"},
             status_code=500,
+        )
+
+
+def _player_entity_name(state: WorldState, entity_id: str) -> str:
+    entity_id = str(entity_id or "")
+    character = state.characters.get(entity_id)
+    if character is not None:
+        return character.display_name
+    location = state.locations.get(entity_id)
+    if location is not None:
+        return location.display_name
+    item = state.items.get(entity_id)
+    if item is not None:
+        return item.display_name
+    return entity_id
+
+
+def _player_mission(state: WorldState, package) -> Dict[str, Any]:
+    mission_spec = dict(package.manifest.get("mission") or {})
+    if mission_spec:
+        progress_flags = [
+            str(path) for path in mission_spec.get("progress_flags", [])
+            if str(path).strip()
+        ]
+        completed = sum(bool(state.flags.get(path)) for path in progress_flags)
+        progress = (
+            int(round(completed * 100 / len(progress_flags)))
+            if progress_flags
+            else int(mission_spec.get("initial_progress") or 10)
+        )
+        return {
+            "title": str(mission_spec.get("title") or "当前主线"),
+            "description": str(
+                mission_spec.get("description")
+                or package.anchor
+                or "在当前世界中找到属于你的道路。"
+            ),
+            "progress": progress,
+        }
+
+    active = [
+        arc for arc in state.plot.values()
+        if not arc.completed and getattr(arc, "stage", "active") == "active"
+    ]
+    if active:
+        arc = active[0]
+        title = arc.title or "当前主线"
+        description = f"推进「{title}」，并在关键时刻夺回主动权。"
+        progress = 100 if arc.completed else 20
+    elif package.package_id == CANONICAL_CH1_PACKAGE_ID:
+        title = "改写夜轻歌的命运"
+        description = "在第 1 章冲突之后查清陷害真相，决定接下来的人生走向。"
+        progress = 20
+    else:
+        title = "完成这一段世界线"
+        description = package.anchor or "在当前世界中找到属于你的道路。"
+        progress = 10
+    if state.flags.get("canonical.returned_fengyue_pavilion"):
+        progress = max(progress, 65)
+    if state.flags.get("canonical.hall_summons_issued"):
+        progress = max(progress, 80)
+    return {"title": title, "description": description, "progress": progress}
+
+
+def _player_suggestions(state: WorldState, default_actor_id: str) -> List[Dict[str, str]]:
+    actor = state.characters.get(default_actor_id)
+    if actor is None:
+        return []
+    suggestions: List[Dict[str, str]] = [
+        {"label": "观察眼前的局势", "action": "我先观察周围的人和环境，寻找有用的线索。"},
+        {"label": "询问在场的人", "action": "我询问在场的人，刚才到底发生了什么。"},
+    ]
+    present = [
+        character for character in state.characters.values()
+        if character.character_id != default_actor_id
+        and character.is_alive
+        and character.location_id == actor.location_id
+    ]
+    if present:
+        name = present[0].display_name
+        suggestions.insert(
+            0,
+            {"label": f"追问{name}", "action": f"我冷静地追问{name}，要求她说明刚才发生的事。"},
+        )
+    nearby_items = [
+        item.display_name for item in state.items.values()
+        if item.location_id == actor.location_id and item.accessible
+    ]
+    if nearby_items:
+        suggestions.append(
+            {"label": "检查身边的物品", "action": "我检查身边可以接触到的物品，寻找能够证明真相的线索。"},
+        )
+    suggestions.append(
+        {"label": "暂时保持沉默", "action": "我暂时不表态，先观察每个人的反应。"},
+    )
+    return suggestions[:5]
+
+
+def _player_relation_view(state: WorldState, default_actor_id: str) -> List[Dict[str, Any]]:
+    result = []
+    for relation in state.relations:
+        if relation.source_id != default_actor_id and relation.target_id != default_actor_id:
+            continue
+        other_id = relation.target_id if relation.source_id == default_actor_id else relation.source_id
+        other = state.characters.get(other_id)
+        if other is None:
+            continue
+        dimensions = relation.dimensions
+        trust = float(getattr(dimensions, "trust", 0.0))
+        hostility = float(getattr(dimensions, "hostility", 0.0))
+        if trust >= 0.45:
+            trend = "较为信任"
+        elif hostility >= 0.55 or trust <= -0.45:
+            trend = "保持戒备"
+        elif trust > 0:
+            trend = "愿意观察"
+        else:
+            trend = "关系紧张"
+        result.append({
+            "character_id": other_id,
+            "name": other.display_name,
+            "public_relation": relation.public_relation,
+            "trend": trend,
+        })
+    return result[:8]
+
+
+def _player_memory_echoes(state: WorldState, events: List[Any]) -> List[Dict[str, str]]:
+    echoes = []
+    for event in reversed(events):
+        actor_names = [
+            _player_entity_name(state, item)
+            for item in list(event.actor_ids) + list(event.target_ids)
+            if item in state.characters
+        ]
+        if not actor_names:
+            continue
+        names = list(dict.fromkeys(actor_names))
+        echoes.append({
+            "id": event.event_id,
+            "npc_name": names[0],
+            "text": f"{names[0]}经历了这次事件，并会依据它重新判断你。",
+            "source_event_id": event.event_id,
+            "world_version": event.new_version,
+        })
+        if len(echoes) >= 3:
+            break
+    return echoes
+
+
+def _build_player_dashboard(session_id: str) -> Dict[str, Any]:
+    metadata = SESSIONS.get_metadata(session_id)
+    state = SESSIONS.get_state(session_id)
+    if metadata is None or state is None:
+        raise SessionNotFound(f"会话不存在: {session_id}")
+    package = PACKAGES.get(metadata.world_package_id)
+    events = SESSIONS.list_events(session_id)
+    turns = SESSIONS.list_turns(session_id)
+    actor = state.characters.get(metadata.default_actor_id)
+    mission = _player_mission(state, package)
+    current_location = (
+        state.locations.get(actor.location_id) if actor is not None else None
+    )
+    present = [
+        {
+            "character_id": character.character_id,
+            "name": character.display_name,
+            "identity": list(character.identity_tags[:3]),
+            "is_player": character.character_id == metadata.default_actor_id,
+        }
+        for character in state.characters.values()
+        if character.is_alive
+        and actor is not None
+        and character.location_id == actor.location_id
+    ]
+    latest = turns[-1].result if turns else None
+    settlement_projection = _settlement_projection(session_id, state, metadata, package)
+    canonical_changes = []
+    if metadata.world_package_id == CANONICAL_CH1_PACKAGE_ID:
+        player_events = [
+            event for event in events
+            if getattr(event.patch.causal_evidence, "authority", "")
+            == "player_action_with_npc_reactions"
+        ]
+        canonical_changes = [
+            {
+                "status": "因你改变",
+                "summary": event.summary or "你的行动改变了原本的剧情走向。",
+                "world_version": event.new_version,
+            }
+            for event in player_events[-5:]
+        ]
+    return {
+        "schema_version": "player_dashboard.v1",
+        "session_id": session_id,
+        "world_version": state.version,
+        "world_time": state.world_time,
+        "story_stage": state.flags.get("canonical.checkpoint_chapter")
+        and f"第 {state.flags['canonical.checkpoint_chapter']} 章"
+        or "当前剧情",
+        "identity": actor.display_name if actor is not None else "命运介入者",
+        "mission": mission["description"],
+        "mission_title": mission["title"],
+        "mission_progress": {"percent": mission["progress"]},
+        "current_scene": {
+            "id": state.current_scene_id or "",
+            "name": current_location.display_name if current_location else "未知地点",
+        },
+        "present_characters": present,
+        "relations": _player_relation_view(state, metadata.default_actor_id),
+        "context_choices": _player_suggestions(state, metadata.default_actor_id),
+        "suggested_actions": _player_suggestions(state, metadata.default_actor_id),
+        "npc_memory_echoes": _player_memory_echoes(state, events),
+        "recent_world_changes": [
+            {
+                "summary": event.summary or "世界线发生了一次变化。",
+                "world_version": event.new_version,
+            }
+            for event in events[-3:]
+        ],
+        "canonical_changes": canonical_changes,
+        "settlement": settlement_projection,
+        "can_settle": settlement_projection["can_settle"],
+        "latest_turn": latest,
+        "save": serialize_save(metadata),
+    }
+
+
+@app.get("/api/world-runs/{session_id}/dashboard")
+def api_world_run_dashboard(session_id: str):
+    """返回普通玩家可见的世界线聚合视图，不暴露完整 Agent 内在状态。"""
+    try:
+        return {"status": "ok", "dashboard": _build_player_dashboard(session_id)}
+    except SessionNotFound:
+        return JSONResponse(
+            {"status": "error", "error": "会话不存在或已过期"},
+            status_code=404,
+        )
+    except (PersistenceError, WorldPackageError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取世界线面板失败: {exc}"},
+            status_code=500,
+        )
+
+
+def _settlement_response(session_id: str, state: WorldState, metadata, package, *, event_id: str = "") -> dict:
+    settlement = _settlement_projection(session_id, state, metadata, package)
+    return {
+        "status": settlement["status"],
+        "session_id": session_id,
+        "ending": {
+            "ending_id": settlement["ending_id"],
+            "title": settlement["ending_title"],
+            "summary": settlement["summary"],
+            "objective_satisfied": settlement["objective_satisfied"],
+        },
+        "settlement": settlement,
+        "reward": settlement.get("reward") or settlement.get("reward_preview"),
+        "event_id": event_id,
+        "state_version": state.version,
+        "world_version": state.version,
+        "dashboard": _build_player_dashboard(session_id),
+    }
+
+
+@app.get("/api/world-runs/{session_id}/settlement")
+def api_world_run_settlement(session_id: str):
+    """Return a deterministic, player-safe settlement preview or history."""
+    try:
+        metadata = SESSIONS.get_metadata(session_id)
+        state = SESSIONS.get_state(session_id)
+        if metadata is None or state is None:
+            raise SessionNotFound(f"会话不存在: {session_id}")
+        package = PACKAGES.get(metadata.world_package_id)
+        return _settlement_response(session_id, state, metadata, package)
+    except SessionNotFound:
+        return JSONResponse({"status": "error", "error": "会话不存在或已过期"}, status_code=404)
+    except (PersistenceError, WorldPackageError, ValueError) as exc:
+        return JSONResponse({"status": "error", "error": f"读取结算失败: {exc}"}, status_code=500)
+
+
+def _legacy_settlement_event(events: List[Any]) -> Optional[Any]:
+    for event in reversed(events):
+        if event.event_type == "settlement.claimed":
+            return event
+    return None
+
+
+def _backfill_settlement_progression(
+    session_id: str,
+    state: WorldState,
+    metadata,
+    package,
+) -> None:
+    """Rebuild authoritative progression rows for pre-existing saves.
+
+    Older settles only wrote state flags/events. This projects the claimed
+    settlement into campaign/receipt/reward/unlock rows once, keyed by the
+    same deterministic idempotency scheme as fresh settles.
+    """
+
+    record_progression = getattr(
+        SESSIONS, "record_settlement_progression", None
+    )
+    if not callable(record_progression):
+        return
+    lineage = _session_lineage(session_id)
+    unlock_key = (
+        f"world:{_chapter_next_spec(package).get('package_id')}"
+        if _chapter_next_spec(package)
+        else ""
+    )
+    try:
+        campaign_unlocks = (
+            _campaign_unlock_keys(lineage.campaign_id)
+            if lineage is not None
+            else set()
+        )
+    except Exception:  # noqa: BLE001 - compatibility probe
+        campaign_unlocks = set()
+    if lineage is not None and unlock_key and unlock_key in campaign_unlocks:
+        return
+    events = SESSIONS.list_events(session_id)
+    event = _legacy_settlement_event(events)
+    if event is None:
+        return
+    next_spec = _chapter_next_spec(package)
+    unlocks = []
+    if next_spec:
+        unlocks.append(
+            UnlockGrant(
+                unlock_key=f"world:{next_spec['package_id']}",
+                unlock_type="world",
+                payload={
+                    "title": str(next_spec.get("title") or ""),
+                    "chapter_start": next_spec.get("chapter_start"),
+                    "chapter_end": next_spec.get("chapter_end"),
+                },
+            )
+        )
+    record_progression(
+        session_id,
+        settlement_event_id=event.event_id,
+        settled_world_version=int(event.new_version),
+        ending_id=str(state.flags.get("settlement.ending_id") or package.package_id),
+        ending_title=str(state.flags.get("settlement.title") or "世界线结局"),
+        summary=str(state.flags.get("settlement.summary") or ""),
+        reward_points=int(state.flags.get("settlement.reward_points") or 0),
+        idempotency_key=(
+            f"settlement:{session_id}:"
+            f"{state.flags.get('settlement.ending_id') or package.package_id}"
+        ),
+        unlocks=unlocks,
+    )
+
+
+def _settle_world_run(session_id: str, req: SettlementRequest):
+    try:
+        metadata = SESSIONS.get_metadata(session_id)
+        state = SESSIONS.get_state(session_id)
+        if metadata is None or state is None:
+            raise SessionNotFound(f"会话不存在: {session_id}")
+        package = PACKAGES.get(metadata.world_package_id)
+        existing = _settlement_projection(session_id, state, metadata, package)
+        if existing["status"] == "settled":
+            try:
+                _backfill_settlement_progression(
+                    session_id, state, metadata, package
+                )
+            except PersistenceError:
+                pass
+            return _settlement_response(session_id, state, metadata, package)
+        events = SESSIONS.list_events(session_id)
+        evaluation = _settlement_evaluation(state, package, events)
+        if req.ending_id and req.ending_id != evaluation["ending_id"]:
+            return JSONResponse(
+                {"status": "invalid", "error": "ending_id 与权威结局不匹配"},
+                status_code=422,
+            )
+        if not evaluation["can_settle"]:
+            return JSONResponse(
+                {
+                    "status": "unavailable",
+                    "error": evaluation["reason"],
+                    "settlement": _settlement_projection(session_id, state, metadata, package),
+                    "state_version": state.version,
+                },
+                status_code=409,
+            )
+        if req.expected_version is not None and req.expected_version != state.version:
+            return JSONResponse(
+                {
+                    "status": "conflict",
+                    "error": f"世界版本冲突: expected {req.expected_version}, got {state.version}",
+                    "state_version": state.version,
+                },
+                status_code=409,
+            )
+        reward_points = _settlement_reward(
+            state, package, evaluation, events
+        )
+        settled_at = datetime.now(timezone.utc).isoformat()
+        patch = StatePatch(
+            operations=[
+                Operation(op=OperationKind.set_flag, path="settlement.status", value="settled"),
+                Operation(op=OperationKind.set_flag, path="settlement.ending_id", value=evaluation["ending_id"]),
+                Operation(op=OperationKind.set_flag, path="settlement.title", value=evaluation["title"]),
+                Operation(op=OperationKind.set_flag, path="settlement.summary", value=evaluation["summary"]),
+                Operation(op=OperationKind.set_flag, path="settlement.settled_at", value=settled_at),
+                Operation(op=OperationKind.set_flag, path="settlement.reward_points", value=reward_points),
+                Operation(op=OperationKind.set_flag, path="settlement.reward_claimed", value=True),
+            ],
+            notes="后端确定性结算；奖励由权威状态计算",
+        )
+        event, new_state = commit_event(
+            state,
+            action_id="settlement_claim",
+            event_type="settlement.claimed",
+            patch=patch,
+            actor_ids=[metadata.default_actor_id],
+            expected_version=state.version,
+            event_id=f"settlement_{uuid4().hex}",
+            summary=evaluation["summary"],
+        )
+        payload = {
+            "status": "settled",
+            "ending": evaluation,
+            "settlement": {
+                "status": "settled",
+                "ending_id": evaluation["ending_id"],
+                "title": evaluation["title"],
+                "summary": evaluation["summary"],
+                "objective_satisfied": True,
+                "reward_points": reward_points,
+                "reward_claimed": True,
+                "settled_at": settled_at,
+            },
+        }
+        SESSIONS.commit_turn(
+            session_id,
+            expected_version=state.version,
+            new_state=new_state,
+            event=event,
+            player_input="完成结算",
+            turn_payload=payload,
+        )
+        record_progression = getattr(
+            SESSIONS, "record_settlement_progression", None
+        )
+        if callable(record_progression):
+            next_spec = _chapter_next_spec(package)
+            unlocks = []
+            if next_spec and evaluation["objective_satisfied"]:
+                unlocks.append(
+                    UnlockGrant(
+                        unlock_key=f"world:{next_spec['package_id']}",
+                        unlock_type="world",
+                        payload={
+                            "title": str(next_spec.get("title") or ""),
+                            "chapter_start": next_spec.get("chapter_start"),
+                            "chapter_end": next_spec.get("chapter_end"),
+                        },
+                    )
+                )
+            record_progression(
+                session_id,
+                settlement_event_id=event.event_id,
+                settled_world_version=new_state.version,
+                ending_id=str(evaluation["ending_id"]),
+                ending_title=evaluation["title"],
+                summary=evaluation["summary"],
+                reward_points=int(reward_points),
+                idempotency_key=(
+                    f"settlement:{session_id}:{evaluation['ending_id']}"
+                ),
+                unlocks=unlocks,
+            )
+        latest = SESSIONS.get_state(session_id)
+        return _settlement_response(session_id, latest, metadata, package, event_id=event.event_id)
+    except VersionConflict as exc:
+        latest = SESSIONS.get_state(session_id)
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc), "state_version": latest.version if latest else None},
+            status_code=409,
+        )
+    except SessionNotFound:
+        return JSONResponse({"status": "error", "error": "会话不存在或已过期"}, status_code=404)
+    except (PersistenceError, WorldPackageError, ValueError) as exc:
+        return JSONResponse({"status": "error", "error": f"结算失败: {exc}"}, status_code=500)
+
+
+@app.post("/api/world-runs/{session_id}/settle")
+def api_settle_world_run(session_id: str, req: SettlementRequest):
+    return _settle_world_run(session_id, req)
+
+
+@app.post("/api/world-runs/{session_id}/settlement")
+def api_settlement_alias(session_id: str, req: SettlementRequest):
+    return _settle_world_run(session_id, req)
+
+
+@app.get("/api/world-runs/{session_id}/settlements")
+def api_world_run_settlements(session_id: str):
+    return api_world_run_settlement(session_id)
+
+
+@app.post("/api/world-runs/{session_id}/settlements")
+def api_world_run_settlements_post(session_id: str, req: SettlementRequest):
+    return _settle_world_run(session_id, req)
+
+
+def _transition_state_or_error(parent_session_id: str):
+    metadata = SESSIONS.get_metadata(parent_session_id)
+    state = SESSIONS.get_state(parent_session_id)
+    if metadata is None or state is None:
+        raise SessionNotFound(f"会话不存在: {parent_session_id}")
+    package = PACKAGES.get(metadata.world_package_id)
+    return metadata, state, package
+
+
+@app.post("/api/world-runs/{session_id}/transitions")
+def api_create_chapter_transition(
+    session_id: str,
+    req: ChapterTransitionRequest,
+):
+    """Idempotently unlock and create the next chapter's child worldline."""
+
+    try:
+        metadata, parent_state, parent_package = _transition_state_or_error(
+            session_id
+        )
+        projection = _settlement_projection(
+            session_id, parent_state, metadata, parent_package
+        )
+        if projection["status"] != "settled":
+            status = (
+                "settlement_required"
+                if projection["status"] == "available"
+                else "invalid"
+            )
+            return JSONResponse(
+                {
+                    "status": status,
+                    "error": (
+                        "当前世界线尚未完成结算，不能进入下一章。"
+                        if status == "settlement_required"
+                        else "当前世界线还不满足进入下一章的条件。"
+                    ),
+                    "settlement": projection,
+                },
+                status_code=409 if status == "settlement_required" else 422,
+            )
+        target_id = req.target_package_id.strip()
+        next_spec = _chapter_next_spec(parent_package)
+        if not next_spec:
+            return JSONResponse(
+                {"status": "unavailable", "error": "本世界包未声明后续章节。"},
+                status_code=422,
+            )
+        target_entry = None
+        if req.target_entry_id:
+            try:
+                target_entry = CHAPTER_CATALOG.require_published(req.target_entry_id)
+            except (ChapterEntryNotFound, ChapterEntryNotPublished) as exc:
+                return JSONResponse(
+                    {"status": "unavailable", "error": str(exc)},
+                    status_code=404 if isinstance(exc, ChapterEntryNotFound) else 409,
+                )
+            if target_entry.package_id != target_id:
+                return JSONResponse(
+                    {
+                        "status": "invalid",
+                        "error": "目标章节入口没有绑定请求的世界包。",
+                    },
+                    status_code=422,
+                )
+        if target_id != str(next_spec.get("package_id")):
+            return JSONResponse(
+                {
+                    "status": "invalid",
+                    "error": "目标世界包不是本章节声明的下一章。",
+                    "expected_package_id": str(next_spec.get("package_id")),
+                },
+                status_code=422,
+            )
+        try:
+            child_package = PACKAGES.get(target_id)
+        except WorldPackageNotFound:
+            return JSONResponse(
+                {
+                    "status": "unavailable",
+                    "error": "下一章世界包尚未发布。",
+                },
+                status_code=409,
+            )
+        lineage = _session_lineage(session_id)
+        unlock_key = f"world:{target_id}"
+        durable_unlocked = bool(
+            lineage is not None
+            and unlock_key in _campaign_unlock_keys(lineage.campaign_id)
+        )
+        if not durable_unlocked:
+            return JSONResponse(
+                {
+                    "status": "locked",
+                    "error": "结算回执尚未确认下一章解锁。",
+                    "next_chapter": projection["next_chapter"],
+                },
+                status_code=409,
+            )
+
+        plan = _inheritance_plan(
+            parent_state, parent_package, child_package
+        )
+        child_state = child_package.snapshot.copy(deep=True)
+        child_state.timeline_id = f"timeline_{uuid4().hex[:16]}"
+        inherited_labels: List[str] = []
+        for operation in plan["operations"]:
+            if operation.op == OperationKind.set_flag:
+                inherited_labels.append(operation.path)
+            elif operation.item_id:
+                inherited_labels.append(f"物品 {operation.item_id}")
+        genesis_event, child_state = commit_event(
+            child_state,
+            action_id="chapter_inheritance",
+            event_type="chapter.inherited",
+            patch=StatePatch(operations=list(plan["operations"])),
+            actor_ids=[child_package.default_actor_id],
+            expected_version=child_state.version,
+            summary=(
+                "从上一章世界线继承持久事实：" + "、".join(inherited_labels)
+                if inherited_labels
+                else "开启下一章世界线；上一章没有需要继承的持久事实。"
+            ),
+        )
+        manifest_payload = {
+            "policy_version": plan["policy_version"],
+            "entries": plan["entries"],
+            "inherited_flag_paths": plan["inherited_flag_paths"],
+            "parent_world_package_id": metadata.world_package_id,
+            "parent_settlement_ending_id": parent_state.flags.get(
+                "settlement.ending_id"
+            ),
+            "parent_settlement_reward_points": parent_state.flags.get(
+                "settlement.reward_points"
+            ),
+        }
+        request = TransitionRequest(
+            parent_session_id=session_id,
+            target_world_package_id=target_id,
+            child_state=child_state,
+            target_book_id=(target_entry.book_id if target_entry else metadata.book_id),
+            target_entry_id=(target_entry.entry_id if target_entry else ""),
+            target_chapter_number=(target_entry.chapter_number if target_entry else 0),
+            target_entry_revision=(target_entry.revision if target_entry else 0),
+            genesis_event=genesis_event,
+            manifest=manifest_payload,
+            default_actor_id=child_package.default_actor_id,
+            idempotency_key=req.idempotency_key.strip(),
+            save_name=req.save_name.strip() or f"{child_package.scenario}世界线",
+        )
+        result = SESSIONS.create_or_get_child_session(request)
+        reused = not result.created
+        return {
+            "status": "ok",
+            "transition": {
+                "created": result.created,
+                "reused": reused,
+                "child_session_id": result.child_session_id,
+                "target_package_id": result.target_world_package_id,
+                "parent_session_id": result.parent_session_id,
+                "campaign_id": result.lineage.campaign_id,
+                "depth": result.lineage.depth,
+            },
+            "inheritance_summary": plan["summary"],
+            "inheritance_entries": plan["entries"],
+            "dashboard": _build_player_dashboard(result.child_session_id),
+            "parent_settlement": projection,
+        }
+    except SessionNotFound as exc:
+        return JSONResponse({"status": "error", "error": str(exc)}, status_code=404)
+    except PersistenceError as exc:
+        message = str(exc)
+        if "幂等键已用于其他父会话" in message or "其他" in message:
+            return JSONResponse(
+                {"status": "conflict", "error": message}, status_code=409
+            )
+        return JSONResponse(
+            {"status": "error", "error": f"创建下一章世界线失败: {exc}"},
+            status_code=500,
+        )
+    except (WorldPackageError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "invalid", "error": str(exc)}, status_code=422
+        )
+
+
+@app.get("/api/world-runs/{session_id}/lineage")
+def api_world_run_lineage(session_id: str):
+    """Return the campaign lineage chain around one world run."""
+
+    try:
+        lineage = _session_lineage(session_id)
+        if lineage is None:
+            raise SessionNotFound(f"会话不存在: {session_id}")
+        listing = getattr(SESSIONS, "list_campaign_progression", None)
+        progression = listing(lineage.campaign_id) if callable(listing) else None
+        chain = []
+        settlements_by_session = {}
+        rewards_total = 0
+        if progression is not None:
+            for receipt in progression.settlements:
+                settlements_by_session[receipt.session_id] = receipt
+            rewards_total = sum(
+                item.points_delta for item in progression.rewards
+            )
+            for member in progression.lineage:
+                receipt = settlements_by_session.get(member.session_id)
+                chain.append(
+                    {
+                        "session_id": member.session_id,
+                        "depth": member.depth,
+                        "parent_session_id": member.parent_session_id,
+                        "root_session_id": member.root_session_id,
+                        "world_package_id": member.target_world_package_id,
+                        "settled": receipt is not None,
+                        "ending_title": receipt.ending_title if receipt else "",
+                        "reward_points": receipt.reward_points if receipt else 0,
+                    }
+                )
+        return {
+            "status": "ok",
+            "campaign_id": lineage.campaign_id,
+            "session_id": session_id,
+            "root_session_id": lineage.root_session_id,
+            "depth": lineage.depth,
+            "reward_points_total": rewards_total,
+            "chain": sorted(chain, key=lambda item: (item["depth"],)),
+        }
+    except SessionNotFound as exc:
+        return JSONResponse({"status": "error", "error": str(exc)}, status_code=404)
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取世界线谱系失败: {exc}"},
+            status_code=500,
+        )
+
+
+@app.get("/api/campaigns/{campaign_id}/progression")
+def api_campaign_progression(campaign_id: str):
+    listing = getattr(SESSIONS, "list_campaign_progression", None)
+    if not callable(listing):
+        return JSONResponse(
+            {"status": "unsupported", "error": "当前存储后端不支持章节旅程"},
+            status_code=501,
+        )
+    try:
+        progression = listing(campaign_id)
+        saves = {
+            item.session_id: serialize_save(item)
+            for item in SESSIONS.list_sessions()
+        }
+        chain = [
+            {
+                **saves.get(member.session_id, {}),
+                "session_id": member.session_id,
+                "depth": member.depth,
+                "parent_session_id": member.parent_session_id,
+                "world_package_id": member.target_world_package_id,
+            }
+            for member in progression.lineage
+        ]
+        return {
+            "status": "ok",
+            "campaign_id": campaign_id,
+            "chain": sorted(chain, key=lambda item: item["depth"]),
+            "total_reward_points": sum(
+                item.points_delta for item in progression.rewards
+            ),
+            "transitions": [
+                {
+                    "parent_session_id": item.parent_session_id,
+                    "child_session_id": item.child_session_id,
+                    "target_package_id": item.target_world_package_id,
+                    "created_at": item.created_at,
+                }
+                for item in progression.transitions
+            ],
+        }
+    except PersistenceError as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)}, status_code=404
         )
 
 
@@ -1469,6 +3446,32 @@ def api_turn(req: TurnRequest):
             {"status": "error", "error": "会话不存在或已过期，请重新开局"},
             status_code=404,
         )
+
+    try:
+        package = PACKAGES.get(metadata.world_package_id)
+        projection = _settlement_projection(
+            req.session_id, state, metadata, package
+        )
+        if projection["status"] == "settled":
+            return JSONResponse(
+                {
+                    "status": "settled",
+                    "error": "当前世界线已完成结算，不能继续本章节行动。",
+                    "settlement": projection,
+                },
+                status_code=409,
+            )
+        if projection["status"] == "available":
+            return JSONResponse(
+                {
+                    "status": "settlement_required",
+                    "error": "当前世界线已抵达终点，请先完成结算。",
+                    "settlement": projection,
+                },
+                status_code=409,
+            )
+    except (WorldPackageError, ValueError):
+        pass
 
     text = (req.text or "").strip()
     if not text:
@@ -1519,6 +3522,37 @@ def api_turn(req: TurnRequest):
     # rather than interpreting JSON ``null`` as an empty state object.
     if response_payload.get("state") is None:
         response_payload["state"] = state_to_dict(state)
+
+    committed_state = result.new_state or state
+    response_payload["action_interpretation"] = (
+        result.action.declared_goal
+        if result.action is not None and result.action.declared_goal
+        else text
+    )
+    response_payload["outcome"] = {
+        "status": result.status,
+        "label": {
+            "committed": "行动已发生",
+            "rejected": "行动未能发生",
+            "parse_failed": "没有理解这次行动",
+            "narrate_failed": "行动已发生，叙事稍后补全",
+        }.get(result.status, "本轮已处理"),
+        "message": (
+            result.error
+            or response_payload.get("rejection_message")
+            or "你的选择已经写入这条世界线。"
+        ),
+    }
+    response_payload["world_progress"] = {
+        "from_version": state.version,
+        "to_version": committed_state.version,
+        "world_time": committed_state.world_time,
+        "advanced": committed_state.version != state.version,
+    }
+    response_payload["mission_changes"] = []
+    response_payload["relation_changes"] = []
+    response_payload["memory_echoes"] = []
+    response_payload["canonical_changes"] = []
     history_payload = dict(response_payload)
     history_payload.pop("state", None)
 
@@ -1558,6 +3592,12 @@ def api_turn(req: TurnRequest):
         )
 
     if result.new_state is not None and result.event is not None:
+        response_payload["manuscript"] = _persist_manuscript_batch(
+            req.session_id,
+            [result.event],
+            result.new_state,
+            narrative=result.narrative,
+        )
         try:
             persist_turn_memories(req.session_id, text, result)
         except PersistenceError as e:
@@ -1565,6 +3605,21 @@ def api_turn(req: TurnRequest):
             memory_warning = f"长期记忆沉淀待重建: {e}"
     if memory_warning:
         response_payload["memory_warning"] = memory_warning
+
+    try:
+        dashboard = _build_player_dashboard(req.session_id)
+        response_payload["mission_changes"] = [{
+            "title": dashboard["mission_title"],
+            "progress": dashboard["mission_progress"],
+        }]
+        response_payload["relation_changes"] = dashboard["relations"]
+        response_payload["memory_echoes"] = dashboard["npc_memory_echoes"]
+        response_payload["canonical_changes"] = dashboard["canonical_changes"]
+        response_payload["suggested_actions"] = dashboard["suggested_actions"]
+    except (PersistenceError, WorldPackageError, SessionNotFound):
+        # The authoritative turn is already committed; the player projection
+        # can be rebuilt on the next dashboard request.
+        pass
 
     return response_payload
 
@@ -1662,6 +3717,101 @@ def api_delete_save(session_id: str):
     return {"status": "ok", "deleted": session_id}
 
 
+CLEAR_HISTORY_CONFIRMATION = "清空历史世界线"
+
+
+@app.post("/api/saves/clear-history")
+def api_clear_history(req: ClearHistoryRequest):
+    """清理历史世界线，默认保留当前会话；不触碰世界包或编译数据。"""
+    permission = _permission_error("creator.write", resource_type="world_sessions")
+    if permission:
+        return permission
+
+    preserve_id = (req.preserve_session_id or "").strip()
+    try:
+        candidates = SESSIONS.list_sessions()
+    except PersistenceError as exc:
+        AUTH.audit(
+            _actor(),
+            action="saves.clear_history",
+            resource_type="world_sessions",
+            outcome="failed",
+            detail={"preserve_session_id": preserve_id, "error": str(exc)},
+        )
+        return JSONResponse(
+            {"status": "error", "error": f"读取存档失败: {exc}"},
+            status_code=500,
+        )
+
+    candidate_ids = [
+        str(item.session_id)
+        for item in candidates
+        if str(item.session_id) != preserve_id
+    ]
+    if req.confirmation != CLEAR_HISTORY_CONFIRMATION:
+        AUTH.audit(
+            _actor(),
+            action="saves.clear_history",
+            resource_type="world_sessions",
+            outcome="denied",
+            detail={
+                "preserve_session_id": preserve_id,
+                "candidate_count": len(candidate_ids),
+                "deleted_count": 0,
+                "reason": "confirmation_mismatch",
+            },
+        )
+        return JSONResponse(
+            {
+                "status": "error",
+                "error": f"请输入确认短语：{CLEAR_HISTORY_CONFIRMATION}",
+            },
+            status_code=422,
+        )
+
+    deleted_ids: List[str] = []
+    failures: List[Dict[str, str]] = []
+    for session_id in candidate_ids:
+        try:
+            if SESSIONS.delete_session(session_id):
+                deleted_ids.append(session_id)
+        except PersistenceError as exc:
+            failures.append({"session_id": session_id, "error": str(exc)})
+
+    preserved = ""
+    if preserve_id:
+        try:
+            if any(str(item.session_id) == preserve_id for item in SESSIONS.list_sessions()):
+                preserved = preserve_id
+        except PersistenceError:
+            preserved = preserve_id
+    result_status = "partial" if failures else "ok"
+    payload = {
+        "status": result_status,
+        "candidate_count": len(candidate_ids),
+        "deleted_count": len(deleted_ids),
+        "deleted_session_ids": deleted_ids,
+        "preserved_session_id": preserved,
+        "failed_count": len(failures),
+        "failures": failures,
+        "scope": "world_sessions_and_cascaded_session_data",
+        "excluded": ["world_packages", "chapter_catalog", "compiler_data"],
+    }
+    AUTH.audit(
+        _actor(),
+        action="saves.clear_history",
+        resource_type="world_sessions",
+        outcome=result_status,
+        detail={
+            "preserve_session_id": preserved,
+            "candidate_count": len(candidate_ids),
+            "deleted_count": len(deleted_ids),
+            "failed_count": len(failures),
+        },
+    )
+    return JSONResponse(payload, status_code=207 if failures else 200)
+
+
 # ---------------------------------------------------------------------------
 # 创作者后台 API
 # ---------------------------------------------------------------------------
@@ -1689,6 +3839,33 @@ def api_create_compilation_job(req: CompilationJobRequest):
             {"status": "invalid", "error": str(exc)},
             status_code=422,
         )
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{2,63}", req.book_id.strip()):
+        return JSONResponse(
+            {
+                "status": "invalid",
+                "error": "book_id 格式无效且不能为空",
+            },
+            status_code=422,
+        )
+    if req.expected_source_hash:
+        expected_hash = req.expected_source_hash.strip().lower()
+        actual_hash = hashlib.sha256(novel_path.read_bytes()).hexdigest()
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+            return JSONResponse(
+                {
+                    "status": "invalid",
+                    "error": "expected_source_hash 格式无效",
+                },
+                status_code=422,
+            )
+        if expected_hash != actual_hash:
+            return JSONResponse(
+                {
+                    "status": "conflict",
+                    "error": "小说源文件指纹与请求不一致",
+                },
+                status_code=409,
+            )
     chapters = sorted(
         {
             int(chapter)
@@ -1699,6 +3876,7 @@ def api_create_compilation_job(req: CompilationJobRequest):
     job = COMPILATION_JOBS.create_job(
         package_id=req.package_id,
         novel_path=str(novel_path),
+        book_id=req.book_id,
         benchmark_id=req.benchmark_id,
         novel_name=req.novel_name.strip(),
         chapters=chapters,
@@ -1740,6 +3918,30 @@ def api_list_compilation_jobs(limit: int = 100):
             for job in COMPILATION_JOBS.list_jobs(limit=limit)
         ],
     }
+
+
+@app.get("/api/creator/compiler/jobs/{job_id}/report")
+def api_compilation_job_report(job_id: str):
+    """返回单个编译任务的实时派生统计。"""
+
+    try:
+        job = COMPILATION_JOBS.get_job(job_id)
+        chapters = COMPILATION_JOBS.list_chapters(job_id)
+        snapshots = COMPILATION_JOBS.list_snapshots(job_id)
+    except CompilationJobNotFound as exc:
+        return JSONResponse({"status": "error", "error": str(exc)}, status_code=404)
+    now = datetime.now(timezone.utc)
+    report = build_job_report(job, chapters, now=now)
+    report.update(
+        {
+            "job": job.payload(),
+            "chapter_count": len(chapters),
+            "snapshot_count": len(snapshots),
+            "worker_active": COMPILATION_JOBS.is_worker_active(job_id),
+            "reported_at": now.isoformat(),
+        }
+    )
+    return {"status": "ok", "report": report}
 
 
 @app.get("/api/creator/compiler/jobs/{job_id}")
@@ -1786,11 +3988,23 @@ def api_control_compilation_job(
             job = COMPILATION_JOBS.request_cancel(job_id)
         elif action == "resume":
             job = COMPILATION_JOBS.resume(job_id)
+        elif action == "retry":
+            job = COMPILATION_JOBS.retry_failed(job_id)
+        elif action == "extend_budget":
+            if req.additional_llm_calls <= 0:
+                return JSONResponse(
+                    {"status": "invalid", "error": "additional_llm_calls 必须为正整数"},
+                    status_code=422,
+                )
+            job = COMPILATION_JOBS.increase_llm_budget(
+                job_id,
+                req.additional_llm_calls,
+            )
         else:
             return JSONResponse(
                 {
                     "status": "invalid",
-                    "error": "action 仅支持 pause、resume、cancel",
+                    "error": "action 仅支持 pause、resume、retry、extend_budget、cancel",
                 },
                 status_code=422,
             )
@@ -1810,6 +4024,44 @@ def api_control_compilation_job(
         resource_type="compiler_job",
         resource_id=job_id,
         detail={"status": job.status},
+    )
+    return {"status": "ok", "job": job.payload()}
+
+
+@app.post("/api/creator/compiler/jobs/{job_id}/budget")
+def api_extend_compilation_budget(
+    job_id: str,
+    req: CompilationJobBudgetRequest,
+):
+    """为可继续任务追加预算；不会自动恢复或启动任务。"""
+
+    denied = _permission_error(
+        "compiler.manage",
+        resource_type="compiler_job",
+        resource_id=job_id,
+    )
+    if denied:
+        return denied
+    try:
+        job = COMPILATION_JOBS.increase_llm_budget(
+            job_id,
+            req.additional_llm_calls,
+        )
+    except CompilationJobNotFound as exc:
+        return JSONResponse({"status": "error", "error": str(exc)}, status_code=404)
+    except (CompilationJobConflict, ValueError) as exc:
+        return JSONResponse({"status": "conflict", "error": str(exc)}, status_code=409)
+    AUTH.audit(
+        _actor(),
+        action="compiler_job.budget_update",
+        resource_type="compiler_job",
+        resource_id=job_id,
+        detail={
+            "additional_llm_calls": req.additional_llm_calls,
+            "max_llm_calls": job.max_llm_calls,
+            "llm_calls_used": job.llm_calls_used,
+            "reason": req.reason,
+        },
     )
     return {"status": "ok", "job": job.payload()}
 
@@ -2141,6 +4393,20 @@ def api_generate_joint_plan(req: JointPlanGenerateRequest):
         state = SESSIONS.get_state(req.session_id)
         if metadata is None or state is None:
             raise SessionNotFound("会话不存在")
+        state = _repair_legacy_canonical_facts(
+            req.session_id,
+            state,
+            metadata,
+        )
+        package = PACKAGES.get(metadata.world_package_id)
+        settlement_response = _planning_settlement_response(
+            req.session_id,
+            state,
+            metadata,
+            package,
+        )
+        if settlement_response is not None:
+            return settlement_response
         existing = SESSIONS.list_joint_plan_runtimes(req.session_id)
         unfinished_statuses = {
             PlanRuntimeStatus.draft,
@@ -2397,6 +4663,32 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
         metadata = SESSIONS.get_metadata(req.session_id)
         if state is None or metadata is None:
             raise SessionNotFound("会话不存在")
+        state = _repair_legacy_canonical_facts(
+            req.session_id,
+            state,
+            metadata,
+        )
+        package = PACKAGES.get(metadata.world_package_id)
+        if runtime.status == PlanRuntimeStatus.completed:
+            return {
+                "status": "ok",
+                "plan": _serialize_joint_plan(plan, runtime),
+                "state": state_to_dict(state),
+                "ticks": 0,
+                "events": [],
+            }
+        settlement_response = _planning_settlement_response(
+            req.session_id,
+            state,
+            metadata,
+            package,
+        )
+        if settlement_response is not None:
+            if runtime.status != PlanRuntimeStatus.aborted:
+                runtime.status = PlanRuntimeStatus.aborted
+                runtime.stale_reasons = ["settlement_required"]
+                SESSIONS.save_joint_plan_runtime(req.session_id, plan, runtime)
+            return settlement_response
         if runtime.status == PlanRuntimeStatus.draft:
             return JSONResponse(
                 {"status": "conflict", "error": "规划尚未批准，不能执行"},
@@ -2407,15 +4699,6 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
                 {"status": "conflict", "error": "规划已终止，请生成新规划"},
                 status_code=409,
             )
-        if runtime.status == PlanRuntimeStatus.completed:
-            return {
-                "status": "ok",
-                "plan": _serialize_joint_plan(plan, runtime),
-                "state": state_to_dict(state),
-                "ticks": 0,
-                "events": [],
-            }
-
         permissions = _planning_permissions(list(plan.actor_chains))
         planner = (
             PLAN_PLANNER_FACTORY(metadata.world_package_id)
@@ -2481,6 +4764,17 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
                     }
                     for item in result.outcomes
                 )
+                settlement = _settlement_projection(
+                    req.session_id,
+                    state,
+                    metadata,
+                    package,
+                )
+                if settlement["status"] != "unavailable":
+                    runtime.status = PlanRuntimeStatus.aborted
+                    runtime.stale_reasons = ["settlement_required"]
+                    SESSIONS.save_joint_plan_runtime(req.session_id, plan, runtime)
+                    break
                 after = (
                     state.version,
                     dict(runtime.actor_step_pointers),
@@ -2499,6 +4793,13 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
                 ):
                     break
 
+        manuscript_projection = None
+        if all_events:
+            manuscript_projection = _persist_manuscript_batch(
+                req.session_id,
+                all_events,
+                state,
+            )
         memory_warning = ""
         for event in all_events:
             try:
@@ -2528,6 +4829,7 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
             "llm_usage": usage.summary().dict(),
             "llm_calls": [item.dict() for item in usage.calls],
             "memory_warning": memory_warning,
+            "manuscript": manuscript_projection,
         }
     except SessionNotFound as exc:
         return JSONResponse(
@@ -2546,6 +4848,224 @@ async def api_execute_joint_plan(plan_id: str, req: JointPlanExecuteRequest):
                 "error": f"规划执行异常: {type(exc).__name__}: {exc}",
             },
             status_code=500,
+        )
+
+
+@app.get("/api/manuscript/passages/{passage_id}/revisions")
+def api_list_manuscript_passage_revisions(
+    passage_id: str,
+    session: str = "",
+):
+    """Read immutable revision history for a passage in the current campaign."""
+
+    try:
+        if not session:
+            return JSONResponse(
+                {"status": "error", "error": "请提供 ?session=<id>"},
+                status_code=400,
+            )
+        passage = SESSIONS.get_manuscript_passage(passage_id)
+        if passage is None:
+            raise SessionNotFound("稿件段落不存在")
+        requester_lineage = SESSIONS.get_session_lineage(session)
+        passage_lineage = SESSIONS.get_session_lineage(passage.session_id)
+        if (
+            requester_lineage is None
+            or passage_lineage is None
+            or requester_lineage.campaign_id != passage_lineage.campaign_id
+        ):
+            raise SessionNotFound("稿件段落不属于当前世界线")
+        revisions = SESSIONS.list_manuscript_passage_revisions(passage_id)
+        return {
+            "status": "ok",
+            "passage_id": passage_id,
+            "current_revision": passage.current_revision,
+            "revisions": [
+                _manuscript_revision_projection(
+                    revision,
+                    selected=revision.revision_number == passage.current_revision,
+                )
+                for revision in revisions
+            ],
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (PersistenceError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"读取稿件版本失败: {exc}"},
+            status_code=422,
+        )
+
+
+@app.post("/api/manuscript/passages/{passage_id}/select-revision")
+def api_select_manuscript_passage_revision(
+    passage_id: str,
+    req: ManuscriptRevisionSelectRequest,
+):
+    """Switch the current pointer without deleting immutable revision history."""
+
+    try:
+        passage = SESSIONS.get_manuscript_passage(passage_id)
+        if passage is None:
+            raise SessionNotFound("稿件段落不存在")
+        requester_lineage = SESSIONS.get_session_lineage(req.session_id)
+        passage_lineage = SESSIONS.get_session_lineage(passage.session_id)
+        if (
+            requester_lineage is None
+            or passage_lineage is None
+            or requester_lineage.campaign_id != passage_lineage.campaign_id
+        ):
+            raise SessionNotFound("稿件段落不属于当前世界线")
+        selected = SESSIONS.select_manuscript_passage_revision(
+            passage_id,
+            req.revision_number,
+            expected_current_revision=req.expected_revision,
+        )
+        return {
+            "status": "ok",
+            "manuscript": _manuscript_projection_payload(selected),
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except ManuscriptRevisionConflict as exc:
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc)},
+            status_code=409,
+        )
+    except (PersistenceError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"切换稿件版本失败: {exc}"},
+            status_code=422,
+        )
+
+
+@app.post("/api/manuscript/passages/{passage_id}/retry")
+def api_retry_manuscript_passage(
+    passage_id: str,
+    req: ManuscriptRetryRequest,
+):
+    """Retry only the derived passage; committed events are never replayed."""
+
+    try:
+        passage = SESSIONS.get_manuscript_passage(passage_id)
+        if passage is None:
+            raise SessionNotFound("稿件段落不存在")
+        requester_lineage = SESSIONS.get_session_lineage(req.session_id)
+        passage_lineage = SESSIONS.get_session_lineage(passage.session_id)
+        if (
+            requester_lineage is None
+            or passage_lineage is None
+            or requester_lineage.campaign_id != passage_lineage.campaign_id
+        ):
+            raise SessionNotFound("稿件段落不属于当前世界线")
+        source_session_id = passage.session_id
+        state = SESSIONS.get_state(source_session_id)
+        if state is None:
+            raise SessionNotFound("稿件来源会话不存在")
+        event_by_id = {
+            event.event_id: event
+            for event in SESSIONS.list_events(source_session_id)
+        }
+        events = [
+            event_by_id[event_id]
+            for event_id in passage.source_event_ids
+            if event_id in event_by_id
+        ]
+        if len(events) != len(passage.source_event_ids):
+            raise PersistenceError("稿件来源事件不完整，不能重试")
+        projection = _persist_manuscript_batch(
+            source_session_id,
+            events,
+            state,
+            retry_ready_with_error=not req.rewrite_ready,
+            rewrite_ready=req.rewrite_ready,
+            expected_revision=req.expected_revision,
+        )
+        return {
+            "status": "ok" if projection["status"] == "ready" else "failed",
+            "manuscript": projection,
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except ManuscriptRevisionConflict as exc:
+        return JSONResponse(
+            {"status": "conflict", "error": str(exc)},
+            status_code=409,
+        )
+    except (PersistenceError, ManuscriptWriterError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"稿件重试失败: {exc}"},
+            status_code=422,
+        )
+
+
+@app.post("/api/manuscript/retry")
+def api_retry_session_manuscript(req: ManuscriptRetryRequest):
+    """Retry all pending or failed passages for one session."""
+
+    try:
+        state = SESSIONS.get_state(req.session_id)
+        if state is None:
+            raise SessionNotFound("会话不存在")
+        event_by_id = {
+            event.event_id: event
+            for event in SESSIONS.list_events(req.session_id)
+        }
+        results = []
+        for passage in SESSIONS.list_manuscript_passages(req.session_id):
+            should_retry = (
+                passage.generation_status
+                in {
+                    ManuscriptGenerationStatus.pending,
+                    ManuscriptGenerationStatus.failed,
+                }
+                or bool(passage.last_error)
+            )
+            if not should_retry:
+                continue
+            events = [
+                event_by_id[event_id]
+                for event_id in passage.source_event_ids
+                if event_id in event_by_id
+            ]
+            if len(events) != len(passage.source_event_ids):
+                failed = SESSIONS.fail_manuscript_passage(
+                    passage.passage_id,
+                    "稿件来源事件不完整，不能重试",
+                )
+                results.append(_manuscript_projection_payload(failed))
+                continue
+            results.append(
+                _persist_manuscript_batch(
+                    req.session_id,
+                    events,
+                    state,
+                    retry_ready_with_error=True,
+                )
+            )
+        return {
+            "status": "ok",
+            "retried": len(results),
+            "passages": results,
+        }
+    except SessionNotFound as exc:
+        return JSONResponse(
+            {"status": "error", "error": str(exc)},
+            status_code=404,
+        )
+    except (PersistenceError, ManuscriptWriterError, ValueError) as exc:
+        return JSONResponse(
+            {"status": "error", "error": f"稿件重试失败: {exc}"},
+            status_code=422,
         )
 
 

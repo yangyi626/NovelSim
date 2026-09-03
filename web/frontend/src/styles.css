@@ -12,12 +12,12 @@
   --text: #ececee;
   --text-dim: #afb1b7;
   --text-faint: #747780;
-  --accent: #d0d2d7;
-  --accent-dim: #8f939b;
-  --selection: #30333a;
-  --player: #8ab4f8;
-  --npc: #e58c92;
-  --system: #70b57e;
+  --accent: #e5c58b;
+  --accent-dim: #b89a66;
+  --selection: #37332b;
+  --player: #9dbbe8;
+  --npc: #e59a9e;
+  --system: #83bd8c;
   --danger: #e06c75;
   --warn: #d8ad66;
 }
@@ -53,6 +53,11 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+button:focus-visible, textarea:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid rgba(138, 180, 248, .78);
+  outline-offset: 2px;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

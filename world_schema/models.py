@@ -445,6 +445,7 @@ class OperationKind(str, Enum):
     update_psyche = "update_psyche"  # 改 character_psyches[x]: 情绪/感知
     advance_plan = "advance_plan"  # 角色计划推进一步
     record_evidence = "record_evidence"
+    add_fact = "add_fact"  # 登记权威 WorldFact（仅系统级事件使用）
     record_propagation = "record_propagation"
     form_alliance = "form_alliance"
 

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 from world_schema import WorldEvent, WorldState
 
+from .chapter_progression import (
+    CampaignProgression,
+    SessionLineage,
+    SettlementReceipt,
+    TransitionRequest,
+    TransitionResult,
+    UnlockGrant,
+)
+from .manuscript import ManuscriptPassage, ManuscriptRevision, WorldlineManuscript
 from .persistence import MemoryRecord, SessionMetadata, TurnRecord
 
 
@@ -20,10 +29,21 @@ class WorldStore(Protocol):
         world_package_id: str,
         session_id: Optional[str] = None,
         save_name: str = "华容巷世界线",
+        book_id: str = "",
+        entry_id: str = "",
+        chapter_number: int = 0,
+        entry_revision: int = 0,
     ) -> str:
         ...
 
     def get_state(self, session_id: str) -> Optional[WorldState]:
+        ...
+
+    def get_state_at_version(
+        self,
+        session_id: str,
+        world_version: int,
+    ) -> Optional[WorldState]:
         ...
 
     def get_metadata(
@@ -67,6 +87,109 @@ class WorldStore(Protocol):
         ...
 
     def list_turns(self, session_id: str) -> List[TurnRecord]:
+        ...
+
+    def ensure_session_lineage(self, session_id: str) -> SessionLineage:
+        ...
+
+    def get_session_lineage(
+        self,
+        session_id: str,
+    ) -> Optional[SessionLineage]:
+        ...
+
+    def record_settlement_progression(
+        self,
+        session_id: str,
+        *,
+        settlement_event_id: str,
+        settled_world_version: int,
+        ending_id: str,
+        ending_title: str,
+        summary: str,
+        reward_points: int,
+        idempotency_key: str,
+        unlocks: Sequence[UnlockGrant] = (),
+    ) -> SettlementReceipt:
+        ...
+
+    def create_or_get_child_session(
+        self,
+        request: TransitionRequest,
+    ) -> TransitionResult:
+        ...
+
+    def list_campaign_progression(
+        self,
+        campaign_id: str,
+    ) -> CampaignProgression:
+        ...
+
+    def ensure_manuscript(self, session_id: str) -> WorldlineManuscript:
+        ...
+
+    def get_manuscript_for_session(
+        self,
+        session_id: str,
+    ) -> Optional[WorldlineManuscript]:
+        ...
+
+    def reserve_manuscript_passage(
+        self,
+        session_id: str,
+        source_event_ids: Sequence[str],
+        *,
+        generation_kind: str = "deterministic",
+    ) -> ManuscriptPassage:
+        ...
+
+    def complete_manuscript_passage(
+        self,
+        passage_id: str,
+        revision: ManuscriptRevision,
+        *,
+        expected_current_revision: Optional[int] = None,
+    ) -> ManuscriptPassage:
+        ...
+
+    def fail_manuscript_passage(
+        self,
+        passage_id: str,
+        error: str,
+    ) -> ManuscriptPassage:
+        ...
+
+    def get_manuscript_passage(
+        self,
+        passage_id: str,
+    ) -> Optional[ManuscriptPassage]:
+        ...
+
+    def list_manuscript_passages(
+        self,
+        session_id: str,
+    ) -> List[ManuscriptPassage]:
+        ...
+
+    def list_campaign_manuscript_passages(
+        self,
+        session_id: str,
+    ) -> List[ManuscriptPassage]:
+        ...
+
+    def list_manuscript_passage_revisions(
+        self,
+        passage_id: str,
+    ) -> List[ManuscriptRevision]:
+        ...
+
+    def select_manuscript_passage_revision(
+        self,
+        passage_id: str,
+        revision_number: int,
+        *,
+        expected_current_revision: Optional[int] = None,
+    ) -> ManuscriptPassage:
         ...
 
     def record_character_memories(

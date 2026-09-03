@@ -32,7 +32,7 @@ export default defineConfig({
   ],
   webServer: {
     command: `"${python}" "${e2eServer}"`,
-    url: 'http://127.0.0.1:8876/api/meta/contract',
+    url: 'http://127.0.0.1:8876/ready',
     timeout: 120_000,
     reuseExistingServer: false,
   },

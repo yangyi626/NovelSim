@@ -94,6 +94,16 @@ class QdrantMemoryIndex:
                 item.name
                 for item in self.client.get_collections().collections
             }
+            if (
+                self.collection_name in names
+                and self._vector_size_mismatched()
+            ):
+                # 换嵌入模型后旧向量空间整体失效；本索引是可重建的派生
+                # 数据，权威记忆仍以 SQLite 文本为准，这里直接重建。
+                self.client.delete_collection(
+                    collection_name=self.collection_name,
+                )
+                names.discard(self.collection_name)
             if self.collection_name not in names:
                 self.client.create_collection(
                     collection_name=self.collection_name,
@@ -104,6 +114,20 @@ class QdrantMemoryIndex:
                 )
         except Exception as exc:  # noqa: BLE001
             raise PersistenceError(f"初始化 Qdrant 记忆索引失败: {exc}") from exc
+
+    def _vector_size_mismatched(self) -> bool:
+        """读取已存在集合的向量维度；读不出时按未变化处理。"""
+
+        info = self.client.get_collection(self.collection_name)
+        params = getattr(
+            getattr(getattr(info, "config", None), "params", None),
+            "vectors",
+            None,
+        )
+        size = getattr(params, "size", None)
+        if size is None:
+            return False
+        return int(size) != int(self.embedder.dimensions)
 
     @staticmethod
     def point_id(memory_id: str) -> str:

@@ -287,6 +287,7 @@ def enqueue_benchmark(
             package_id=package_id,
             novel_path=str(_novel_path(spec["filename"])),
             benchmark_id=run_id,
+            book_id=str(spec["book_id"]),
             novel_name=str(spec["filename"]).rsplit(".", 1)[0],
             chapters=chapters,
             volume_size=int(spec.get("volume_size") or 20),
@@ -327,20 +328,114 @@ def enqueue_benchmark(
     return payload
 
 
-def _elapsed_seconds(started_at: str, completed_at: str) -> Optional[float]:
+def _elapsed_seconds(
+    started_at: str,
+    completed_at: str,
+    *,
+    now: Optional[datetime] = None,
+) -> Optional[float]:
     if not started_at:
         return None
-    end = completed_at or datetime.now(timezone.utc).isoformat()
+    end = completed_at or (now or datetime.now(timezone.utc)).isoformat()
     try:
-        return round(
-            (
-                datetime.fromisoformat(end)
-                - datetime.fromisoformat(started_at)
-            ).total_seconds(),
-            3,
-        )
+        started = datetime.fromisoformat(started_at)
+        ended = datetime.fromisoformat(end)
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if ended.tzinfo is None:
+            ended = ended.replace(tzinfo=timezone.utc)
+        return round((ended - started).total_seconds(), 3)
     except ValueError:
         return None
+
+
+def build_job_report(
+    job,
+    chapters: List[Dict[str, Any]],
+    *,
+    item: Optional[Dict[str, Any]] = None,
+    cost_per_call_cny: float = 0.0,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    report = {
+        **(item or {}),
+        "job_id": job.job_id,
+        "book_id": job.book_id,
+        "package_id": job.package_id,
+        "status": job.status,
+        "worker_id": job.worker_id,
+        "attempt_count": job.attempt_count,
+        "retry_count": job.retry_count,
+        "failure_kind": job.failure_kind,
+        "retryable": job.retryable,
+        "completed_chapters": job.completed_chapters,
+        "total_chapters": job.total_chapters,
+        "current_chapter": job.current_chapter,
+        "progress": job.progress,
+        "cache_hits": sum(int(chapter.get("cache_hits") or 0) for chapter in chapters),
+        "cache_misses": sum(int(chapter.get("cache_misses") or 0) for chapter in chapters),
+        "extraction_count": sum(int(chapter.get("extraction_count") or 0) for chapter in chapters),
+        "llm_calls_used": job.llm_calls_used,
+        "max_llm_calls": job.max_llm_calls,
+        "llm_calls_remaining": (
+            max(0, job.max_llm_calls - job.llm_calls_used)
+            if job.max_llm_calls
+            else None
+        ),
+        "elapsed_seconds": _elapsed_seconds(
+            job.started_at,
+            job.completed_at,
+            now=now,
+        ),
+        "quality_status": job.quality_status,
+        "quality_score": job.quality_score,
+        "quality_report": dict(job.quality_report),
+        "result_package_id": job.result_package_id,
+        "error": job.error,
+    }
+    elapsed = report["elapsed_seconds"]
+    report["chapters_per_hour"] = (
+        round(report["completed_chapters"] * 3600 / elapsed, 3)
+        if elapsed and report["completed_chapters"]
+        else None
+    )
+    total_cache = report["cache_hits"] + report["cache_misses"]
+    report["cache_hit_rate"] = (
+        round(report["cache_hits"] / total_cache, 4)
+        if total_cache
+        else None
+    )
+    report["estimated_cost_cny"] = (
+        round(report["llm_calls_used"] * cost_per_call_cny, 2)
+        if cost_per_call_cny > 0
+        else None
+    )
+    return report
+
+
+def build_benchmark_report(
+    payload: Dict[str, Any],
+    store: CompilationJobStore,
+    *,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    rate = float((payload.get("estimate") or {}).get("cost_per_call_cny") or 0)
+    reports = [
+        build_job_report(
+            (job := store.get_job(item["job_id"])),
+            store.list_chapters(job.job_id),
+            item=item,
+            cost_per_call_cny=rate,
+            now=now,
+        )
+        for item in payload["jobs"]
+    ]
+    return {
+        **payload,
+        "reported_at": (now or datetime.now(timezone.utc)).isoformat(),
+        "completed": all(report["status"] == "completed" for report in reports),
+        "jobs": reports,
+    }
 
 
 def benchmark_report(
@@ -348,74 +443,7 @@ def benchmark_report(
     store: CompilationJobStore,
 ) -> Dict[str, Any]:
     payload = json.loads(run_path.read_text(encoding="utf-8"))
-    reports: List[Dict[str, Any]] = []
-    for item in payload["jobs"]:
-        job = store.get_job(item["job_id"])
-        chapters = store.list_chapters(job.job_id)
-        reports.append(
-            {
-                **item,
-                "status": job.status,
-                "worker_id": job.worker_id,
-                "attempt_count": job.attempt_count,
-                "completed_chapters": job.completed_chapters,
-                "total_chapters": job.total_chapters,
-                "progress": job.progress,
-                "cache_hits": sum(
-                    int(chapter["cache_hits"]) for chapter in chapters
-                ),
-                "cache_misses": sum(
-                    int(chapter["cache_misses"]) for chapter in chapters
-                ),
-                "extraction_count": sum(
-                    int(chapter["extraction_count"]) for chapter in chapters
-                ),
-                "llm_calls_used": job.llm_calls_used,
-                "max_llm_calls": job.max_llm_calls,
-                "llm_calls_remaining": (
-                    max(0, job.max_llm_calls - job.llm_calls_used)
-                    if job.max_llm_calls
-                    else None
-                ),
-                "elapsed_seconds": _elapsed_seconds(
-                    job.started_at,
-                    job.completed_at,
-                ),
-                "quality_status": job.quality_status,
-                "quality_score": job.quality_score,
-                "result_package_id": job.result_package_id,
-                "error": job.error,
-            }
-        )
-    result = {
-        **payload,
-        "reported_at": datetime.now(timezone.utc).isoformat(),
-        "completed": all(
-            report["status"] == "completed" for report in reports
-        ),
-        "jobs": reports,
-    }
-    rate = float(
-        (payload.get("estimate") or {}).get("cost_per_call_cny") or 0
-    )
-    for report in reports:
-        elapsed = report["elapsed_seconds"]
-        report["chapters_per_hour"] = (
-            round(report["completed_chapters"] * 3600 / elapsed, 3)
-            if elapsed and report["completed_chapters"]
-            else None
-        )
-        total_cache = report["cache_hits"] + report["cache_misses"]
-        report["cache_hit_rate"] = (
-            round(report["cache_hits"] / total_cache, 4)
-            if total_cache
-            else None
-        )
-        report["estimated_cost_cny"] = (
-            round(report["llm_calls_used"] * rate, 2)
-            if rate > 0
-            else None
-        )
+    result = build_benchmark_report(payload, store)
     run_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -549,6 +577,8 @@ def main(argv=None) -> int:
     enqueue.add_argument("--confirm-fullbook", action="store_true")
     report = commands.add_parser("report", help="汇总最近或指定基准")
     report.add_argument("--run", type=Path)
+    report.add_argument("--watch", action="store_true", help="只读轮询运行进度")
+    report.add_argument("--interval", type=float, default=3.0, help="watch 轮询秒数")
     args = parser.parse_args(argv)
 
     if args.command == "scan":
@@ -588,6 +618,16 @@ def main(argv=None) -> int:
         return 0
 
     run_path = args.run or _latest_run(DEFAULT_RUN_DIRECTORY)
+    if args.watch:
+        interval = max(0.1, float(args.interval))
+        while True:
+            payload = json.loads(run_path.read_text(encoding="utf-8"))
+            result = build_benchmark_report(payload, store)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            if result["completed"]:
+                return 0
+            time.sleep(interval)
+
     result = benchmark_report(run_path, store)
     markdown_path = run_path.with_suffix(".md")
     markdown_path.write_text(

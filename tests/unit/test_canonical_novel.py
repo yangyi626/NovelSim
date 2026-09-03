@@ -13,6 +13,9 @@ from engine import (
 from evaluation.canonical_novel import load_canonical_case, run_canonical_case
 from engine.narrative_planner import (
     ActorNarrativePlan,
+    NarrativePlannerError,
+    RealLLMNarrativePlanner,
+    _actor_plan_messages,
     _reject_invalid_immediate_action,
     _reject_stagnant_dialogue_loop,
 )
@@ -280,6 +283,215 @@ def test_ready_ability_rejects_pure_dialogue_after_one_matching_turn():
     )
     with pytest.raises(ValueError, match="stagnant dialogue loop"):
         _reject_stagnant_dialogue_loop(draft, observation)
+
+
+def test_real_planner_retries_stagnant_jiyue_dialogue_with_ability_instruction():
+    state = build_canonical_start_state()
+    state.characters[NIGHT].location_id = YEFU
+    state.flags["canonical.lin_warning_done"] = True
+    registry = create_core_tool_registry()
+    observation = build_game_observation(
+        state,
+        JIYUE,
+        registry,
+        world_package_id="first_crazy_ch1_5",
+        scenario_family="canonical_reconstruction",
+        metadata={
+            "runtime_context": {
+                "recent_committed_events": [
+                    {
+                        "event_type": "tool.talk_to",
+                        "actor_ids": [JIYUE],
+                        "target_ids": [NIGHT, MYSTIC_SPACE],
+                        "summary": "姬月已经解释过一次",
+                    }
+                ]
+            }
+        },
+    )
+    ability_id = observation.available_abilities[0].ability_id
+    calls = []
+
+    def provider(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        if len(calls) == 1:
+            return {
+                "actor_id": JIYUE,
+                "intent": "继续解释",
+                "steps": [{
+                    "step_id": "repeat",
+                    "tool_name": "talk_to",
+                    "arguments": {
+                        "target_character_id": NIGHT,
+                        "message": "我再重复解释一次。",
+                        "tone": "平静",
+                    },
+                }],
+            }, "raw-1", "response-1", "test-model"
+        return {
+            "actor_id": JIYUE,
+            "intent": "推进异空间联系",
+            "steps": [{
+                "step_id": "invoke",
+                "tool_name": "invoke_ability",
+                "arguments": {"ability_id": ability_id},
+            }],
+        }, "raw-2", "response-2", "test-model"
+
+    planner = RealLLMNarrativePlanner(
+        registry,
+        generator=None,
+        max_attempts=2,
+        world_package_id="first_crazy_ch1_5",
+        scenario_family="canonical_reconstruction",
+    )
+    planner._call_provider = provider
+    plan = planner.generate(
+        state,
+        [JIYUE],
+        beat_goal="推进姬月与夜轻歌的关系",
+        goal_id="jiyue-retry",
+        permissions_by_actor={JIYUE: CORE_TOOL_PERMISSIONS},
+        metadata={
+            "recent_committed_events": [
+                {
+                    "event_type": "tool.talk_to",
+                    "actor_ids": [JIYUE],
+                    "target_ids": [NIGHT, MYSTIC_SPACE],
+                    "summary": "姬月已经解释过一次",
+                }
+            ]
+        },
+    )
+
+    assert plan.actor_chains[JIYUE].steps[0].tool_call.tool_name == "invoke_ability"
+    assert len(calls) == 2
+    assert "stagnant dialogue loop" in calls[1]["kwargs"]["validation_error"]
+    retry_messages = _actor_plan_messages(
+        calls[1]["args"][0],
+        calls[1]["args"][1],
+        calls[1]["args"][2],
+        calls[1]["args"][3],
+        calls[1]["args"][4],
+        max_steps=3,
+        validation_error=calls[1]["kwargs"]["validation_error"],
+    )
+    retry_payload = json.loads(retry_messages[1]["content"])
+    assert retry_payload["validation_repair"]["category"] == "stagnant_dialogue"
+    assert retry_payload["validation_repair"]["available_ability_ids"] == [ability_id]
+    assert retry_payload["validation_repair"]["forbidden_tool_names"] == ["talk_to"]
+    assert planner.call_traces[0].error_category == "stagnant_dialogue"
+
+
+def test_stagnant_dialogue_without_ability_forbids_talk_on_retry():
+    state = build_canonical_start_state()
+    registry = create_core_tool_registry()
+    observation = build_game_observation(
+        state,
+        QINGQING,
+        registry,
+        world_package_id="first_crazy_ch1_5",
+        scenario_family="canonical_reconstruction",
+        metadata={
+            "runtime_context": {
+                "recent_committed_events": [
+                    {
+                        "event_type": "tool.talk_to",
+                        "actor_ids": [QINGQING],
+                        "target_ids": [NIGHT, SCENE_ID],
+                        "summary": "夜清清已经重复交涉",
+                    },
+                    {
+                        "event_type": "tool.talk_to",
+                        "actor_ids": [QINGQING],
+                        "target_ids": [NIGHT, SCENE_ID],
+                        "summary": "夜清清再次重复交涉",
+                    },
+                ]
+            }
+        },
+    )
+
+    assert not observation.available_abilities
+    definitions = [
+        definition
+        for name in registry.names()
+        for definition in [registry.get(name)]
+        if definition is not None
+        and name in {item.name for item in observation.available_tools}
+    ]
+    messages = _actor_plan_messages(
+        QINGQING,
+        observation,
+        definitions,
+        "依据角色目标推进下一段剧情",
+        None,
+        max_steps=3,
+        validation_error=(
+            "ValueError: stagnant dialogue loop: choose a state-progressing "
+            "action or a new target"
+        ),
+    )
+    payload = json.loads(messages[1]["content"])
+    repair = payload["validation_repair"]
+
+    assert repair["category"] == "stagnant_dialogue"
+    assert repair["forbidden_tool_names"] == ["talk_to"]
+    assert "talk_to" not in repair["available_non_dialogue_tools"]
+    assert "available_ability_ids" not in repair
+    assert "不得再次输出 talk_to" in messages[0]["content"]
+
+
+def test_real_planner_keeps_failing_after_stagnant_dialogue_without_fallback():
+    state = build_canonical_start_state()
+    state.characters[NIGHT].location_id = YEFU
+    state.flags["canonical.lin_warning_done"] = True
+    registry = create_core_tool_registry()
+    calls = []
+
+    def provider(*_args, **_kwargs):
+        calls.append(True)
+        return {
+            "actor_id": JIYUE,
+            "intent": "继续解释",
+            "steps": [{
+                "step_id": "repeat",
+                "tool_name": "talk_to",
+                "arguments": {
+                    "target_character_id": NIGHT,
+                    "message": "我再重复解释一次。",
+                    "tone": "平静",
+                },
+            }],
+        }, "raw", "response", "test-model"
+
+    planner = RealLLMNarrativePlanner(
+        registry,
+        generator=None,
+        max_attempts=2,
+        world_package_id="first_crazy_ch1_5",
+        scenario_family="canonical_reconstruction",
+    )
+    planner._call_provider = provider
+    with pytest.raises(NarrativePlannerError, match="stagnant dialogue loop"):
+        planner.generate(
+            state,
+            [JIYUE],
+            beat_goal="推进姬月与夜轻歌的关系",
+            goal_id="jiyue-fail",
+            permissions_by_actor={JIYUE: CORE_TOOL_PERMISSIONS},
+            metadata={
+                "recent_committed_events": [{
+                    "event_type": "tool.talk_to",
+                    "actor_ids": [JIYUE],
+                    "target_ids": [NIGHT, MYSTIC_SPACE],
+                    "summary": "姬月已经解释过一次",
+                }]
+            },
+        )
+    assert len(calls) == 2
+    assert not planner.call_traces[-1].success
+    assert planner.call_traces[-1].error_category == "stagnant_dialogue"
 
 
 def test_dialogue_cannot_claim_item_owned_by_another_character():

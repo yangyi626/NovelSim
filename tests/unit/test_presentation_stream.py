@@ -128,9 +128,16 @@ def test_turn_projection_combines_patch_dialogue_and_system_hints():
 
     assert [item["event_type"] for item in directives] == [
         "item_transferred",
+        "narration",
         "dialogue",
         "system_hint",
     ]
+    assert directives[1]["payload"] == {
+        "text": "玩家把密信交给管家。",
+        "viewpoint": "third_person",
+        "grounded_event_ids": [event.event_id],
+        "referenced_entity_ids": [],
+    }
 
 
 def test_presentation_api_supports_snapshot_cursor_and_resume(tmp_path, monkeypatch):

@@ -1,0 +1,75 @@
+import { expect, test } from '@playwright/test'
+
+test('真实章节目录可搜索未发布章节并从已发布章节直接进入', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByRole('button', { name: '选择世界', exact: true }).click()
+  const selector = page.getByRole('dialog', { name: '选择小说与进入章节' })
+  await expect(selector).toBeVisible()
+  await expect(selector.getByRole('button', { name: /第一狂妃：废柴三小姐 4228 章/ })).toBeVisible()
+
+  const search = selector.getByRole('searchbox', { name: '搜索章节' })
+  await search.fill('10')
+  const chapterTen = selector.getByRole('button', { name: /第 10 章/ })
+  await expect(chapterTen).toBeVisible()
+  await expect(chapterTen).toContainText('章节世界正在准备')
+  await expect(chapterTen).toBeDisabled()
+
+  await search.fill('1')
+  const chapterOne = selector.getByRole('button', { name: /第 1 章/ })
+  await expect(chapterOne).toBeVisible()
+  await expect(chapterOne).toContainText('可直接进入')
+  await chapterOne.click()
+  await selector.getByRole('button', { name: '进入本章世界线' }).click()
+
+  await expect(page.getByRole('button', { name: '世界线', exact: true })).toBeVisible()
+  await expect(page.locator('body')).toContainText('第1章')
+
+  const chapterDrawer = page.locator('#chapter-drawer')
+  const inspectorDrawer = page.locator('#inspector-drawer')
+  const chapterTrigger = page.getByRole('button', { name: '章节', exact: true })
+  const inspectorTrigger = page.getByRole('button', { name: '原著对照', exact: true })
+  await expect(chapterDrawer).toHaveAttribute('aria-hidden', 'true')
+  await expect(inspectorDrawer).toHaveAttribute('aria-hidden', 'true')
+  await expect(chapterTrigger).toHaveAttribute('aria-expanded', 'false')
+  await expect(inspectorTrigger).toHaveAttribute('aria-expanded', 'false')
+
+  await chapterTrigger.click()
+  await expect(chapterDrawer).toBeVisible()
+  await expect(page.getByRole('complementary', { name: '旅程指引' })).toBeVisible()
+  await expect(chapterTrigger).toHaveAttribute('aria-expanded', 'true')
+
+  await inspectorTrigger.click()
+  await expect(chapterDrawer).toHaveAttribute('aria-hidden', 'true')
+  await expect(inspectorDrawer).toBeVisible()
+  await expect(inspectorDrawer).toContainText('原著对照')
+  await expect(inspectorTrigger).toHaveAttribute('aria-expanded', 'true')
+  await inspectorDrawer.getByRole('button', { name: '关闭原著对照' }).click()
+  await expect(inspectorDrawer).toHaveAttribute('aria-hidden', 'true')
+  await expect(inspectorTrigger).toBeFocused()
+
+  await chapterTrigger.click()
+  await expect(chapterDrawer).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(chapterDrawer).toHaveAttribute('aria-hidden', 'true')
+  await expect(chapterTrigger).toBeFocused()
+  await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy()
+
+  const sessionId = await page.evaluate(() => window.localStorage.getItem('ai-transmigration-session-id'))
+  expect(sessionId).toBeTruthy()
+  const session = await page.evaluate(async (id) => {
+    const response = await fetch(`/api/session?session=${encodeURIComponent(id)}`)
+    return response.json()
+  }, sessionId)
+
+  expect(session.status).toBe('ok')
+  expect(session.world_meta.book_id).toBe('first_crazy')
+  expect(session.world_meta.entry_id).toBe('first_crazy:chapter:1')
+  expect(session.world_meta.chapter_number).toBe(1)
+  expect(session.world_meta.entry_revision).toBe(1)
+  expect(session.save.book_id).toBe('first_crazy')
+  expect(session.save.entry_id).toBe('first_crazy:chapter:1')
+  expect(session.save.chapter_number).toBe(1)
+  expect(session.save.entry_revision).toBe(1)
+  expect(session.save.parent_session_id || '').toBe('')
+})

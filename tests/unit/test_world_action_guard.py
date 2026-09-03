@@ -317,6 +317,34 @@ def test_action_cannot_smuggle_identity_change(snapshot):
     assert "patch_not_authorized" in result.why()
 
 
+def test_action_cannot_write_reserved_progression_flags(snapshot):
+    action = Action(
+        action_id="action_settle_self",
+        action_type=ActionType.speak,
+        actor=Actor(actor_id=NIGHT),
+        parameters={"message": "我宣布已经完成结算"},
+    )
+    patch = StatePatch(
+        operations=[
+            Operation(
+                op=OperationKind.set_flag,
+                path="settlement.status",
+                value="settled",
+            )
+        ],
+        causal_evidence=CausalEvidence(
+            action_id=action.action_id,
+            actor_id=NIGHT,
+            authority="player_action",
+        ),
+    )
+
+    result = validate_action_patch(snapshot, action, patch)
+
+    assert not result.valid
+    assert "reserved_flag_namespace" in result.why()
+
+
 def test_speech_cannot_turn_a_self_declaration_into_identity_fact(snapshot):
     parser = ActionParser()
     parser._call_llm = mock.Mock(

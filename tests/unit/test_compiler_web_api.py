@@ -31,6 +31,7 @@ def test_create_list_get_and_control_compilation_job(
         web_app.CompilationJobRequest(
             novel_path="book.txt",
             package_id="compiled_api",
+            book_id="book",
             chapters=[2, 1, 1],
             timeline_plan={1: "origin", 2: "novel"},
             max_llm_calls=7,
@@ -70,6 +71,77 @@ def test_create_list_get_and_control_compilation_job(
     assert store.get_job(job_id).status == "cancelled"
 
 
+def test_compilation_api_requires_book_id(tmp_path, monkeypatch):
+    _configure(tmp_path, monkeypatch)
+    response = web_app.api_create_compilation_job(
+        web_app.CompilationJobRequest(
+            novel_path="book.txt",
+            package_id="compiled_missing_book",
+        )
+    )
+    payload = json.loads(response.body)
+    assert response.status_code == 422
+    assert "book_id" in payload["error"]
+
+
+def test_compilation_api_validates_expected_source_hash(tmp_path, monkeypatch):
+    store = _configure(tmp_path, monkeypatch)
+    response = web_app.api_create_compilation_job(
+        web_app.CompilationJobRequest(
+            novel_path="book.txt",
+            package_id="compiled_hash",
+            book_id="book",
+            expected_source_hash="0" * 64,
+        )
+    )
+    payload = json.loads(response.body)
+    assert response.status_code == 409
+    assert "指纹" in payload["error"]
+    assert store.list_jobs() == []
+
+
+def test_compilation_api_supports_budget_retry_and_report(tmp_path, monkeypatch):
+    store = _configure(tmp_path, monkeypatch)
+    created = web_app.api_create_compilation_job(
+        web_app.CompilationJobRequest(
+            novel_path="book.txt",
+            package_id="compiled_controls",
+            book_id="book",
+            max_llm_calls=2,
+            auto_start=False,
+        )
+    )
+    job_id = created["job"]["job_id"]
+    store.prepare_chapters(job_id, [{"index": 1, "heading": "第1章 开始"}])
+    store.start_run(job_id)
+    store.mark_failed(
+        job_id,
+        "HTTP 503",
+        failure_kind="transient",
+        retryable=True,
+    )
+
+    retried = web_app.api_control_compilation_job(
+        job_id,
+        web_app.CompilationJobActionRequest(action="retry"),
+    )
+    assert retried["job"]["status"] == "queued"
+    assert retried["job"]["retry_count"] == 1
+
+    extended = web_app.api_extend_compilation_budget(
+        job_id,
+        web_app.CompilationJobBudgetRequest(additional_llm_calls=3, reason="继续演练"),
+    )
+    assert extended["job"]["max_llm_calls"] == 5
+    assert "execution_token" not in extended["job"]
+
+    report = web_app.api_compilation_job_report(job_id)
+    assert report["status"] == "ok"
+    assert report["report"]["job"]["retry_count"] == 1
+    assert report["report"]["chapter_count"] == 1
+    assert report["report"]["snapshot_count"] == 0
+
+
 def test_compilation_api_rejects_path_outside_novels(
     tmp_path,
     monkeypatch,
@@ -82,6 +154,7 @@ def test_compilation_api_rejects_path_outside_novels(
         web_app.CompilationJobRequest(
             novel_path=str(outside),
             package_id="compiled_outside",
+            book_id="book",
         )
     )
     payload = json.loads(response.body)

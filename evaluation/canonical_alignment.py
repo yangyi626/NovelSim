@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from pydantic import BaseModel, Field, validator
 
@@ -27,6 +27,7 @@ class CanonicalEventAnchor(_StrictModel):
     accepted_tools: Set[str] = Field(default_factory=set)
     accepted_event_types: Set[str] = Field(default_factory=set)
     keywords: Set[str] = Field(default_factory=set)
+    required_completion_flags: Dict[str, bool] = Field(default_factory=dict)
     source_evidence_sha256: str
     weight: float = Field(1.0, gt=0.0)
 
@@ -70,12 +71,15 @@ def align_canonical_events(
     simulated: Sequence[WorldEvent],
     *,
     threshold: float = 0.55,
+    final_state: Optional[Any] = None,
 ) -> CanonicalAlignmentReport:
     """Independent weighted matching; hidden canon never reaches the planner.
 
     Event identity is matched without order constraints.  Ordering is scored
     afterwards, so ``event_order_accuracy`` is an actual measured outcome
-    rather than a property guaranteed by the matcher.
+    rather than a property guaranteed by the matcher.  Anchors may pin a
+    server-trusted completion flag: when ``final_state`` is provided and the
+    flag is absent, the anchor cannot match no matter how similar the shape.
     """
 
     ordered_canon = sorted(canonical, key=lambda item: (item.chapter, item.order))
@@ -83,6 +87,7 @@ def align_canonical_events(
     used: Set[int] = set()
     matched_indices: List[int] = []
     for anchor in ordered_canon:
+        flag_satisfied = _completion_flags_satisfied(anchor, final_state)
         best: Optional[Tuple[float, int, Dict[str, object]]] = None
         for index in range(len(simulated)):
             if index in used:
@@ -94,6 +99,8 @@ def align_canonical_events(
                 and detail["target_match"]
             ):
                 continue
+            if not flag_satisfied:
+                break
             if best is None or score > best[0]:
                 best = (score, index, detail)
         if best is None or best[0] < threshold:
@@ -146,6 +153,21 @@ def align_canonical_events(
             actor_consistency=_rate(sum(actor_checks), len(actor_checks)),
             target_consistency=_rate(sum(target_checks), len(target_checks)),
         ),
+    )
+
+
+def _completion_flags_satisfied(
+    anchor: CanonicalEventAnchor,
+    final_state: Optional[Any],
+) -> bool:
+    if not anchor.required_completion_flags or final_state is None:
+        return True
+    flags = getattr(final_state, "flags", None)
+    if not isinstance(flags, dict):
+        return False
+    return all(
+        bool(flags.get(path)) == expected
+        for path, expected in anchor.required_completion_flags.items()
     )
 
 

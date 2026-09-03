@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+import shutil
 import sys
 import tempfile
-import importlib
 from pathlib import Path
 
 
@@ -39,4 +40,10 @@ for username, roles in [
         roles=roles,
     )
 
-uvicorn.run(app_module.app, host="127.0.0.1", port=8876)
+try:
+    uvicorn.run(app_module.app, host="127.0.0.1", port=8876)
+finally:
+    closer = getattr(app_module.SESSIONS, "close", None)
+    if callable(closer):
+        closer()
+    shutil.rmtree(runtime, ignore_errors=True)

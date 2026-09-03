@@ -1,12 +1,14 @@
 """SQLite 编译任务、缓存、断点续跑和自动审核测试。"""
 
 import hashlib
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from compiler import (
     CacheAwareExtractor,
     CompilationBudgetExceeded,
+    CompilationJobConflict,
     CompilationJobRunner,
     CompilationJobStore,
     RawEntity,
@@ -175,12 +177,19 @@ def test_runner_resumes_from_scene_cache_and_sends_package_to_review(tmp_path):
     assert completed.quality_score == 0.88
     assert resumed_extractor.calls == 1
     chapters = store.list_chapters(first_job.job_id)
-    assert chapters[0]["cache_hits"] >= 1
+    assert chapters[0]["cache_hits"] == 0
+    assert chapters[0]["extraction_count"] == 1
     assert chapters[1]["cache_misses"] == 1
     assert {
         item["level"]
         for item in store.list_snapshots(first_job.job_id)
-    } == {"chapter", "volume", "book"}
+    } == {"chapter_start", "chapter", "volume", "book"}
+    start_snapshots = [
+        item
+        for item in store.list_snapshots(first_job.job_id)
+        if item["level"] == "chapter_start"
+    ]
+    assert [item["chapter_start"] for item in start_snapshots] == [1, 2]
 
     package = package_store.get("compiled_book")
     assert package.review_status == "pending_review"
@@ -297,6 +306,96 @@ def test_llm_budget_is_atomic_and_pauses_with_cache_preserved(tmp_path):
         store.reserve_llm_call(job.job_id)
 
 
+def test_budget_can_be_extended_without_resetting_usage(tmp_path):
+    novel_path = tmp_path / "novel.txt"
+    novel_path.write_text(NOVEL, encoding="utf-8")
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    job = store.create_job(
+        package_id="budget_extension",
+        novel_path=str(novel_path),
+        prompt_version="test-v1",
+        max_llm_calls=2,
+    )
+
+    store.reserve_llm_call(job.job_id)
+    extended = store.increase_llm_budget(job.job_id, 3)
+
+    assert extended.max_llm_calls == 5
+    assert extended.llm_calls_used == 1
+    with pytest.raises(ValueError):
+        store.increase_llm_budget(job.job_id, 1.5)
+
+
+def test_retry_requires_transient_failure_and_honors_limit(tmp_path):
+    novel_path = tmp_path / "novel.txt"
+    novel_path.write_text(NOVEL, encoding="utf-8")
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    job = store.create_job(
+        package_id="retryable",
+        novel_path=str(novel_path),
+        prompt_version="test-v1",
+        max_retries=1,
+    )
+    store.start_run(job.job_id)
+    failed = store.mark_failed(
+        job.job_id,
+        "connection reset",
+        failure_kind="transient",
+        retryable=True,
+    )
+    assert failed.retry_count == 0
+
+    queued = store.retry_failed(job.job_id)
+    assert queued.status == "queued"
+    assert queued.retry_count == 1
+    store.start_run(job.job_id)
+    store.mark_failed(
+        job.job_id,
+        "connection reset again",
+        failure_kind="transient",
+        retryable=True,
+    )
+    with pytest.raises(CompilationJobConflict, match="最大重试"):
+        store.retry_failed(job.job_id)
+
+
+def test_permanent_failure_cannot_resume_or_retry(tmp_path):
+    novel_path = tmp_path / "novel.txt"
+    novel_path.write_text(NOVEL, encoding="utf-8")
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    job = store.create_job(
+        package_id="permanent",
+        novel_path=str(novel_path),
+        prompt_version="test-v1",
+    )
+    store.start_run(job.job_id)
+    store.mark_failed(job.job_id, "schema invalid", failure_kind="permanent")
+    with pytest.raises(Exception, match="不可重试"):
+        store.resume(job.job_id)
+    with pytest.raises(Exception, match="不可重试"):
+        store.retry_failed(job.job_id)
+
+
+def test_expired_lease_and_old_token_are_fenced(tmp_path):
+    novel_path = tmp_path / "novel.txt"
+    novel_path.write_text(NOVEL, encoding="utf-8")
+    store = CompilationJobStore(tmp_path / "compiler.sqlite3")
+    job = store.create_job(
+        package_id="fenced",
+        novel_path=str(novel_path),
+        prompt_version="test-v1",
+    )
+    claimed = store.claim_next_job("worker-a", lease_seconds=30)
+    assert claimed is not None
+    with store._connect() as conn:
+        conn.execute(
+            "UPDATE compiler_jobs SET lease_expires_at = ? WHERE job_id = ?",
+            ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(), job.job_id),
+        )
+    with pytest.raises(Exception, match="租约"):
+        store.heartbeat(job.job_id, "worker-a", execution_token=claimed.execution_token)
+
+
 def test_external_worker_claims_job_with_lease_and_completes(tmp_path):
     novel_path = tmp_path / "novel.txt"
     novel_path.write_text(NOVEL, encoding="utf-8")
@@ -323,7 +422,12 @@ def test_external_worker_claims_job_with_lease_and_completes(tmp_path):
     assert claimed.job_id == job.job_id
     assert store.is_worker_active(job.job_id) is True
     assert store.claim_next_job("worker-a", lease_seconds=60) is None
-    store.mark_failed(job.job_id, "归还测试任务")
+    store.mark_failed(
+        job.job_id,
+        "归还测试任务",
+        failure_kind="transient",
+        retryable=True,
+    )
     store.resume(job.job_id)
 
     completed = worker.run_once()

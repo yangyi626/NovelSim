@@ -7,15 +7,18 @@ import json
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
+from engine.event import state_hash
 from engine.llm_trajectory_eval import LLMTrajectoryEvaluator
 from engine.world_packages import (
     WorldPackageNotFound,
     WorldPackageStore,
 )
+from world_schema import WorldState
 
 from .book_compiler import BookCompileResult, BookCompiler
+from .chapter_publisher import ChapterPublishError
 from .cli import _fresh_state, _guess_novel_name
 from .extractors import EntityExtractor, SceneExtraction
 from .job_store import (
@@ -29,6 +32,42 @@ from .text_loader import load_novel, split_chapters
 
 
 EXTRACTOR_PROMPT_VERSION = "book-d-2026-07-29-v2-goal-lifecycle"
+
+
+def _source_hash(path: str) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "timeout",
+            "timed out",
+            "connection reset",
+            "connection refused",
+            "429",
+            "502",
+            "503",
+            "504",
+            "database is locked",
+            "database is busy",
+        )
+    )
+
+
+def _assert_source_unchanged(job: CompilationJob) -> None:
+    if not job.source_hash:
+        return
+    try:
+        current = _source_hash(job.novel_path)
+    except OSError as exc:
+        raise ValueError(f"读取编译源文件失败: {job.novel_path}") from exc
+    if current != job.source_hash:
+        raise ValueError(
+            "编译源文件已变化，拒绝继续混用旧快照与新正文"
+        )
 
 
 class CacheAwareExtractor:
@@ -247,6 +286,7 @@ class CompilationJobRunner:
         store: CompilationJobStore,
         *,
         package_store: Optional[WorldPackageStore] = None,
+        chapter_publisher: Optional[ChapterRuntimePublisher] = None,
         extractor_factory: Optional[Callable[[CompilationJob], object]] = None,
         quality_evaluator_factory: Optional[
             Callable[[], LLMTrajectoryEvaluator]
@@ -254,6 +294,7 @@ class CompilationJobRunner:
     ):
         self.store = store
         self.package_store = package_store
+        self.chapter_publisher = chapter_publisher
         self.extractor_factory = extractor_factory
         self.quality_gate = CompilationQualityGate(
             quality_evaluator_factory
@@ -272,12 +313,15 @@ class CompilationJobRunner:
                 if worker_id
                 else self.store.start_run(job_id)
             )
+            execution_token = job.execution_token
             if worker_id:
                 self.store.heartbeat(
                     job_id,
                     worker_id,
+                    execution_token=execution_token,
                     lease_seconds=lease_seconds,
                 )
+            _assert_source_unchanged(job)
             text = load_novel(job.novel_path)
             all_chapters = split_chapters(text)
             targets = set(job.chapters)
@@ -290,6 +334,20 @@ class CompilationJobRunner:
                 raise ValueError(
                     f"未找到目标章节 {job.chapters}，全书共 "
                     f"{len(all_chapters)} 章"
+                )
+            completed_prefix = self.store.completed_prefix(job_id)
+            selected = [
+                chapter
+                for chapter in selected
+                if chapter.index not in completed_prefix
+            ]
+            if not selected:
+                return self.store.mark_completed(
+                    job_id,
+                    result_package_id=job.result_package_id or job.package_id,
+                    output_path=job.output_path,
+                    worker_id=worker_id,
+                    execution_token=execution_token,
                 )
             self.store.prepare_chapters(
                 job_id,
@@ -315,19 +373,67 @@ class CompilationJobRunner:
             )
             state = _fresh_state(job.package_id)
             registry = EntityRegistry()
+            if completed_prefix:
+                end_id = f"chapter_{completed_prefix[-1]:06d}"
+                anchor = self.store.get_snapshot(
+                    job_id,
+                    end_id,
+                    include_state=True,
+                )
+                if anchor is None or anchor.get("level") != "chapter":
+                    raise ValueError(
+                        f"连续完成前缀缺少有效 chapter-end snapshot: {end_id}"
+                    )
+                if (
+                    int(anchor.get("chapter_start", 0)) != completed_prefix[-1]
+                    or int(anchor.get("chapter_end", 0)) != completed_prefix[-1]
+                ):
+                    raise ValueError("chapter-end snapshot 章节范围不一致")
+                state_payload = anchor.get("state")
+                if not isinstance(state_payload, dict):
+                    raise ValueError("chapter-end snapshot 状态不是对象")
+                state = WorldState.parse_obj(state_payload)
+                if state_hash(state) != str(anchor.get("state_hash") or ""):
+                    raise ValueError("chapter-end snapshot state_hash 校验失败")
+                registry.restore_from_state(state)
+
+            pending = {
+                chapter.index for chapter in selected
+            } - set(completed_prefix)
+            selected = [
+                chapter
+                for chapter in selected
+                if chapter.index in pending
+            ]
             compiler = BookCompiler(
                 extractor=extractor,
                 volume_size=job.volume_size,
             )
+            compiler.restore_from_state(state, registry)
 
             def chapter_started(chapter) -> None:
                 if worker_id:
                     self.store.heartbeat(
                         job_id,
                         worker_id,
+                        execution_token=execution_token,
                         lease_seconds=lease_seconds,
                     )
-                self.store.set_current_chapter(job_id, chapter.index)
+                self.store.set_current_chapter(
+                    job_id,
+                    chapter.index,
+                    worker_id=worker_id,
+                    execution_token=execution_token,
+                )
+
+            def chapter_start_snapshot(chapter, snapshot) -> None:
+                self.store.save_snapshot(
+                    job_id,
+                    metadata=snapshot.metadata(),
+                    state=snapshot.state.dict(),
+                    worker_id=worker_id,
+                    execution_token=execution_token,
+                )
 
             def chapter_completed(
                 chapter,
@@ -335,22 +441,22 @@ class CompilationJobRunner:
                 snapshot,
             ) -> None:
                 stats = extractor.chapter_stats(chapter.index)
-                self.store.mark_chapter_completed(
+                self.store.mark_chapter_completed_with_snapshot(
                     job_id,
                     chapter.index,
                     extraction_count=chapter_result.extraction_count,
                     cache_hits=stats["hits"],
                     cache_misses=stats["misses"],
-                )
-                self.store.save_snapshot(
-                    job_id,
                     metadata=snapshot.metadata(),
                     state=snapshot.state.dict(),
+                    worker_id=worker_id,
+                    execution_token=execution_token,
                 )
                 if worker_id:
                     self.store.heartbeat(
                         job_id,
                         worker_id,
+                        execution_token=execution_token,
                         lease_seconds=lease_seconds,
                     )
 
@@ -362,6 +468,7 @@ class CompilationJobRunner:
                 volume_plan=job.volume_plan,
                 stop_requested=lambda: self.store.stop_reason(job_id),
                 on_chapter_started=chapter_started,
+                on_chapter_start_snapshot=chapter_start_snapshot,
                 on_chapter_completed=chapter_completed,
             )
             for snapshot in result.snapshots:
@@ -369,17 +476,22 @@ class CompilationJobRunner:
                     job_id,
                     metadata=snapshot.metadata(),
                     state=snapshot.state.dict(),
+                    worker_id=worker_id,
+                    execution_token=execution_token,
                 )
             if result.interrupted:
                 return self.store.mark_stopped(
                     job_id,
                     result.interrupted,
+                    worker_id=worker_id,
+                    execution_token=execution_token,
                 )
 
             if worker_id:
                 self.store.heartbeat(
                     job_id,
                     worker_id,
+                    execution_token=execution_token,
                     lease_seconds=lease_seconds,
                 )
             quality = self.quality_gate.evaluate(
@@ -392,9 +504,18 @@ class CompilationJobRunner:
                 status=quality["status"],
                 score=quality.get("score"),
                 report=quality,
+                worker_id=worker_id,
+                execution_token=execution_token,
             )
             compiler_metadata = result.manifest()
-            compiler_metadata["quality_gate"] = quality
+            compiler_metadata.update(
+                {
+                    "book_id": job.book_id,
+                    "source_hash": job.source_hash,
+                    "fingerprint_mode": job.fingerprint_mode,
+                    "quality_gate": quality,
+                }
+            )
             package = PackageBuilder().build(
                 package_id=job.package_id,
                 novel=job.novel_name
@@ -408,17 +529,46 @@ class CompilationJobRunner:
                 package,
                 quality=quality,
             )
-            return self.store.mark_completed(
+            completed_job = self.store.mark_completed(
                 job_id,
                 result_package_id=package.package_id,
                 output_path=output_path,
+                worker_id=worker_id,
+                execution_token=execution_token,
             )
+
+            if self.chapter_publisher is not None:
+                try:
+                    self.chapter_publisher.publish(
+                        job=completed_job,
+                        job_store=self.store,
+                        registry=registry,
+                        novel_name=job.novel_name or _guess_novel_name(job.novel_path),
+                    )
+                except ChapterPublishError:
+                    raise
+            return completed_job
         except CompilationBudgetExceeded as exc:
-            return self.store.pause_for_budget(job_id, str(exc))
+            return self.store.pause_for_budget(
+                job_id,
+                str(exc),
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
         except CompilationJobConflict:
             raise
+        except ChapterPublishError:
+            return self.store.get_job(job_id)
         except Exception as exc:  # noqa: BLE001
-            return self.store.mark_failed(job_id, str(exc))
+            transient = _is_transient_error(exc)
+            return self.store.mark_failed(
+                job_id,
+                str(exc),
+                failure_kind="transient" if transient else "permanent",
+                retryable=transient,
+                worker_id=worker_id,
+                execution_token=execution_token,
+            )
 
     def _persist_package(self, package, *, quality: Dict) -> str:
         if self.package_store is None:

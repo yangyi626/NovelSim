@@ -1,5 +1,6 @@
 """双数据库后端、嵌入配置与 pgvector 辅助逻辑测试。"""
 
+import inspect
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -66,6 +67,33 @@ def test_store_factory_selects_postgres_without_importing_driver(
         "url": "postgresql://db/game",
         "embedder": marker_embedder,
     }
+
+
+def test_manuscript_backend_signatures_are_symmetric():
+    sqlite_complete = inspect.signature(
+        SQLiteWorldStore.complete_manuscript_passage
+    )
+    postgres_complete = inspect.signature(
+        PostgresWorldStore.complete_manuscript_passage
+    )
+
+    assert sqlite_complete == postgres_complete
+    assert "expected_current_revision" in sqlite_complete.parameters
+    assert inspect.signature(
+        SQLiteWorldStore.list_campaign_manuscript_passages
+    ) == inspect.signature(
+        PostgresWorldStore.list_campaign_manuscript_passages
+    )
+    assert inspect.signature(
+        SQLiteWorldStore.select_manuscript_passage_revision
+    ) == inspect.signature(
+        PostgresWorldStore.select_manuscript_passage_revision
+    )
+    assert inspect.signature(
+        SQLiteWorldStore.get_state_at_version
+    ) == inspect.signature(
+        PostgresWorldStore.get_state_at_version
+    )
 
 
 def test_postgres_store_configuration_is_lazy_without_driver():
@@ -234,9 +262,17 @@ def test_postgres_schema_contains_jsonb_gin_and_hnsw():
 
     assert "CREATE EXTENSION IF NOT EXISTS vector" in schema
     assert "state_json JSONB" in schema
+    assert "base_state_json JSONB" in schema
+    assert "base_state_version INTEGER" in schema
     assert "USING GIN(search_document)" in schema
     assert "embedding vector(8)" in schema
     assert "USING hnsw (embedding vector_cosine_ops)" in schema
     assert "evidence_event_ids_json JSONB" in schema
     assert "claim_fact_id TEXT" in schema
     assert "semantic_score DOUBLE PRECISION" in schema
+    assert "CREATE TABLE IF NOT EXISTS worldline_manuscripts" in schema
+    assert "CREATE TABLE IF NOT EXISTS manuscript_passages" in schema
+    assert "source_event_ids_json JSONB" in schema
+    assert "UNIQUE (manuscript_id, source_fingerprint)" in schema
+    assert "CREATE TABLE IF NOT EXISTS manuscript_passage_revisions" in schema
+    assert "revision_json JSONB" in schema

@@ -19,6 +19,7 @@ from world_schema import (
     BeliefEvidence,
     OperationKind,
     PropagationRecord,
+    WorldFact,
     StatePatch,
     WorldState,
 )
@@ -159,6 +160,20 @@ def _check_one(state: WorldState, op, idx: int, out: List[PatchViolation]) -> No
                 f"unknown belief source: {op.source_character_id}",
             )
 
+    if k.value == "add_fact":
+        try:
+            fact = WorldFact.parse_obj(op.value or {})
+        except Exception as exc:
+            fail("fact_schema", f"invalid fact: {exc}")
+        else:
+            fact_id = op.fact_id or op.path
+            if not fact_id:
+                fail("fact_id_present", "add_fact needs fact_id")
+            elif fact_id != fact.fact_id:
+                fail("fact_id_matches", "fact id mismatch")
+            elif fact_id in state.facts:
+                fail("fact_unique", f"duplicate fact: {fact_id}")
+
     if k.value == "record_evidence":
         try:
             evidence = BeliefEvidence.parse_obj(op.value or {})
@@ -261,6 +276,22 @@ def _check_one(state: WorldState, op, idx: int, out: List[PatchViolation]) -> No
         fail("delta_present", "increment_value needs delta")
 
 
+_RESERVED_FLAG_PREFIXES = (
+    "settlement.",
+    "reward.",
+    "unlock.",
+    "progression.",
+    "campaign.",
+    "lineage.",
+    "inheritance.",
+)
+
+
+def _is_reserved_flag_path(path: str) -> bool:
+    normalized = str(path or "").strip().lower()
+    return any(normalized.startswith(prefix) for prefix in _RESERVED_FLAG_PREFIXES)
+
+
 def validate_action_patch(
     state: WorldState,
     action: Action,
@@ -321,6 +352,20 @@ def validate_action_patch(
 
     for index, op in enumerate(patch.operations):
         op_name = op.op.value
+        if op.op == OperationKind.add_fact:
+            fail(
+                index,
+                "system_only_operation",
+                "add_fact 只能由系统迁移事件产生",
+            )
+            continue
+        if op.op == OperationKind.set_flag and _is_reserved_flag_path(op.path):
+            fail(
+                index,
+                "reserved_flag_namespace",
+                f"ordinary actions cannot write reserved flag path {op.path}",
+            )
+            continue
         if op_name not in allowed:
             fail(
                 index,
@@ -438,6 +483,13 @@ def validate_tool_patch(
         for value in allowed_operations
     }
     for index, op in enumerate(patch.operations):
+        if op.op == OperationKind.add_fact:
+            fail(
+                index,
+                "system_only_operation",
+                "add_fact 只能由系统迁移事件产生",
+            )
+            continue
         if op.op.value not in allowed:
             fail(
                 index,

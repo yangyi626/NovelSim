@@ -90,6 +90,7 @@ class NarrativePlannerCallTrace(_StrictModel):
     latency_ms: float = Field(0.0, ge=0.0)
     success: bool
     error_type: str = ""
+    error_category: str = ""
     fallback_used: bool = False
 
 
@@ -394,6 +395,7 @@ class RealLLMNarrativePlanner:
                         latency_ms=_elapsed_ms(started),
                         success=False,
                         error_type=type(exc).__name__,
+                        error_category=_planner_error_category(exc),
                     )
                 )
         raise NarrativePlannerError(
@@ -451,6 +453,79 @@ class RealLLMNarrativePlanner:
         return payload, raw, response_id, model_id
 
 
+def _planner_error_category(error: Any) -> str:
+    message = str(error or "")
+    if "stagnant dialogue loop" in message:
+        return "stagnant_dialogue"
+    if "move_to would be a no-op" in message:
+        return "immediate_noop"
+    if "precondition is not satisfied" in message:
+        return "immediate_precondition"
+    if "unknown tools" in message or "invalid arguments" in message:
+        return "schema_validation"
+    if "provider response is not a JSON object" in message:
+        return "provider_format"
+    if "model changed actor_id" in message:
+        return "actor_identity"
+    return "planner_validation"
+
+
+def _validation_repair_instruction(
+    validation_error: str,
+    observation: GameObservation,
+) -> Dict[str, Any]:
+    """Turn a failed validation into a bounded, provider-facing repair hint."""
+
+    if not validation_error:
+        return {}
+    category = _planner_error_category(validation_error)
+    if category != "stagnant_dialogue":
+        return {
+            "category": category,
+            "instruction": (
+                "上一版动作链未通过服务器校验。请重新生成完整动作链，"
+                "只使用当前 actor_observation 中可见的实体、工具和参数，"
+                "不要重复导致校验失败的动作。"
+            ),
+        }
+
+    ability_ids = [
+        str(item.ability_id)
+        for item in observation.available_abilities
+        if str(item.ability_id).strip()
+    ]
+    if ability_ids:
+        return {
+            "category": category,
+            "instruction": (
+                "这是一次停滞对话修复请求。上一版纯 talk_to 动作重复了已经"
+                "没有产生新进展的互动；本次不得再次输出 talk_to。请直接从"
+                "available_ability_ids 中选择一个与当前目标相关的能力，并只用"
+                "invoke_ability 调用它，参数仅填写对应 ability_id。目标、地点和"
+                "状态变化由世界包决定，禁止自行编造。"
+            ),
+            "available_ability_ids": ability_ids,
+            "forbidden_tool_names": ["talk_to"],
+        }
+    non_dialogue_tools = [
+        str(item.name)
+        for item in observation.available_tools
+        if str(item.name).strip() and item.name != "talk_to"
+    ]
+    return {
+        "category": category,
+        "instruction": (
+            "这是一次停滞对话修复请求。上一版纯 talk_to 动作重复了已经没有"
+            "产生新进展的互动；本次不得再次输出 talk_to。请只从"
+            "available_non_dialogue_tools 中选择当前观察和前置条件允许的动作，"
+            "并使用 actor_observation 中可见的真实参数。若没有与目标相关的合法"
+            "推进动作，不得编造能力、地点、物品或状态变化。"
+        ),
+        "available_non_dialogue_tools": non_dialogue_tools,
+        "forbidden_tool_names": ["talk_to"],
+    }
+
+
 def _actor_plan_messages(
     actor_id: str,
     observation: GameObservation,
@@ -495,6 +570,16 @@ def _actor_plan_messages(
         ],
         "stop_conditions": ["何时结束本轮短计划"],
     }
+    repair_instruction = _validation_repair_instruction(
+        validation_error,
+        observation,
+    )
+    if repair_instruction:
+        system += (
+            "上一版输出未通过服务器校验。以下修复指令优先于一般规划偏好；"
+            "必须严格遵守，并重新输出完整JSON动作链。修复指令："
+            + json.dumps(repair_instruction, ensure_ascii=False, sort_keys=True)
+        )
     user_payload = {
         "prompt_version": NARRATIVE_PLANNER_PROMPT_VERSION,
         "beat_goal": beat_goal,
@@ -513,6 +598,7 @@ def _actor_plan_messages(
         "available_tools": tools,
         "execution_feedback": feedback.dict() if feedback is not None else None,
         "previous_validation_error": validation_error or None,
+        "validation_repair": repair_instruction or None,
         "required_output": contract,
     }
     return [

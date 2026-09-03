@@ -60,6 +60,14 @@ def commit_event(
         raise CommitError(
             f"version conflict: expected {expected_version}, got {state.version}"
         )
+    if any(op.op.value == "add_fact" for op in patch.operations):
+        authority = (
+            patch.causal_evidence.authority
+            if patch.causal_evidence is not None
+            else ""
+        )
+        if authority != "system_migration":
+            raise CommitError("add_fact 只能由 system_migration 授权提交")
 
     new_state = apply_patch(state, patch)
     new_version = state.version + 1

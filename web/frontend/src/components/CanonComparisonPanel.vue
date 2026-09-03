@@ -72,7 +72,7 @@ function measuredPercent(value, minimumMatches = 1) {
           <small v-if="selectedChapter.truncated">此处仅展示章节开头摘录。</small>
         </div>
         <div v-else class="empty-copy">当前章节没有可用的原著正文。</div>
-        <aside>原著内容只供玩家与评测器对照，不会传入 LLM Planner。</aside>
+        <aside>这里展示的是原著与当前世界线的差别，不会改变你在故事中的选择。</aside>
       </article>
 
       <div v-else class="diff-view">
@@ -98,7 +98,23 @@ function measuredPercent(value, minimumMatches = 1) {
 </template>
 
 <style scoped>
-.canon-panel { display: flex; height: 100%; min-height: 0; flex-direction: column; color: var(--text); }
+.canon-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  color: var(--text);
+  background: #171a20;
+}
+.canon-heading { min-height: 70px; padding-inline: 16px; background: #1d2025; }
+.canon-heading h2 { color: #e2e5ea; }
+.canon-metrics div { padding-block: 13px; background: #191c21; }
+.canon-tabs { background: #171a20; }
+.canon-tabs button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canon-body { padding: 14px 16px 20px; }
+.anchor-item { border-color: #30343b; border-radius: 10px; background: rgba(255,255,255,.028); }
+.diff-item { border-radius: 9px; }
+
 .canon-heading { display: flex; min-height: 66px; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border-soft); }
 .canon-heading span { color: var(--text-faint); font: 600 9px/1.2 ui-monospace, monospace; letter-spacing: .14em; }
 .canon-heading h2 { margin: 4px 0 0; font-size: 14px; }

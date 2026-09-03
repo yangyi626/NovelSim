@@ -131,4 +131,38 @@ const currentIndex = computed(() => {
 .anchor-card p { margin-top: 4px; color: var(--text-dim); font-size: 11px; line-height: 1.5; }
 .anchor-meta { display: flex; justify-content: space-between; margin-top: 10px; color: var(--text-faint); font-size: 9px; }
 .anchor-meta b { color: var(--text-dim); font: 600 10px/1 ui-monospace, monospace; }
+.chapter-nav {
+  padding: 16px 14px 12px;
+}
+.novel-block {
+  padding-inline: 6px;
+  border-bottom-color: #30343b;
+}
+.novel-block h2 { color: #e2e5ea; font-size: 16px; }
+.section-label { padding: 14px 6px 8px; }
+.chapter-item {
+  position: relative;
+  gap: 11px;
+  margin-bottom: 2px;
+  padding: 10px 9px;
+  border-radius: 9px;
+}
+.chapter-item::before {
+  width: 1px;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 17px;
+  background: #30343b;
+  content: '';
+}
+.chapter-item.selected::before { background: #8ab4f8; }
+.chapter-number { position: relative; z-index: 1; min-width: 18px; text-align: center; }
+.chapter-item.current .chapter-number { color: var(--system); }
+.chapter-copy strong { font-size: 11px; }
+.anchor-card {
+  margin-top: 8px;
+  border-color: #30343b;
+  background: rgba(255,255,255,.035);
+}
 </style>

@@ -75,6 +75,35 @@ class EntityRegistry:
         """返回 alias -> canonical_id，喂给抽取器做消歧提示。"""
         return dict(self.alias_index)
 
+    def restore_from_state(self, state: WorldState) -> None:
+        """从累计世界快照恢复注册表，保证断点续编复用既有实体 ID。"""
+        self.characters = {
+            entity_id: character.copy(deep=True)
+            for entity_id, character in state.characters.items()
+        }
+        self.items = {
+            entity_id: item.copy(deep=True)
+            for entity_id, item in state.items.items()
+        }
+        self.locations = {
+            entity_id: location.copy(deep=True)
+            for entity_id, location in state.locations.items()
+        }
+        self.alias_index = {}
+        for entity_id, entity in {
+            **self.characters,
+            **self.items,
+            **self.locations,
+        }.items():
+            names = [getattr(entity, "display_name", "")]
+            names.extend(getattr(entity, "aliases", []) or [])
+            for name in names:
+                if name and name not in self.alias_index:
+                    self.alias_index[name] = entity_id
+        self._relations = [
+            relation.copy(deep=True) for relation in state.relations
+        ]
+
     def resolve_or_register_character(self, raw: RawEntity) -> str:
         """返回该角色的稳定 id。已存在则复用，否则新建。"""
         # 1. 显式指定

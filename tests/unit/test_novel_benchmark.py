@@ -84,12 +84,25 @@ def test_two_book_scan_enqueue_and_report(tmp_path, monkeypatch):
         for item in run["jobs"]
     )
     assert all(
+        store.get_job(item["job_id"]).book_id == item["book_id"]
+        for item in run["jobs"]
+    )
+    assert all(
         store.get_job(item["job_id"]).max_llm_calls >= 3
         for item in run["jobs"]
     )
 
+    run_path = tmp_path / "runs" / f"{run['run_id']}.json"
+    original = run_path.read_text(encoding="utf-8")
+    pure = benchmark_module.build_benchmark_report(
+        json.loads(original),
+        store,
+    )
+    assert pure["completed"] is False
+    assert run_path.read_text(encoding="utf-8") == original
+
     report = benchmark_module.benchmark_report(
-        tmp_path / "runs" / f"{run['run_id']}.json",
+        run_path,
         store,
     )
     assert report["completed"] is False

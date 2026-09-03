@@ -34,11 +34,29 @@ async function parseResponse(resp) {
   return resp.json()
 }
 
-export async function startSession(packageId = 'huarong_lane') {
+export async function startSession(packageId = 'huarong_lane', options = {}) {
   const resp = await fetch('/api/start', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ package_id: packageId }),
+    body: JSON.stringify({
+      package_id: packageId,
+      book_id: options.bookId || '',
+      entry_id: options.entryId || '',
+      save_name: options.saveName || '',
+    }),
+  })
+  return parseResponse(resp)
+}
+
+export async function listBooks() {
+  const resp = await fetch('/api/books', { headers: authHeaders({ json: false }) })
+  return parseResponse(resp)
+}
+
+export async function listBookChapters(bookId, { includeContent = false } = {}) {
+  const query = includeContent ? '?include_content=true' : ''
+  const resp = await fetch(`/api/books/${encodeURIComponent(bookId)}/chapters${query}`, {
+    headers: authHeaders({ json: false }),
   })
   return parseResponse(resp)
 }
@@ -68,6 +86,18 @@ export async function deleteSave(sessionId) {
   const resp = await fetch(`/api/saves/${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',
     headers: authHeaders({ json: false }),
+  })
+  return parseResponse(resp)
+}
+
+export async function clearHistoricalSaves(preserveSessionId = '', confirmation = '') {
+  const resp = await fetch('/api/saves/clear-history', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      preserve_session_id: preserveSessionId || '',
+      confirmation,
+    }),
   })
   return parseResponse(resp)
 }
@@ -203,12 +233,32 @@ export async function getCompilationJob(jobId) {
   return parseResponse(resp)
 }
 
+export async function getCompilationJobReport(jobId) {
+  const resp = await fetch(
+    `/api/creator/compiler/jobs/${encodeURIComponent(jobId)}/report`,
+    { headers: authHeaders({ json: false }) },
+  )
+  return parseResponse(resp)
+}
+
 export async function createCompilationJob(payload) {
   const resp = await fetch('/api/creator/compiler/jobs', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(payload),
   })
+  return parseResponse(resp)
+}
+
+export async function extendCompilationBudget(jobId, additionalLlmCalls, reason = '') {
+  const resp = await fetch(
+    `/api/creator/compiler/jobs/${encodeURIComponent(jobId)}/budget`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ additional_llm_calls: additionalLlmCalls, reason }),
+    },
+  )
   return parseResponse(resp)
 }
 
@@ -241,6 +291,98 @@ export async function getPlayerView(sessionId) {
   const resp = await fetch(`/api/player-view?session=${encodeURIComponent(sessionId)}`, {
     headers: authHeaders({ json: false }),
   })
+  return parseResponse(resp)
+}
+
+export async function rewriteManuscriptPassage(
+  sessionId,
+  passageId,
+  expectedRevision,
+) {
+  const resp = await fetch(
+    `/api/manuscript/passages/${encodeURIComponent(passageId)}/retry`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        session_id: sessionId,
+        rewrite_ready: true,
+        expected_revision: expectedRevision,
+      }),
+    },
+  )
+  return parseResponse(resp)
+}
+
+export async function getManuscriptPassageRevisions(sessionId, passageId) {
+  const resp = await fetch(
+    `/api/manuscript/passages/${encodeURIComponent(passageId)}/revisions?session=${encodeURIComponent(sessionId)}`,
+    { headers: authHeaders({ json: false }) },
+  )
+  return parseResponse(resp)
+}
+
+export async function selectManuscriptPassageRevision(
+  sessionId,
+  passageId,
+  revisionNumber,
+  expectedRevision,
+) {
+  const resp = await fetch(
+    `/api/manuscript/passages/${encodeURIComponent(passageId)}/select-revision`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        session_id: sessionId,
+        revision_number: revisionNumber,
+        expected_revision: expectedRevision,
+      }),
+    },
+  )
+  return parseResponse(resp)
+}
+
+export async function getWorldRunDashboard(sessionId) {
+  const resp = await fetch(
+    `/api/world-runs/${encodeURIComponent(sessionId)}/dashboard`,
+    { headers: authHeaders({ json: false }) },
+  )
+  return parseResponse(resp)
+}
+
+export async function getSettlement(sessionId) {
+  const resp = await fetch(
+    `/api/world-runs/${encodeURIComponent(sessionId)}/settlement`,
+    { headers: authHeaders({ json: false }) },
+  )
+  return parseResponse(resp)
+}
+
+export async function settleWorldRun(sessionId, payload = {}) {
+  const resp = await fetch(
+    `/api/world-runs/${encodeURIComponent(sessionId)}/settlement`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
+  return parseResponse(resp)
+}
+
+export async function transitionWorldRun(sessionId, targetPackageId, idempotencyKey) {
+  const resp = await fetch(
+    `/api/world-runs/${encodeURIComponent(sessionId)}/transitions`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        target_package_id: targetPackageId,
+        idempotency_key: idempotencyKey,
+      }),
+    },
+  )
   return parseResponse(resp)
 }
 
